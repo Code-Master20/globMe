@@ -1,14 +1,16 @@
-function ErrorHandler(statusCode, message) {
+function ErrorHandler(statusCode, message, id = null) {
   //constructor function
   this.statusCode = statusCode || 500;
   this.success = false;
   this.message = message || "Something went wrong";
+  this.id = id;
 }
 
 ErrorHandler.prototype.send = function (res) {
   return res.status(this.statusCode).json({
     success: this.success,
     message: this.message,
+    id: this.id,
   });
 };
 

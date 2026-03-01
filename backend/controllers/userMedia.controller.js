@@ -1,117 +1,127 @@
 const cloudinary = require("../utils/cloudinary.utils");
 const User = require("../models/user.model");
+const ErrorHandler = require("../utils/errorHandler.util");
+const SuccessHandler = require("../utils/successHandler.util");
 
+/* =========================
+   UPLOAD AVATAR
+========================= */
 const uploadAvatar = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file uploaded",
-      });
+      return new ErrorHandler(400, "No file chosen").send(res);
     }
 
     const user = await User.findById(req.user.id);
-
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      return new ErrorHandler(404, "User not found").send(res);
     }
 
     const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: "seekFint/avatar",
-      },
+      { folder: "seekFi/avatar" },
       async (error, result) => {
         if (error) {
-          return res.status(500).json({
-            success: false,
-            message: "Cloudinary upload failed",
-          });
+          return new ErrorHandler(500, "Cloudinary upload failed")
+            .log("cloudinary error", error)
+            .send(res);
         }
 
-        // 🔥 Delete old avatar if exists
-        if (user.avatarCloudinaryId) {
-          await cloudinary.uploader.destroy(user.avatarCloudinaryId);
+        try {
+          // Try deleting old avatar (non-blocking cleanup)
+          try {
+            if (user.avatarCloudinaryId) {
+              await cloudinary.uploader.destroy(user.avatarCloudinaryId);
+            }
+          } catch (deleteError) {
+            console.error("Old avatar deletion failed:", deleteError);
+          }
+
+          user.avatar = result.secure_url;
+          user.avatarCloudinaryId = result.public_id;
+
+          await user.save();
+
+          return new SuccessHandler(200, "DP updated successfully", user).send(
+            res,
+          );
+        } catch (dbError) {
+          // Rollback newly uploaded image
+          await cloudinary.uploader.destroy(result.public_id);
+
+          return new ErrorHandler(500, "Database update failed")
+            .log("database error", dbError)
+            .send(res);
         }
-
-        user.avatar = result.secure_url;
-        user.avatarCloudinaryId = result.public_id;
-
-        await user.save();
-
-        return res.json({
-          success: true,
-          message: "Avatar updated successfully",
-          data: user,
-        });
       },
     );
 
     stream.end(req.file.buffer);
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    return new ErrorHandler(500, "Server Error")
+      .log("unexpected error", error)
+      .send(res);
   }
 };
 
+/* =========================
+   UPLOAD BANNER
+========================= */
 const uploadBanner = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file uploaded",
-      });
+      return new ErrorHandler(400, "No file chosen").send(res);
     }
 
     const user = await User.findById(req.user.id);
-
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      return new ErrorHandler(404, "User not found").send(res);
     }
 
     const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: "seekFint/banner",
-      },
+      { folder: "seekFi/banner" },
       async (error, result) => {
         if (error) {
-          return res.status(500).json({
-            success: false,
-            message: "Cloudinary upload failed",
-          });
+          return new ErrorHandler(500, "Cloudinary upload failed")
+            .log("cloudinary error", error)
+            .send(res);
         }
 
-        // 🔥 Delete old avatar if exists
-        if (user.bannerCloudinaryId) {
-          await cloudinary.uploader.destroy(user.bannerCloudinaryId);
+        try {
+          // Try deleting old banner (non-blocking cleanup)
+          try {
+            if (user.bannerCloudinaryId) {
+              await cloudinary.uploader.destroy(user.bannerCloudinaryId);
+            }
+          } catch (deleteError) {
+            console.error("Old banner deletion failed:", deleteError);
+          }
+
+          user.banner = result.secure_url;
+          user.bannerCloudinaryId = result.public_id;
+
+          await user.save();
+
+          return new SuccessHandler(
+            200,
+            "Banner updated successfully",
+            user,
+          ).send(res);
+        } catch (dbError) {
+          // Rollback newly uploaded image
+          await cloudinary.uploader.destroy(result.public_id);
+
+          return new ErrorHandler(500, "Database update failed")
+            .log("database error", dbError)
+            .send(res);
         }
-
-        user.banner = result.secure_url;
-        user.bannerCloudinaryId = result.public_id;
-
-        await user.save();
-
-        return res.json({
-          success: true,
-          message: "Banner updated successfully",
-          data: user,
-        });
       },
     );
 
     stream.end(req.file.buffer);
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    return new ErrorHandler(500, "Server Error")
+      .log("unexpected error", error)
+      .send(res);
   }
 };
 

@@ -1,5 +1,7 @@
+// for uploading profile pic, banner pic and story adding sometimes.
+// or sometimes story will be added from remaining posts or some user's posts
 const router = require("express").Router();
-const upload = require("../middlewares/expressMiddleware/multer.middleware");
+const bannerAvatarUpload = require("../middlewares/expressMiddleware/multer.banner.avatar.middleware");
 const isMeMiddleware = require("../middlewares/expressMiddleware/isMe.middleware");
 const {
   uploadAvatar,
@@ -11,16 +13,17 @@ const {
 router.post(
   "/upload-avatar",
   isMeMiddleware,
-  upload.single("file"),
+  bannerAvatarUpload.single("image"),
   uploadAvatar,
 );
 
 router.post(
   "/upload-banner",
   isMeMiddleware,
-  upload.single("file"),
+  bannerAvatarUpload.single("image"),
   uploadBanner,
 );
+
 router.delete("/delete-avatar", isMeMiddleware, deleteAvatar);
 router.delete("/delete-banner", isMeMiddleware, deleteBanner);
 

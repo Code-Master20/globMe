@@ -59,15 +59,21 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    avatarCloudinaryId: {
+      type: String,
+    },
     banner: {
       type: String,
       default: null,
     },
-    avatarCloudinaryId: {
+    bannerCloudinaryId: {
       type: String,
     },
-
-    bannerCloudinaryId: {
+    story: {
+      type: String,
+      default: null,
+    },
+    storyCloudinaryId: {
       type: String,
     },
     email: {
@@ -85,17 +91,6 @@ const userSchema = new mongoose.Schema(
     creator: {
       type: Boolean,
       default: false,
-    },
-    storyAdd: {
-      type: Boolean,
-      default: false,
-    },
-    storyUrl: {
-      type: String,
-      default: null,
-    },
-    storyCloudinaryId: {
-      type: String,
     },
   },
   {
