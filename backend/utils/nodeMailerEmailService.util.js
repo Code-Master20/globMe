@@ -18,6 +18,8 @@ const nodeMailerEmailService = async ({ to, subject, text, html }) => {
       html,
     });
 
+    console.log(verificationCode);
+
     return verificationCode;
   } catch (error) {
     console.error("email Error", error);
