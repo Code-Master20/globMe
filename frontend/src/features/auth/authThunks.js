@@ -89,6 +89,7 @@ export const otpVerifiedAndSignedUp = createAsyncThunk(
   },
 );
 
+//==========================sending otp before log-in verification=======================
 export const logInOtpReceived = createAsyncThunk(
   "auth/log-in-otp",
   async (clientCredentials, thunkAPI) => {
@@ -96,6 +97,7 @@ export const logInOtpReceived = createAsyncThunk(
       const response = await api.post("/auth/log-in", clientCredentials);
       return response.data;
     } catch (error) {
+      console.log(error.response);
       let brokenResponse = {
         status: null,
         message: "",

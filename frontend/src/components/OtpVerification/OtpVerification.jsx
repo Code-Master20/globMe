@@ -11,6 +11,7 @@ import { resetOtpLockState } from "../../features/auth/authSlice";
 import { InvalidInputTracker } from "../InvalidInputTracker/InvalidInputTracker";
 
 export const OtpVerification = () => {
+  sessionStorage.removeItem("toastPopped");
   const hasRedirected = useRef(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -22,6 +23,7 @@ export const OtpVerification = () => {
     successMessage,
     errorMessage,
     id,
+    success,
   } = useSelector((state) => state.auth);
 
   const storedUser = JSON.parse(localStorage.getItem("user"));
@@ -86,6 +88,7 @@ export const OtpVerification = () => {
 
       if (otpVerifiedAndSignedUp.fulfilled.match(resultAction)) {
         setLoading(false);
+        navigate("/home-feed", { replace: true });
       }
     }
     if (purpose === "login" || storedPurpose === "login") {
@@ -108,6 +111,7 @@ export const OtpVerification = () => {
 
       if (otpVerifiedAndLoggedIn.fulfilled.match(resultAction)) {
         setLoading(false);
+        navigate("/home-feed", { replace: true });
       }
     }
   };
@@ -120,11 +124,57 @@ export const OtpVerification = () => {
     }
   };
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/home-feed");
+  //otp expiry countdown
+  const OTP_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  const [expiryTime, setExpiryTime] = useState(() => {
+    const storedExpiry = localStorage.getItem("otpExpiry");
+
+    if (storedExpiry) {
+      return parseInt(storedExpiry);
     }
-  }, [isAuthenticated, navigate, successMessage]);
+
+    const newExpiry = Date.now() + OTP_DURATION;
+    localStorage.setItem("otpExpiry", newExpiry);
+    console.log(newExpiry);
+
+    return newExpiry;
+  });
+
+  const [timeLeft, setTimeLeft] = useState(
+    Math.max(0, expiryTime - Date.now()),
+  );
+
+  const [otpExpired, setOtpExpired] = useState(false);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, expiryTime - Date.now());
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(interval);
+        localStorage.removeItem("otpExpiry");
+
+        dispatch(resetOtpLockState());
+
+        setOtpExpired(true);
+
+        const redirectTimer = setTimeout(() => {
+          navigate(purpose === "signup" ? "/signup" : "/login", {
+            replace: true,
+          });
+        }, 2000);
+
+        return () => clearTimeout(redirectTimer);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [expiryTime, dispatch, navigate, purpose]);
+
+  const minutes = Math.floor(timeLeft / 60000);
+  const seconds = Math.floor((timeLeft % 60000) / 1000);
+  const formattedTime = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
 
   useEffect(() => {
     if (!id) return;
@@ -161,9 +211,18 @@ export const OtpVerification = () => {
     );
   }
 
+  if (otpExpired) {
+    return (
+      <section className={styles["form-loading-state"]}>
+        <h1>Otp Expired! redirecting to {purpose}!</h1>
+      </section>
+    );
+  }
+
   return (
     <>
       <main className={styles["main-container-first-otp"]}>
+        <section>{formattedTime}</section>
         <section className={styles["main-container-second"]}>
           <article className={styles["main-container-third"]}>
             <h1 className={styles["login-main-heading"]}>please verify otp</h1>

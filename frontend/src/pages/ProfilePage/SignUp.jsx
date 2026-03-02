@@ -10,6 +10,7 @@ import { FaRegEyeSlash } from "react-icons/fa6";
 import { toast } from "react-toastify";
 
 export const SignUp = () => {
+  localStorage.removeItem("otpExpiry");
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
