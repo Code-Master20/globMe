@@ -1,6 +1,6 @@
 import styles from "./Profile.module.css";
-import bannerImg from "../../assets/bannerImg.png";
-import profilePic from "../../assets/profilePic.jpg";
+import noBanner from "../../assets/noBanner.png";
+import noProfile from "../../assets/noProfile.png";
 
 import { RiImageEditLine, RiImageCircleAiFill } from "react-icons/ri";
 import { MdEditLocationAlt } from "react-icons/md";
@@ -30,7 +30,7 @@ export const Profile = () => {
       <section className={styles.contentContainer}>
         {/* ================= Banner ================= */}
         <div className={styles.bannerWrapper}>
-          <img src={bannerImg} alt="Banner" className={styles.bannerImg} />
+          <img src={noBanner} alt="Banner" className={styles.bannerImg} />
 
           <ImageUpload
             Icon={RiImageEditLine}
@@ -44,7 +44,7 @@ export const Profile = () => {
             <div className={styles.profileLeft}>
               <article className={styles["profile-pic-container"]}>
                 <img
-                  src={profilePic}
+                  src={noProfile}
                   alt="Profile"
                   height={profileSize}
                   className={styles.profilePic}

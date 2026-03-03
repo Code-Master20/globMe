@@ -6,7 +6,7 @@ import { IoIosNotificationsOutline } from "react-icons/io";
 import { TbPhotoVideo } from "react-icons/tb";
 import { TfiBarChart } from "react-icons/tfi";
 import { NavLink } from "react-router-dom";
-import profilePic from "../../assets/profilePic.jpg";
+import noProfile from "../../assets/noProfile.png";
 import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -55,7 +55,7 @@ export const HeaderTwo = () => {
           <IoIosNotificationsOutline />
         </NavLink>
         <NavLink to="/profile">
-          <img src={profilePic} alt="me" />
+          <img src={noProfile} alt="me" />
         </NavLink>
       </nav>
     </header>

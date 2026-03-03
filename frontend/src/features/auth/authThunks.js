@@ -97,7 +97,6 @@ export const logInOtpReceived = createAsyncThunk(
       const response = await api.post("/auth/log-in", clientCredentials);
       return response.data;
     } catch (error) {
-      console.log(error.response);
       let brokenResponse = {
         status: null,
         message: "",

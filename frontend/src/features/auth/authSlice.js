@@ -116,11 +116,11 @@ const authSlice = createSlice({
       })
       // ============================== LOG-IN OTP =================================
       .addCase(logInOtpReceived.pending, (state, action) => {
-        state.loading = true;
+        state.formLoading = true;
         state.otp.sent = false; //means otp is pending to be sent
       })
       .addCase(logInOtpReceived.fulfilled, (state, action) => {
-        state.loading = false;
+        state.formLoading = false;
         state.otp.sent = action.payload.success; //success = true from backend
         state.success = action.payload.success;
         state.status = action.payload.status;
@@ -137,7 +137,7 @@ const authSlice = createSlice({
         localStorage.setItem("purpose", JSON.stringify("login"));
       })
       .addCase(logInOtpReceived.rejected, (state, action) => {
-        state.loading = false;
+        state.formLoading = false;
         state.otp.sent = action.payload.success; //success = false; from backend
         state.successMessage = null;
         state.errorMessage = action.payload.message; //message = "failed to send verification code" from backend
@@ -146,11 +146,11 @@ const authSlice = createSlice({
       })
       // =====================VERIFY LOG IN OTP AND AUTO LOG IN =====================
       .addCase(otpVerifiedAndLoggedIn.pending, (state, action) => {
-        state.loading = true;
+        state.formLoading = true;
         state.otp.verifying = true; //means otp is verified
       })
       .addCase(otpVerifiedAndLoggedIn.fulfilled, (state, action) => {
-        state.loading = false;
+        state.formLoading = false;
         state.otp.verifying = false;
         state.otp.verified = action.payload.success; //means otp is successfully verified
         state.successMessage = action.payload.message;
@@ -165,7 +165,7 @@ const authSlice = createSlice({
         );
       })
       .addCase(otpVerifiedAndLoggedIn.rejected, (state, action) => {
-        state.loading = false;
+        state.formLoading = false;
         state.otp.verifying = false; //means otp is not verifying
         state.otp.verified = action.payload.success; //here success=false means otp cannot be verified
         state.successMessage = null;

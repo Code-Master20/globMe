@@ -4,12 +4,18 @@ import style from "./SignUp.module.css";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logInOtpReceived } from "../../features/auth/authThunks";
+import { InvalidInputTracker } from "../../components/InvalidInputTracker/InvalidInputTracker";
 
 export const LogIn = () => {
+  const storedOtp = localStorage.getItem("otp-sent");
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { user, successMessage, errorMessage, loading, isAuthenticated, otp } =
-    useSelector((state) => state.auth);
+  const [loading, setLoading] = useState(false);
+  const { user, successMessage, isAuthenticated, otp } = useSelector(
+    (state) => state.auth,
+  );
+
+  const otpSent = storedOtp ? storedOtp : false;
 
   const [clientCredentials, setClientCredentials] = useState({
     email: "",
@@ -21,16 +27,39 @@ export const LogIn = () => {
     setClientCredentials((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const [path, setPath] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     const trimedClientCredentials = {
       email: clientCredentials.email.trim().toLowerCase(),
       password: clientCredentials.password.trim(),
     };
 
-    dispatch(logInOtpReceived(trimedClientCredentials));
+    const resultAction = await dispatch(
+      logInOtpReceived(trimedClientCredentials),
+    );
 
-    if (otp.sent) {
+    if (logInOtpReceived.rejected.match(resultAction)) {
+      setLoading(false);
+      const error = resultAction.payload?.message;
+      if (
+        error &&
+        typeof error === "object" &&
+        Array.isArray(error.path) &&
+        error.path.length > 0
+      ) {
+        const field = error.path[0];
+        setPath(field);
+        setErrorMsg(error.msg);
+      }
+    }
+
+    if (logInOtpReceived.fulfilled.match(resultAction)) {
+      setLoading(false);
+      navigate("/verify-otp", { replace: true });
+
       setClientCredentials((prev) => ({
         ...prev,
         email: "",
@@ -39,12 +68,17 @@ export const LogIn = () => {
     }
   };
 
-  // ✅ navigate to otp page after otp sent
-  useEffect(() => {
-    if (otp.sent) {
-      navigate("/verify-otp");
-    }
-  }, [otp.sent, navigate]);
+  const email = "email";
+  if (loading) {
+    return (
+      <section className={styles["form-loading-state"]}>
+        <h1>
+          sending otp to{" "}
+          {clientCredentials.email ? clientCredentials.email : email}
+        </h1>
+      </section>
+    );
+  }
 
   return (
     <main className={styles["main-container-first"]}>
@@ -63,6 +97,12 @@ export const LogIn = () => {
                   value={clientCredentials.email}
                   onChange={handleOnChange}
                 />
+                {path === "email" && errorMsg && (
+                  <InvalidInputTracker
+                    className={styles["invalid-input-tracker"]}
+                    inputErrorString={errorMsg}
+                  />
+                )}
               </div>
 
               <div className={styles["input-elm"]}>
@@ -75,6 +115,12 @@ export const LogIn = () => {
                   value={clientCredentials.password}
                   onChange={handleOnChange}
                 />
+                {path === "password" && errorMsg && (
+                  <InvalidInputTracker
+                    className={styles["invalid-input-tracker"]}
+                    inputErrorString={errorMsg}
+                  />
+                )}
               </div>
 
               <div className={styles["btn-container"]}>

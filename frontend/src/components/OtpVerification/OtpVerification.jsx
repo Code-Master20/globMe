@@ -154,6 +154,9 @@ export const OtpVerification = () => {
       if (remaining <= 0) {
         clearInterval(interval);
         localStorage.removeItem("otpExpiry");
+        localStorage.removeItem("user");
+        localStorage.removeItem("otp-sent");
+        localStorage.removeItem("purpose");
 
         dispatch(resetOtpLockState());
 
@@ -174,7 +177,7 @@ export const OtpVerification = () => {
 
   const minutes = Math.floor(timeLeft / 60000);
   const seconds = Math.floor((timeLeft % 60000) / 1000);
-  const formattedTime = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+  const formattedTime = `${minutes}:${seconds < 10 ? "0" : ""}${seconds} ${minutes === 0 ? "sec" : "min"}`;
 
   useEffect(() => {
     if (!id) return;
@@ -214,7 +217,7 @@ export const OtpVerification = () => {
   if (otpExpired) {
     return (
       <section className={styles["form-loading-state"]}>
-        <h1>Otp Expired! redirecting to {purpose}!</h1>
+        <h1>Otp Expired! redirecting to {purpose} page again!</h1>
       </section>
     );
   }
@@ -222,7 +225,10 @@ export const OtpVerification = () => {
   return (
     <>
       <main className={styles["main-container-first-otp"]}>
-        <section>{formattedTime}</section>
+        <section className={styles["count-down"]}>
+          <p>Time Remains</p>
+          <h1>{formattedTime}</h1>
+        </section>
         <section className={styles["main-container-second"]}>
           <article className={styles["main-container-third"]}>
             <h1 className={styles["login-main-heading"]}>please verify otp</h1>
