@@ -1,21 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import styles from "./LogInSignUp.module.css";
 import style from "./SignUp.module.css";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logInOtpReceived } from "../../features/auth/authThunks";
 import { InvalidInputTracker } from "../../components/InvalidInputTracker/InvalidInputTracker";
+import { toast } from "react-toastify";
 
 export const LogIn = () => {
   const storedOtp = localStorage.getItem("otp-sent");
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [loading, setLoading] = useState(false);
-  const { user, successMessage, isAuthenticated, otp } = useSelector(
-    (state) => state.auth,
-  );
-
-  const otpSent = storedOtp ? storedOtp : false;
+  const { user, successMessage, isAuthenticated, otp, errorMessage } =
+    useSelector((state) => state.auth);
 
   const [clientCredentials, setClientCredentials] = useState({
     email: "",
@@ -28,7 +26,12 @@ export const LogIn = () => {
   };
 
   const [path, setPath] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
+  const [timerIdArr, setTimerIdArr] = useState([]);
+
+  const activeAccountNotFoundToast = (accountNotFoundError) => {
+    toast.warn(accountNotFoundError);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -42,8 +45,24 @@ export const LogIn = () => {
     );
 
     if (logInOtpReceived.rejected.match(resultAction)) {
-      setLoading(false);
+      setLoading(false); // stop loading
       const error = resultAction.payload?.message;
+      let id = setTimeout(() => {
+        setPath("");
+      }, 5000);
+      setTimerIdArr((prev) => [...prev, id]);
+
+      //clearing all timerId except the last one
+      if (timerIdArr.length > 1) {
+        for (let index = 0; index < timerIdArr.length; index++) {
+          clearTimeout(timerIdArr[index]);
+        }
+      }
+
+      if (typeof error === "string") {
+        activeAccountNotFoundToast(error);
+      }
+
       if (
         error &&
         typeof error === "object" &&
@@ -52,8 +71,9 @@ export const LogIn = () => {
       ) {
         const field = error.path[0];
         setPath(field);
-        setErrorMsg(error.msg);
       }
+
+      return; // ⛔ stop further execution
     }
 
     if (logInOtpReceived.fulfilled.match(resultAction)) {
@@ -67,6 +87,29 @@ export const LogIn = () => {
       }));
     }
   };
+
+  const handleFocus = (e) => {
+    if (path === e.target.name) {
+      setPath("");
+    }
+  };
+
+  useEffect(() => {
+    if (loading) {
+      const timer = setTimeout(() => {
+        setPath("");
+      }, 5000);
+      setTimerIdArr((prev) => [...prev, timer]);
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    if (successMessage) {
+      setTimeout(() => {
+        toast.success(successMessage);
+      }, 600);
+    }
+  }, [successMessage]);
 
   const email = "email";
   if (loading) {
@@ -96,11 +139,12 @@ export const LogIn = () => {
                   placeholder="your email"
                   value={clientCredentials.email}
                   onChange={handleOnChange}
+                  onFocus={handleFocus}
                 />
-                {path === "email" && errorMsg && (
+                {path === "email" && errorMessage?.msg && (
                   <InvalidInputTracker
                     className={styles["invalid-input-tracker"]}
-                    inputErrorString={errorMsg}
+                    inputErrorString={errorMessage.msg}
                   />
                 )}
               </div>
@@ -114,11 +158,12 @@ export const LogIn = () => {
                   placeholder="your password"
                   value={clientCredentials.password}
                   onChange={handleOnChange}
+                  onFocus={handleFocus}
                 />
-                {path === "password" && errorMsg && (
+                {path === "password" && errorMessage?.msg && (
                   <InvalidInputTracker
                     className={styles["invalid-input-tracker"]}
-                    inputErrorString={errorMsg}
+                    inputErrorString={errorMessage.msg}
                   />
                 )}
               </div>
