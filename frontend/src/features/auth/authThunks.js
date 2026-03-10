@@ -130,13 +130,15 @@ export const otpVerifiedAndLoggedIn = createAsyncThunk(
         message: "",
         success: null,
         status: null,
+        id: null,
       };
 
-      const { message, success } = error.response.data;
+      const { message, success, id } = error.response.data;
       const { status } = error.response;
       brokenResponse.message = message;
       brokenResponse.success = success;
       brokenResponse.status = status;
+      brokenResponse.id = id;
       return thunkAPI.rejectWithValue(brokenResponse);
     }
   },

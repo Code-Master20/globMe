@@ -1,5 +1,6 @@
+import style from "./OtpVerification.module.css";
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, replace, useNavigate } from "react-router-dom";
 import styles from "../../pages/ProfilePage/LogInSignUp.module.css";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -11,213 +12,196 @@ import { resetOtpLockState } from "../../features/auth/authSlice";
 import { InvalidInputTracker } from "../InvalidInputTracker/InvalidInputTracker";
 
 export const OtpVerification = () => {
-  sessionStorage.removeItem("toastPopped");
-  const hasRedirected = useRef(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const {
-    user,
-    isAuthenticated,
-    purpose,
-    formLoading,
-    successMessage,
-    errorMessage,
-    id,
-    success,
-  } = useSelector((state) => state.auth);
-
-  const storedUser = JSON.parse(localStorage.getItem("user"));
-  const storedPurpose = JSON.parse(localStorage.getItem("purpose"));
-
+  const { errorMessage, id } = useSelector((state) => state.auth);
+  //=======================receiving credentials from input fields for sending to backend====================
+  //============================================handleOnChange===============================================
+  const storedUser = JSON.parse(localStorage.getItem("user")) || null;
   const [clientCredentials, setClientCredentials] = useState({
     email: storedUser ? storedUser.email : "",
-    otp: "",
-    purpose: storedPurpose ? storedPurpose : purpose,
+    otp: storedUser?.otp ? storedUser.otp : "",
+    purpose: storedUser ? storedUser.purpose : "",
   });
+  const debounceRef = useRef(null);
 
-  useEffect(() => {
-    if (user?.email) {
+  function handleOnChange(event) {
+    let { name, value } = event.target;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
       setClientCredentials((prev) => ({
         ...prev,
-        email: user.email,
+        [name]: value.trim(),
       }));
-    }
 
-    if (!user?.email) {
-      if (storedUser?.email) {
-        setClientCredentials((prev) => ({
-          ...prev,
-          email: storedUser.email,
-        }));
-      }
-    }
-  }, [user]);
+      setTimeout(() => {
+        const storedUser = JSON.parse(localStorage.getItem("user")) || {};
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            ...storedUser,
+            otp: value.trim(),
+          }),
+        );
+      }, 200);
+    }, 1000);
+  }
 
-  const handleOnChange = async (e) => {
-    const { name, value } = e.target;
-    setClientCredentials((prev) => ({ ...prev, [name]: value }));
-  };
+  //========================sending inputted credentials to backend with a function==========================
+  //=======================================handleOnSubmit====================================================
+  const storedTries = JSON.parse(localStorage.getItem("tries")) || 5;
+  const storedTimes = JSON.parse(localStorage.getItem("timeRemains")) || 300;
 
-  const [focus, setFocus] = useState(true);
-  const [timerId, setTimerId] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [path, setPath] = useState(null);
+  const [timerIdArr, setTimerIdArr] = useState([]);
+  const purpose = storedUser ? storedUser.purpose : null;
+  const [redirect, setRedirect] = useState(false);
+  const [tries, setTries] = useState(storedTries);
+  const [timeRemains, setTimeRemains] = useState(storedTimes);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setFocus(true);
-
-    if (purpose === "signup" || storedPurpose === "signup") {
-      const resultAction = await dispatch(
-        otpVerifiedAndSignedUp(clientCredentials),
-      );
-
-      if (otpVerifiedAndSignedUp.rejected.match(resultAction)) {
-        setLoading(false);
-        const timer = setTimeout(() => {
-          setFocus(false);
-        }, 5000);
-        setTimerId((prev) => [...prev, timer]);
-
-        if (timerId.length > 1) {
-          for (let index = 0; index < timerId.length; index++) {
-            clearTimeout(timerId[index]);
-          }
-        }
-      }
-
-      if (otpVerifiedAndSignedUp.fulfilled.match(resultAction)) {
-        setLoading(false);
-        navigate("/home-feed", { replace: true });
+  function onSubmitHelper(resultAction) {
+    setLoading(false);
+    const error = resultAction.payload?.message;
+    if (timerIdArr) {
+      for (let index = 0; index < timerIdArr.length; index++) {
+        clearTimeout(timerIdArr[index]);
       }
     }
-    if (purpose === "login" || storedPurpose === "login") {
+    const timer = setTimeout(() => {
+      setPath(null);
+    }, 5000);
+
+    setTimerIdArr((prev) => ({ ...prev, timer }));
+
+    if (typeof error === "string" && error.length <= 15) {
+      setPath("otp");
+      if (clientCredentials.otp.length > 0) {
+        setTries((prev) => prev - 1);
+        localStorage.setItem(
+          "tries",
+          JSON.stringify(storedTries ? storedTries - 1 : 5),
+        );
+      }
+    }
+
+    if (typeof error === "string" && error.length >= 25) {
+      toast.warn(error);
+      setRedirect((prev) => !prev);
+      const timer = setTimeout(() => {
+        navigate(`/${purpose}`, { replace: true });
+      }, 4000);
+    }
+  }
+
+  async function handleOnSubmit(event) {
+    event.preventDefault();
+    setLoading(true);
+
+    //verifying otp for log-in success
+    if (purpose === "login") {
       const resultAction = await dispatch(
         otpVerifiedAndLoggedIn(clientCredentials),
       );
 
       if (otpVerifiedAndLoggedIn.rejected.match(resultAction)) {
-        setLoading(false);
-        const timer = setTimeout(() => {
-          setFocus(false);
-        }, 5000);
-        setTimerId((prev) => [...prev, timer]);
-        if (timerId.length > 1) {
-          for (let index = 0; index < timerId.length; index++) {
-            clearTimeout(timerId[index]);
-          }
-        }
+        onSubmitHelper(resultAction);
+        return;
       }
 
       if (otpVerifiedAndLoggedIn.fulfilled.match(resultAction)) {
         setLoading(false);
-        navigate("/home-feed", { replace: true });
+        const success = resultAction.payload?.message;
+        toast.success(success);
       }
     }
-  };
 
-  const handleFocus = (e) => {
-    setFocus(false);
+    //verifying otp for sign-up success
+    if (purpose === "signup") {
+      const resultAction = await dispatch(
+        otpVerifiedAndSignedUp(clientCredentials),
+      );
 
-    for (let index = 0; index < timerId.length; index++) {
-      clearTimeout(timerId[index + 1]);
-    }
-  };
+      if (otpVerifiedAndSignedUp.rejected.match(resultAction)) {
+        onSubmitHelper(resultAction);
+        return;
+      }
 
-  //otp expiry countdown
-  const OTP_DURATION = 5 * 60 * 1000; // 5 minutes
-
-  const [expiryTime, setExpiryTime] = useState(() => {
-    const storedExpiry = localStorage.getItem("otpExpiry");
-
-    if (storedExpiry) {
-      return parseInt(storedExpiry);
-    }
-
-    const newExpiry = Date.now() + OTP_DURATION;
-    localStorage.setItem("otpExpiry", newExpiry);
-    console.log(newExpiry);
-
-    return newExpiry;
-  });
-
-  const [timeLeft, setTimeLeft] = useState(
-    Math.max(0, expiryTime - Date.now()),
-  );
-
-  const [otpExpired, setOtpExpired] = useState(false);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, expiryTime - Date.now());
-      setTimeLeft(remaining);
-
-      if (remaining <= 0) {
-        clearInterval(interval);
-        localStorage.removeItem("otpExpiry");
+      if (otpVerifiedAndSignedUp.fulfilled.match(resultAction)) {
+        setLoading(false);
+        const success = resultAction.payload?.message;
+        toast.success(success);
         localStorage.removeItem("user");
-        localStorage.removeItem("otp-sent");
-        localStorage.removeItem("purpose");
-
-        dispatch(resetOtpLockState());
-
-        setOtpExpired(true);
-
-        const redirectTimer = setTimeout(() => {
-          navigate(purpose === "signup" ? "/signup" : "/login", {
-            replace: true,
-          });
-        }, 2000);
-
-        return () => clearTimeout(redirectTimer);
+        localStorage.removeItem("timeRemains");
       }
+    }
+  }
+
+  //====================redirecting user if opt is not valid or otp expired==================================
+
+  useEffect(() => {
+    if (redirect) {
+      localStorage.removeItem("tries");
+    }
+  }, [redirect]);
+
+  useEffect(() => {
+    if (timeRemains === 0) {
+      localStorage.removeItem("timeRemains");
+      toast.warn("otp expired! please request a new otp");
+      setRedirect((prev) => !prev);
+      setTimeout(() => {
+        if (purpose) {
+          navigate(`/${purpose}`);
+        }
+      }, 3000);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      localStorage.setItem("timeRemains", JSON.stringify(storedTimes - 1));
+      setTimeRemains((prev) => prev - 1);
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [expiryTime, dispatch, navigate, purpose]);
+    return () => clearInterval(timer);
+  }, [timeRemains]);
 
-  const minutes = Math.floor(timeLeft / 60000);
-  const seconds = Math.floor((timeLeft % 60000) / 1000);
-  const formattedTime = `${minutes}:${seconds < 10 ? "0" : ""}${seconds} ${minutes === 0 ? "sec" : "min"}`;
+  const min = Math.floor(timeRemains / 60);
+  const sec = timeRemains % 60;
 
-  useEffect(() => {
-    if (!id) return;
+  const minutes = min.toString().padStart(2, "0");
+  const seconds = sec.toString().padStart(2, "0");
 
-    if (hasRedirected.current) return;
+  let formatedTime =
+    min < 1 ? minutes + ":" + seconds + "sec" : minutes + ":" + seconds + "min";
 
-    hasRedirected.current = true;
+  //========================================invalid input viewer handling====================================
+  //===============================================onFocusTrigger============================================
+  function onFocusTrigger(event) {
+    if (event.target.name === path) {
+      setPath(null);
+    }
+  }
 
-    const timer = setTimeout(() => {
-      dispatch(resetOtpLockState());
-      navigate(purpose === "signup" ? "/signup" : "/login", { replace: true });
-    }, 2000);
-
-    toast.warn(errorMessage);
-
-    return () => clearTimeout(timer);
-  }, [id, purpose, dispatch, navigate]);
+  //==========================loading viewing on every handleOnSubmit trigger==============================
 
   if (loading) {
     return (
       <section className={styles["form-loading-state"]}>
-        <h1>verifying otp</h1>
+        <h1>verifying otp....</h1>
+        <span className={style["loader"]}></span>;
       </section>
     );
   }
 
-  if (id) {
+  //=====================================redirecting viewing on screen for user==============================
+  if (redirect) {
     return (
       <section className={styles["form-loading-state"]}>
-        <h1>
-          To many tries with invalid otp. Redirecting to {purpose} page again
-        </h1>
-      </section>
-    );
-  }
-
-  if (otpExpired) {
-    return (
-      <section className={styles["form-loading-state"]}>
-        <h1>Otp Expired! redirecting to {purpose} page again!</h1>
+        <h1>returning to {purpose || "previous"} page again</h1>
       </section>
     );
   }
@@ -225,15 +209,19 @@ export const OtpVerification = () => {
   return (
     <>
       <main className={styles["main-container-first-otp"]}>
-        <section className={styles["count-down"]}>
+        <section className={style["count-down"]}>
           <p>Time Remains</p>
-          <h1>{formattedTime}</h1>
+          <h1>{formatedTime}</h1>
         </section>
         <section className={styles["main-container-second"]}>
+          <article className={style["try-remains"]}>
+            <p>Try Remains</p>
+            <h1>{tries}</h1>
+          </article>
           <article className={styles["main-container-third"]}>
             <h1 className={styles["login-main-heading"]}>please verify otp</h1>
             <div className={styles["login-form-container"]}>
-              <form autoComplete="off" onSubmit={handleSubmit}>
+              <form autoComplete="off" onSubmit={handleOnSubmit}>
                 <div className={styles["input-elm"]}>
                   <label htmlFor="email">Email :</label>
                   <input
@@ -242,7 +230,6 @@ export const OtpVerification = () => {
                     name="email"
                     placeholder="your email"
                     value={clientCredentials.email}
-                    onChange={handleOnChange}
                     disabled
                   />
                 </div>
@@ -254,11 +241,11 @@ export const OtpVerification = () => {
                     type="text"
                     name="otp"
                     placeholder="Enter verification code"
-                    value={clientCredentials.otp}
                     onChange={handleOnChange}
-                    onFocus={(e) => handleFocus(e)}
+                    value={clientCredentials.otp}
+                    onFocus={onFocusTrigger}
                   />
-                  {errorMessage && !id && focus && (
+                  {path && path === "otp" && errorMessage && (
                     <InvalidInputTracker
                       className={styles["invalid-input-tracker"]}
                       inputErrorString={errorMessage}

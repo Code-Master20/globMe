@@ -1,0 +1,67 @@
+.count-down {
+  width: 100vw;
+  position: absolute;
+  top: 5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.count-down p {
+  color: rgb(85, 79, 79);
+  font-size: 3rem;
+  font-weight: 700;
+}
+.count-down h1 {
+  color: rgb(85, 79, 79);
+  font-size: 3.5rem;
+  font-weight: 800;
+}
+
+.try-remains {
+  position: absolute;
+  top: clamp(4rem + 0.4rem, 4vw + 2rem, 6rem);
+  left: clamp(45% -10%, 4vw + 2rem, 60rem);
+  display: flex;
+  column-gap: 0.5rem;
+}
+
+.try-remains h1 {
+  color: rgb(235, 238, 3);
+  display: inline;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-shadow: 2px 2px 12px currentColor;
+  -webkit-text-stroke: 0.5px rgba(9, 9, 9, 0.8);
+}
+
+.try-remains p {
+  color: rgb(235, 238, 3);
+  display: inline;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-shadow: 2px 2px 12px currentColor;
+  -webkit-text-stroke: 0.5px rgba(9, 9, 9, 0.8);
+}
+
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 5px solid #fff;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: rotation 1s linear infinite;
+  position: absolute;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

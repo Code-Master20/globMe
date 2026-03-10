@@ -10,8 +10,12 @@ import { EditProfile } from "../../components/Edit/EditPrfileInfo";
 import { ImageUpload } from "../../components/Uploader/ImgUpload";
 
 import { useState, useEffect } from "react";
+import { useSelector } from "react-redux";
 
 export const Profile = () => {
+  const { user } = useSelector((state) => state.auth);
+  console.log(user);
+
   const [width, setWidth] = useState(window.innerWidth);
   const [isCreatorMode, setIsCreatorMode] = useState(false);
 
@@ -59,8 +63,11 @@ export const Profile = () => {
               </article>
 
               <div className={styles.userInfo}>
-                <h2 className={styles.name}>"Sahidur Miah</h2>
-                <p className={styles.profession}>Profession: Teacher</p>
+                <h2 className={styles.name}>{user.username}</h2>
+                <p className={styles.profession}>
+                  Profession :{" "}
+                  {user.profession ? user.profession : "not mentioned"}
+                </p>
               </div>
             </div>
 

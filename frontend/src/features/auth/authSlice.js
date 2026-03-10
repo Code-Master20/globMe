@@ -9,9 +9,8 @@ import {
   uploadBanner,
 } from "./authThunks";
 
-//=============================== setting constants to localstorage for values' persistent =====================
-const otpSent = JSON.parse(localStorage.getItem("otp-sent"));
-const purpose = JSON.parse(localStorage.getItem("purpose"));
+//=============================== setting constants to localstorage for values' persistent =========================
+const storedUser = JSON.parse(localStorage.getItem("user")) || null;
 
 const authSlice = createSlice({
   name: "auth",
@@ -25,10 +24,10 @@ const authSlice = createSlice({
     isLogInClicked: false,
     errorMessage: null,
     successMessage: null,
-    purpose: purpose ? purpose : null,
+    purpose: storedUser ? storedUser.purpose : null,
     id: null,
     otp: {
-      sent: otpSent ? otpSent : false, //false means otp is sending in pending situation,
+      sent: false, //false means otp is sending in pending situation,
       // if true means otp is sent successfully
       verifying: false,
       verified: false,
@@ -36,9 +35,6 @@ const authSlice = createSlice({
   },
 
   reducers: {
-    isLogInClickedFun(state, action) {
-      state.isLogInClicked = action.payload;
-    },
     resetOtpLockState(state) {
       state.id = null;
     },
@@ -79,8 +75,6 @@ const authSlice = createSlice({
         state.user = action.payload.data;
         state.successMessage = action.payload.message;
         state.purpose = "signup";
-        localStorage.setItem("user", JSON.stringify(action.payload.data));
-        localStorage.setItem("purpose", JSON.stringify("signup"));
       })
       .addCase(signUpOtpReceived.rejected, (state, action) => {
         state.formLoading = false; // ✅ FIXED
@@ -104,7 +98,6 @@ const authSlice = createSlice({
         state.user = action.payload.data;
         state.isAuthenticated = action.payload.success;
         localStorage.removeItem("user");
-        localStorage.removeItem("purpose");
       })
       .addCase(otpVerifiedAndSignedUp.rejected, (state, action) => {
         state.formLoading = false; // ✅ FIXED
@@ -126,15 +119,7 @@ const authSlice = createSlice({
         state.status = action.payload.status;
         state.user = action.payload.data;
         state.successMessage = action.payload.message;
-        localStorage.setItem(
-          "otp-sent",
-          JSON.stringify(action.payload.success),
-        );
-        localStorage.setItem(
-          "user",
-          JSON.stringify({ email: action.payload.data.email }),
-        );
-        localStorage.setItem("purpose", JSON.stringify("login"));
+        state.purpose = "login";
       })
       .addCase(logInOtpReceived.rejected, (state, action) => {
         state.formLoading = false;
@@ -156,13 +141,7 @@ const authSlice = createSlice({
         state.successMessage = action.payload.message;
         state.user = action.payload.data;
         state.isAuthenticated = action.payload.success;
-        localStorage.removeItem("otp-sent");
-        localStorage.removeItem("purpose");
         localStorage.removeItem("user");
-        localStorage.setItem(
-          "isAuthenticated",
-          JSON.stringify(action.payload.success),
-        );
       })
       .addCase(otpVerifiedAndLoggedIn.rejected, (state, action) => {
         state.formLoading = false;
@@ -170,6 +149,7 @@ const authSlice = createSlice({
         state.otp.verified = action.payload.success; //here success=false means otp cannot be verified
         state.successMessage = null;
         state.errorMessage = action.payload.message;
+        state.id = action.payload.id;
       })
 
       // ====================== UPLOAD PROFILE PIC ======================
