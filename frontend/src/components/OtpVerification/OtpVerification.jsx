@@ -67,16 +67,18 @@ export const OtpVerification = () => {
   function onSubmitHelper(resultAction) {
     setLoading(false);
     const error = resultAction.payload?.message;
-    if (timerIdArr) {
-      for (let index = 0; index < timerIdArr.length; index++) {
-        clearTimeout(timerIdArr[index]);
-      }
-    }
+
     const timer = setTimeout(() => {
       setPath(null);
     }, 5000);
 
-    setTimerIdArr((prev) => ({ ...prev, timer }));
+    setTimerIdArr((prev) => [...prev, timer]);
+
+    if (timerIdArr.length > 0) {
+      for (let index = 0; index < timerIdArr.length; index++) {
+        clearTimeout(timerIdArr[index]);
+      }
+    }
 
     if (typeof error === "string" && error.length <= 15) {
       setPath("otp");
@@ -90,6 +92,10 @@ export const OtpVerification = () => {
     }
 
     if (typeof error === "string" && error.length >= 25) {
+      // removing otp from localStorage before redirecting user to prev page
+      delete storedUser?.otp;
+      localStorage.setItem("user", JSON.stringify(storedUser));
+
       toast.warn(error);
       setRedirect((prev) => !prev);
       const timer = setTimeout(() => {
@@ -115,6 +121,8 @@ export const OtpVerification = () => {
 
       if (otpVerifiedAndLoggedIn.fulfilled.match(resultAction)) {
         setLoading(false);
+        localStorage.removeItem("user");
+        localStorage.removeItem("timeRemains");
         const success = resultAction.payload?.message;
         toast.success(success);
       }
@@ -151,6 +159,8 @@ export const OtpVerification = () => {
 
   useEffect(() => {
     if (timeRemains === 0) {
+      delete storedUser?.otp;
+      localStorage.setItem("user", JSON.stringify(storedUser));
       localStorage.removeItem("timeRemains");
       toast.warn("otp expired! please request a new otp");
       setRedirect((prev) => !prev);

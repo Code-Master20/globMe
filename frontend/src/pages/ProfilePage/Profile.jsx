@@ -13,7 +13,7 @@ import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 
 export const Profile = () => {
-  const { user } = useSelector((state) => state.auth);
+  const { user } = useSelector((state) => state.auth.user);
   console.log(user);
 
   const [width, setWidth] = useState(window.innerWidth);
@@ -63,10 +63,10 @@ export const Profile = () => {
               </article>
 
               <div className={styles.userInfo}>
-                <h2 className={styles.name}>{user.username}</h2>
+                <h2 className={styles.name}>{user?.username}</h2>
                 <p className={styles.profession}>
                   Profession :{" "}
-                  {user.profession ? user.profession : "not mentioned"}
+                  {user?.profession ? user.profession : "not mentioned"}
                 </p>
               </div>
             </div>
