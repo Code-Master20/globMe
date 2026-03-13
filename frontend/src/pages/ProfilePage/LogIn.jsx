@@ -101,6 +101,7 @@ export const LogIn = () => {
 
       //toast.warn trigger if error is string
       if (typeof error === "string") {
+        console.log(error);
         toast.warn(error);
 
         setShowTries(true);
