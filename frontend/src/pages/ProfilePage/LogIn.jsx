@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./LogInSignUp.module.css";
 import style from "./SignUp.module.css";
+import stylie from "./LogIn.module.css";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logInOtpReceived } from "../../features/auth/authThunks";
@@ -70,11 +71,11 @@ export const LogIn = () => {
   const [path, setPath] = useState(null);
   const [timerIdArr, setTimerIdArr] = useState([]);
   const [tries, setTries] = useState(() => {
-    const storedTries = localStorage.getItem("tries");
+    const storedTries = localStorage.getItem("tryRemains");
     return storedTries ? JSON.parse(storedTries) : 4;
   });
   const [showTries, setShowTries] = useState(() => {
-    const storedTries = localStorage.getItem("tries");
+    const storedTries = localStorage.getItem("tryRemains");
     return storedTries && JSON.parse(storedTries) < 3;
   });
 
@@ -109,10 +110,10 @@ export const LogIn = () => {
           const updated = prev > 0 ? prev - 1 : 0;
 
           if (updated === 0) {
-            localStorage.removeItem("tries");
+            localStorage.removeItem("tryRemains");
             setShowTries(false);
           } else {
-            localStorage.setItem("tries", JSON.stringify(updated));
+            localStorage.setItem("tryRemains", JSON.stringify(updated));
           }
 
           return updated;
@@ -205,9 +206,13 @@ export const LogIn = () => {
   //========================================main html content================================================
   return (
     <main className={styles["main-container-first"]}>
-      {showTries && tries > 0 && (
-        <section>
-          <p>tries remaining: {tries}</p>
+      {showTries && tries > 0 ? (
+        <section className={stylie["try-remains"]}>
+          <p>Try Remains: {tries}</p>
+        </section>
+      ) : (
+        <section className={stylie["try-remains"]}>
+          <p>login blocked for 1.5h for {clientCredentials.email}</p>
         </section>
       )}
 
