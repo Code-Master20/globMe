@@ -46,10 +46,7 @@ const sendingOtpForLogIn = async (req, res) => {
     const blocked = await BlockedEmail.findOne({ email });
 
     if (blocked && blocked.count > 2) {
-      const BLOCK_TIME = 5400 * 1000;
-
-      const timePassed = Date.now() - blocked.blockedAt.getTime();
-      const timeLeft = BLOCK_TIME - timePassed;
+      const timeLeft = Math.max(0, blocked.expiresAt.getTime() - Date.now());
 
       const minutes = Math.floor(timeLeft / 60000);
       const seconds = Math.floor((timeLeft % 60000) / 1000);
@@ -83,13 +80,14 @@ const sendingOtpForLogIn = async (req, res) => {
           email,
           count: 1,
         });
-      } else if (attempts.count < 4) {
+      } else {
         attempts.count += 1;
-        await attempts.save();
-      }
 
-      if (attempts.count >= 3) {
-        attempts.blockedAt = new Date();
+        // 🚀 set expiry ONLY when blocked
+        if (attempts.count >= 3) {
+          attempts.expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 min
+        }
+
         await attempts.save();
       }
 

@@ -11,12 +11,12 @@ const blockSchema = new mongoose.Schema({
     unique: true,
     trim: true,
   },
-  blockedAt: {
+  expiresAt: {
     type: Date,
-    default: Date.now,
-    index: { expires: 5400 }, // 1.5 hours
   },
 });
+
+blockSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const BlockedEmail = mongoose.model("BlockedEmail", blockSchema);
 module.exports = BlockedEmail;
