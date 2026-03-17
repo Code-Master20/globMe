@@ -25,6 +25,7 @@ import { Navigate } from "react-router-dom";
 import { PrivateRoute } from "./features/PrivateRoute.jsx";
 import { PublicRoute } from "./features/PublicRoute.jsx";
 import { Dashboard } from "./pages/Dashboard/Dashboard.jsx";
+import { EditPassword } from "./components/Edit/EditPassword.jsx";
 
 //creating routes for different pages
 const Router = createBrowserRouter(
@@ -45,6 +46,15 @@ const Router = createBrowserRouter(
         element={
           <PublicRoute>
             <SignUp />
+          </PublicRoute>
+        }
+      />
+
+      <Route
+        path="reset-password-with-otp"
+        element={
+          <PublicRoute>
+            <EditPassword />
           </PublicRoute>
         }
       />

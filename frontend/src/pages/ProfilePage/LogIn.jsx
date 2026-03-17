@@ -65,19 +65,17 @@ export const LogIn = () => {
 
   //========================sending inputted credentials to backend with a function==========================
   //===========================================handleOnSubmit================================================
+
+  const storedTime = Number(JSON.parse(localStorage.getItem("time-remains")));
+  const [countdown, setCountdown] = useState(storedTime || null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [path, setPath] = useState(null);
   const [timerIdArr, setTimerIdArr] = useState([]);
-  const [tries, setTries] = useState(() => {
-    const storedTries = localStorage.getItem("tryRemains");
-    return storedTries ? JSON.parse(storedTries) : 4;
-  });
-  const [showTries, setShowTries] = useState(() => {
-    const storedTries = localStorage.getItem("tryRemains");
-    return storedTries && JSON.parse(storedTries) < 3;
-  });
+  const [tries, setTries] = useState(
+    () => JSON.parse(localStorage.getItem("tryRemains")) ?? 3,
+  );
 
   async function handleOnSubmit(event) {
     event.preventDefault();
@@ -102,21 +100,26 @@ export const LogIn = () => {
 
       //toast.warn trigger if error is string
       if (typeof error === "string") {
-        console.log(error);
         toast.warn(error);
 
-        setShowTries(true);
-        setTries((prev) => {
-          const updated = prev > 0 ? prev - 1 : 0;
+        if (error.includes("Too many failed attempts")) {
+          const match = error.match(/(\d+)m\s*(\d+)s/);
 
-          if (updated === 0) {
-            localStorage.removeItem("tryRemains");
-            setShowTries(false);
-          } else {
-            localStorage.setItem("tryRemains", JSON.stringify(updated));
+          if (match) {
+            const minutes = Number(match[1]);
+            const seconds = Number(match[2]);
+            const totalSeconds = minutes * 60 + seconds;
+            setCountdown(totalSeconds);
+
+            localStorage.setItem("time-remains", JSON.stringify(totalSeconds));
+            localStorage.setItem("tryRemains", JSON.stringify(0));
           }
 
-          return updated;
+          return;
+        }
+        setTries((prev) => {
+          if (prev <= 0) return 0;
+          return prev - 1;
         });
 
         return;
@@ -148,6 +151,39 @@ export const LogIn = () => {
       navigate("/verify-otp", { replace: true });
     }
   }
+
+  //=================================countdoun for blocked log-in to un-lock=================================
+  useEffect(() => {
+    localStorage.setItem("tryRemains", JSON.stringify(tries));
+
+    //showing user password-reset button three times before blocking the user for log-in with the same email
+    if (tries === 3) {
+    } else if (tries === 2) {
+    } else if (tries === 1) {
+    }
+  }, [tries]);
+
+  useEffect(() => {
+    if (countdown === 0) {
+      localStorage.removeItem("time-remains");
+      localStorage.setItem("tryRemains", JSON.stringify(3));
+      setTries(3);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        const updated = prev >= 0 ? prev - 1 : prev + 1;
+        localStorage.setItem("time-remains", JSON.stringify(updated));
+        return updated;
+      });
+    }, 1010);
+
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  const minutes = countdown ? Math.floor(countdown / 60) : 0;
+  const seconds = countdown ? countdown % 60 : 0;
 
   //========================================invalid input viewer handling====================================
   //================================================onFocusTrigger===========================================
@@ -206,13 +242,20 @@ export const LogIn = () => {
   //========================================main html content================================================
   return (
     <main className={styles["main-container-first"]}>
-      {showTries && tries > 0 ? (
+      {tries > 0 ? (
         <section className={stylie["try-remains"]}>
-          <p>Try Remains: {tries}</p>
+          <p>Try Remains : {tries}</p>
+        </section>
+      ) : countdown > 0 ? (
+        <section className={stylie["try-remains"]}>
+          <p>
+            login blocked for {minutes}min :{seconds}sec for{" "}
+            {clientCredentials.email}
+          </p>
         </section>
       ) : (
         <section className={stylie["try-remains"]}>
-          <p>login blocked for 1.5h for {clientCredentials.email}</p>
+          <p>Try Remains : {tries}</p>
         </section>
       )}
 
@@ -287,6 +330,9 @@ export const LogIn = () => {
                 </button>
               </div>
             </form>
+            <button onClick={() => navigate("/reset-password-with-otp")}>
+              reset-pass
+            </button>
           </div>
         </article>
       </section>
