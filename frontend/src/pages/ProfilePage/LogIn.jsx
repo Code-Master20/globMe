@@ -209,6 +209,9 @@ export const LogIn = () => {
 
       if (logInOtpReceived.rejected.match(time)) {
         let error = time.payload.message;
+        if (!error.includes("Too many failed attempts")) {
+          setCountdown(0); // fallback
+        }
         if (error.includes("Too many failed attempts")) {
           let match = error.match(/(\d+)m\s*(\d+)s/);
           if (match) {
@@ -226,10 +229,10 @@ export const LogIn = () => {
     if (countdown === null) return;
 
     if (countdown === 0) {
-      setDisable(false);
       console.clear();
-
+      setDisable(false);
       localStorage.removeItem("runCount");
+      runCountRef.current = 0;
       localStorage.setItem("tryRemains", JSON.stringify(3));
       setTries(3);
       return;
@@ -237,13 +240,13 @@ export const LogIn = () => {
 
     const timer = setInterval(() => {
       trackTime();
-    }, 500);
+    }, 800);
 
     return () => clearInterval(timer);
   }, [countdown]);
 
-  let minutes = countdown ? Math.floor(countdown / 60) : 30;
-  let seconds = countdown ? countdown % 60 : 0;
+  const minutes = countdown !== null ? Math.floor(countdown / 60) : 0;
+  const seconds = countdown !== null ? countdown % 60 : 0;
 
   //========================================invalid input viewer handling====================================
   //================================================onFocusTrigger===========================================
@@ -311,18 +314,11 @@ export const LogIn = () => {
       ) : countdown > 0 ? (
         <section className={stylie["try-remains"]}>
           <p>
-            log-in session blocked for {minutes}min :{seconds}sec for{" "}
+            log-in session blocked for {minutes}min : {seconds}sec for{" "}
             {clientCredentials.email}
           </p>
         </section>
-      ) : (
-        <section className={stylie["try-remains"]}>
-          <p>
-            log-in session blocked for {minutes}min :{seconds}sec for{" "}
-            {clientCredentials.email}
-          </p>
-        </section>
-      )}
+      ) : null}
 
       {tryPassReset && (
         <section className={stylie["try-pass-reset"]}>
