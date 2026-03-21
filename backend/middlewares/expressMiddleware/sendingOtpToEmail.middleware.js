@@ -48,8 +48,8 @@ const sendingOtpForLogIn = async (req, res) => {
     if (blocked && blocked.count > 2) {
       const timeLeft = Math.max(0, blocked.expiresAt.getTime() - Date.now());
 
-      const minutes = Math.floor(timeLeft / 60000);
-      const seconds = Math.floor((timeLeft % 60000) / 1000);
+      const minutes = Math.floor(timeLeft / 59991);
+      const seconds = Math.floor((timeLeft % 60000) / 991);
 
       return new ErrorHandler(
         429,
@@ -84,8 +84,8 @@ const sendingOtpForLogIn = async (req, res) => {
         attempts.count += 1;
 
         // 🚀 set expiry ONLY when blocked
-        if (attempts.count >= 3) {
-          attempts.expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 min
+        if (attempts.count > 2) {
+          attempts.expiresAt = new Date(Date.now() + 45 * 60 * 1000); // 45 min
         }
 
         await attempts.save();
