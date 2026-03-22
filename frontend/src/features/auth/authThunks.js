@@ -144,6 +144,23 @@ export const otpVerifiedAndLoggedIn = createAsyncThunk(
   },
 );
 
+export const resetPassViaOldPass = createAsyncThunk(
+  "auth/passResetViaOldPass",
+  async (clientCredentials, thunkAPI) => {
+    try {
+      const response = await api.post(
+        "/reset-password-with-old-password",
+        clientCredentials,
+      );
+
+      console.log(response);
+      return response.data;
+    } catch (error) {
+      console.log(error.response);
+    }
+  },
+);
+
 export const logOut = createAsyncThunk(
   "auth/logout",
   async (clientCredentials, thunkAPI) => {

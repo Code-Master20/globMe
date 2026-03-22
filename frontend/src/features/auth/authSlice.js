@@ -5,6 +5,7 @@ import {
   otpVerifiedAndSignedUp,
   logInOtpReceived,
   otpVerifiedAndLoggedIn,
+  resetPassViaOldPass,
   uploadProfilePic,
   uploadBanner,
 } from "./authThunks";
@@ -151,6 +152,13 @@ const authSlice = createSlice({
         state.errorMessage = action.payload.message;
         state.id = action.payload.id;
       })
+
+      //===========reset password with old password rememberence============
+      .addCase(resetPassViaOldPass.pending, (state, action) => {
+        state.formLoading = true;
+      })
+      .addCase(resetPassViaOldPass.fulfilled, (state, action) => {})
+      .addCase(resetPassViaOldPass.rejected, (state, action) => {})
 
       // ====================== UPLOAD PROFILE PIC ======================
       .addCase(uploadProfilePic.pending, (state) => {

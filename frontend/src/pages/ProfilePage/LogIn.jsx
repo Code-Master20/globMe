@@ -57,8 +57,8 @@ export const LogIn = () => {
             [name]: formattedValue,
           }),
         );
-      }, 50);
-    }, 50);
+      }, 1);
+    }, 5);
   }
 
   //========================sending inputted credentials to backend with a function==========================
