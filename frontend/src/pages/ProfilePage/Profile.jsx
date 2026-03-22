@@ -6,7 +6,7 @@ import { RiImageEditLine, RiImageCircleAiFill } from "react-icons/ri";
 import { MdEditLocationAlt } from "react-icons/md";
 import { FaUserEdit } from "react-icons/fa";
 
-import { EditProfile } from "../../components/Edit/EditPrfileInfo";
+import { EditProfileInfo } from "../../components/Edit/EditProfileInfo";
 import { ImageUpload } from "../../components/Uploader/ImgUpload";
 
 import { useState, useEffect } from "react";
@@ -90,7 +90,10 @@ export const Profile = () => {
               </li>
             </ul>
 
-            <EditProfile Icon={FaUserEdit} className={styles.editProfileBtn} />
+            <EditProfileInfo
+              Icon={FaUserEdit}
+              className={styles.editProfileBtn}
+            />
 
             <div className={styles["creator-story-btns"]}>
               <button

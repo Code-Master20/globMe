@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import styles from "./EditProfile.module.css";
 
-export const EditProfile = ({ Icon, className }) => {
+export const EditProfileInfo = ({ Icon, className }) => {
   const modalRef = useRef(null);
 
   const handleToggle = () => {

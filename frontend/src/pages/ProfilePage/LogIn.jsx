@@ -200,6 +200,12 @@ export const LogIn = () => {
     setTryPassReset(false);
   }
 
+  //function to proceed for password reset
+  function passReset() {
+    localStorage.setItem("otpResetTrigger", JSON.stringify(true));
+    navigate("/reset-password");
+  }
+
   // tracking remains time of blocked log-in users
 
   async function trackTime() {
@@ -327,10 +333,7 @@ export const LogIn = () => {
             <button className={stylie["cancel"]} onClick={resetCancel}>
               cancel
             </button>
-            <button
-              className={stylie["reset"]}
-              onClick={() => navigate("/reset-password-with-otp")}
-            >
+            <button className={stylie["reset"]} onClick={passReset}>
               reset
             </button>
           </div>

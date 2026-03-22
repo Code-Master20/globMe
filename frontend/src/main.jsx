@@ -51,7 +51,7 @@ const Router = createBrowserRouter(
       />
 
       <Route
-        path="reset-password-with-otp"
+        path="reset-password"
         element={
           <PublicRoute>
             <EditPassword />

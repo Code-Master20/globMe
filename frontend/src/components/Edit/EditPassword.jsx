@@ -1,44 +1,20 @@
-import { useNavigate } from "react-router-dom";
-import styles from "./EditPassword.module.css";
+import { useEffect, useState } from "react";
+import { ResetPassWithOldPass } from "./ResetPassWithOldPass";
+import { ResetPassWithOtp } from "./ResetPassWithOtp";
 
 export const EditPassword = () => {
-  const navigate = useNavigate();
+  const [otpResetTrigger, setOtpResetTrigger] = useState(() => {
+    const val = localStorage.getItem("otpResetTrigger");
+    return val ? JSON.parse(val) : true;
+  });
 
-  function passRemembered() {
-    navigate("/");
-  }
+  useEffect(() => {
+    localStorage.setItem("otpResetTrigger", JSON.stringify(otpResetTrigger));
+  }, [otpResetTrigger]);
 
-  return (
-    <main className={styles.container}>
-      <section className={styles.card}>
-        <h1 className={styles.heading}>Reset Password</h1>
-
-        <form className={styles.form}>
-          <fieldset className={styles.fieldset}>
-            <legend className={styles.legend}>Your Email</legend>
-            <input
-              type="text"
-              placeholder="Enter your email"
-              className={styles.input}
-            />
-          </fieldset>
-
-          <fieldset className={styles.fieldset}>
-            <legend className={styles.legend}>New Password</legend>
-            <input
-              type="password"
-              placeholder="Enter new password"
-              className={styles.input}
-            />
-          </fieldset>
-
-          <button className={styles.button}>Reset Password</button>
-
-          <p className={styles.link} onClick={passRemembered}>
-            Remember your password? Go back to login
-          </p>
-        </form>
-      </section>
-    </main>
+  return otpResetTrigger ? (
+    <ResetPassWithOtp setOtpResetTrigger={setOtpResetTrigger} />
+  ) : (
+    <ResetPassWithOldPass setOtpResetTrigger={setOtpResetTrigger} />
   );
 };
