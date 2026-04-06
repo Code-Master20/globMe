@@ -281,7 +281,7 @@ export const LogIn = () => {
 
       timerRef.current = setTimeout(() => {
         setView(false);
-      }, 4000);
+      }, 20000);
     }
 
     return () => {
