@@ -171,6 +171,14 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
           </p>
         </form>
       </section>
+
+{
+      <section>
+
+
+      </section>
+}
+
     </main>
   );
 };
