@@ -5,7 +5,7 @@ import { ResetPassWithOtp } from "./ResetPassWithOtp";
 export const EditPassword = () => {
   const [otpResetTrigger, setOtpResetTrigger] = useState(() => {
     const val = localStorage.getItem("otpResetTrigger");
-    return val ? JSON.parse(val) : true;
+    return val ? JSON.parse(val) : false;
   });
 
   useEffect(() => {

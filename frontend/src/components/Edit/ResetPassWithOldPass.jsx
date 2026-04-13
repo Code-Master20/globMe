@@ -5,32 +5,30 @@ import styles from "./EditPassword.module.css";
 import { resetPassViaOldPass } from "../../features/auth/authThunks";
 import { InvalidInputTracker } from "../InvalidInputTracker/InvalidInputTracker";
 import { toast } from "react-toastify";
+import { checkMe } from "../../features/auth/authThunks";
 
 export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  //============if not remembered old password toggle to another page to reset password with otp==========
-  //========================================passRememberedNot=======================================
+
   function passRememberedNot() {
     setOtpResetTrigger(true);
     localStorage.setItem("otpResetTrigger", JSON.stringify(true));
   }
 
-  //=======================reading input field's credentials for sending to backend===============
-  //============================================handleOnChange==================================
+  // ✅ INITIAL STATE
   const [clientCredentials, setClientCredentials] = useState(() => {
     const storedUser = localStorage.getItem("user");
 
-    let data = {
+    return {
       email: storedUser ? JSON.parse(storedUser)?.email : "",
-      password: storedUser ? JSON.parse(storedUser)?.password : "",
-      newPassword: storedUser ? JSON.parse(storedUser)?.newPassword : "",
+      password: "",
+      newPassword: "",
     };
-    return data;
   });
 
   const debounceRef = useRef({});
-  const storedUser = JSON.parse(localStorage.getItem("user"));
+
   function handleOnChange(event) {
     let { name, value } = event.target;
 
@@ -38,28 +36,65 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
       clearTimeout(debounceRef.current[name]);
     }
 
-    localStorage.setItem(
-      "user",
-      JSON.stringify({
-        ...storedUser,
-        [name]: value,
-      }),
-    );
+    // ✅ MATCH LOGIN LOGIC (TRIM PASSWORD + EMAIL)
+    const formattedValue =
+      name === "email"
+        ? value.trim().toLowerCase()
+        : name === "password" || name === "newPassword"
+          ? value.trim()
+          : value;
+
+    // ✅ ONLY STORE EMAIL (SECURE)
+    if (name === "email") {
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          email: formattedValue,
+        }),
+      );
+    }
 
     debounceRef.current[name] = setTimeout(() => {
-      setClientCredentials((prev) => ({ ...prev, [name]: value }));
+      setClientCredentials((prev) => ({
+        ...prev,
+        [name]: formattedValue,
+      }));
     }, 5);
   }
 
-  //====================receiving credentials from handleOnChange function for sending to backend===========
-  //=========================================handleOnSubmit=============================================
+  // ================= ERROR HANDLING =================
   const [inputErrorString, setInputErrorString] = useState("");
   const [path, setPath] = useState(null);
+  const [timerArr, setTimerArr] = useState([]);
+
+  function invalidView(immediateTrigger) {
+    if (immediateTrigger) {
+      setInputErrorString("");
+      setPath(null);
+    } else {
+      const timer = setTimeout(() => {
+        setInputErrorString("");
+        setPath(null);
+      }, 3000);
+
+      setTimerArr((prev) => [...prev, timer]);
+
+      for (let i = 0; i < timerArr.length - 1; i++) {
+        clearTimeout(timerArr[i]);
+      }
+    }
+  }
+
+  // ================= SUBMIT =================
+  const [loading, setLoading] = useState(false);
 
   async function handleOnSubmit(event) {
     event.preventDefault();
+    setLoading(true);
 
     const resultAction = await dispatch(resetPassViaOldPass(clientCredentials));
+
+    setLoading(false);
 
     if (resetPassViaOldPass.rejected.match(resultAction)) {
       const message = resultAction?.payload?.message;
@@ -70,7 +105,7 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
         Array.isArray(message.path) &&
         message?.path.length > 0
       ) {
-        console.log(message);
+        invalidView(message?.msg);
         setPath(message?.path[0]);
         setInputErrorString(message?.msg);
       } else {
@@ -81,22 +116,36 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
     }
 
     if (resetPassViaOldPass.fulfilled.match(resultAction)) {
-      // console.log(resultAction.payload);
+      // ✅ CLEANUP
+      localStorage.clear();
+
+      setClientCredentials({
+        email: "",
+        password: "",
+        newPassword: "",
+      });
+
+      await dispatch(checkMe());
+
+      toast.success("Password exchanged successfully ✅");
+
+      navigate("/home-feed", { replace: true });
     }
   }
 
-  //=========================seeing input fields' credentials specially password type's=================
-  //=====================================handleViewField=====================================
+  // ================= VIEW PASSWORD =================
   const [view, setView] = useState(false);
 
-  function viewInputField(e) {
+  function viewInputField() {
     setView(true);
+    invalidView(true);
   }
 
-  function hideInputField(e) {
+  function hideInputField() {
     setView(false);
   }
 
+  // ================= UI =================
   return (
     <main className={styles.container}>
       <section className={styles.card}>
@@ -112,11 +161,9 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
           <fieldset className={styles.fieldset}>
             <legend className={styles.legend}>Your Email</legend>
             <input
-              type="password"
-              placeholder="Enter your email"
+              type="text"
               className={styles.input}
               name="email"
-              onChange={handleOnChange}
               value={clientCredentials.email}
               disabled
             />
@@ -126,7 +173,6 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
             <legend className={styles.legend}>Old Password</legend>
             <input
               type={view ? "text" : "password"}
-              placeholder="Enter Old password"
               className={styles.input}
               name="password"
               onChange={handleOnChange}
@@ -146,7 +192,6 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
             <legend className={styles.legend}>New Password</legend>
             <input
               type={view ? "text" : "password"}
-              placeholder="Enter new password"
               className={styles.input}
               name="newPassword"
               onChange={handleOnChange}
@@ -162,8 +207,8 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
             )}
           </fieldset>
 
-          <button className={styles.button} type="submit">
-            exchange Password
+          <button className={styles.button} type="submit" disabled={loading}>
+            {loading ? "Exchanging password..." : "Exchange Password"}
           </button>
 
           <p className={styles.link} onClick={() => navigate("/login")}>
@@ -171,14 +216,6 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
           </p>
         </form>
       </section>
-
-{
-      <section>
-
-
-      </section>
-}
-
     </main>
   );
 };

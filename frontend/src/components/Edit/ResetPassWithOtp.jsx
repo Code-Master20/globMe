@@ -12,7 +12,7 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
   //============receiving data from form and sending to backend=================
   const storedUser = localStorage.getItem("user") || "";
   const [credentials, setCredentials] = useState({
-    email: storedUser? JSON.parse(storedUser).email : "",
+    email: storedUser ? JSON.parse(storedUser).email : "",
     newPassword: "",
   });
 
@@ -20,9 +20,8 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
     const { name, value } = e.target;
     setCredentials((prev) => ({
       ...prev,
-      [name]: value
-    }));  
-
+      [name]: value,
+    }));
   }
 
   //=================handling form submit and sending data to backend=================
@@ -63,7 +62,6 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
               className={styles.input}
               onChange={handleOnChange}
               value={credentials.newPassword}
-
             />
           </fieldset>
 
