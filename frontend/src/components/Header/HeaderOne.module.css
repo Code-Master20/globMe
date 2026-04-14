@@ -44,9 +44,9 @@
 }
 
 .dashboard-logo img {
-  width: 8rem;
-  height: 3rem;
-  /* font-size: la3ge; */
+  width: 7rem;
+  height: auto;
+  filter: drop-shadow(0px 4px 6px rgba(8, 195, 64, 0.3));
 }
 
 .create-search-sms {

@@ -1,4 +1,4 @@
-import seekFint from "../../assets/seekFint.png";
+import globMe from "../../assets/globme.png";
 import styles from "./HeaderOne.module.css";
 import { FiSearch } from "react-icons/fi";
 import { RiMessengerLine } from "react-icons/ri";
@@ -40,7 +40,7 @@ export const HeaderOne = () => {
               >
                 <HiOutlineSortDescending />
               </NavLink>
-              <img src={seekFint} alt="" />
+              <img src={globMe} alt="" />
             </article>
             <article className={styles["create-search-sms"]}>
               <MdAddCircleOutline />
