@@ -1,10 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import styles from "./EditPassword.module.css";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { resetPassOtpReceived } from "../../features/auth/authThunks";
 import { InvalidInputTracker } from "./InvalidInputTracker";
 import { toast } from "react-toastify";
+import { MdOutlineRemoveRedEye } from "react-icons/md";
+import { FaRegEyeSlash } from "react-icons/fa6";
 
 export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
   const navigate = useNavigate();
@@ -23,6 +25,8 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
   const [loading, setLoading] = useState(false);
   const [path, setPath] = useState(null);
   const [inputErrorString, setInputErrorString] = useState("");
+  const [viewPassword, setViewPassword] = useState(false);
+  const passwordInputRef = useRef(null);
 
   function handleOnChange(e) {
     const { name, value } = e.target;
@@ -99,6 +103,16 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
     }
   }
 
+  function handlePasswordVisibility() {
+    setViewPassword((prev) => !prev);
+
+    requestAnimationFrame(() => {
+      passwordInputRef.current?.focus();
+      const cursorPos = passwordInputRef.current?.value?.length ?? 0;
+      passwordInputRef.current?.setSelectionRange?.(cursorPos, cursorPos);
+    });
+  }
+
   return (
     <main className={styles.container}>
       <section className={styles.card}>
@@ -128,13 +142,31 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
             )}
           </fieldset>
 
-          <fieldset className={styles.fieldset}>
+          <fieldset
+            className={`${styles.fieldset} ${styles.passwordFieldset}`}
+          >
             <legend className={styles.legend}>New Password</legend>
+            <button
+              type="button"
+              className={styles.passwordToggle}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={handlePasswordVisibility}
+              aria-label={viewPassword ? "Hide password" : "Show password"}
+              aria-pressed={viewPassword}
+              title={viewPassword ? "Hide password" : "Show password"}
+            >
+              {viewPassword ? (
+                <FaRegEyeSlash className={styles.passwordToggleIcon} />
+              ) : (
+                <MdOutlineRemoveRedEye className={styles.passwordToggleIcon} />
+              )}
+            </button>
             <input
-              type="password"
+              ref={passwordInputRef}
+              type={viewPassword ? "text" : "password"}
               name="newPassword"
               placeholder="Enter new password"
-              className={styles.input}
+              className={`${styles.input} ${styles.passwordInput}`}
               onChange={handleOnChange}
               value={credentials.newPassword}
             />
