@@ -1,11 +1,13 @@
 import { useNavigate } from "react-router-dom";
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import { useDispatch } from "react-redux";
 import styles from "./EditPassword.module.css";
-import { resetPassViaOldPass } from "../../features/auth/authThunks";
+import {
+  checkMe,
+  resetPassViaOldPass,
+} from "../../features/auth/authThunks";
 import { InvalidInputTracker } from "./InvalidInputTracker";
 import { toast } from "react-toastify";
-import { checkMe } from "../../features/auth/authThunks";
 
 export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
   const navigate = useNavigate();
@@ -16,7 +18,6 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
     localStorage.setItem("otpResetTrigger", JSON.stringify(true));
   }
 
-  // ✅ INITIAL STATE
   const [clientCredentials, setClientCredentials] = useState(() => {
     const storedUser = localStorage.getItem("user");
 
@@ -30,13 +31,12 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
   const debounceRef = useRef({});
 
   function handleOnChange(event) {
-    let { name, value } = event.target;
+    const { name, value } = event.target;
 
     if (debounceRef.current[name]) {
       clearTimeout(debounceRef.current[name]);
     }
 
-    // ✅ MATCH LOGIN LOGIC (TRIM PASSWORD + EMAIL)
     const formattedValue =
       name === "email"
         ? value.trim().toLowerCase()
@@ -44,7 +44,6 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
           ? value.trim()
           : value;
 
-    // ✅ ONLY STORE EMAIL (SECURE)
     if (name === "email") {
       localStorage.setItem(
         "user",
@@ -62,31 +61,29 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
     }, 5);
   }
 
-  // ================= ERROR HANDLING =================
   const [inputErrorString, setInputErrorString] = useState("");
   const [path, setPath] = useState(null);
   const [timerArr, setTimerArr] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   function invalidView(immediateTrigger) {
     if (immediateTrigger) {
       setInputErrorString("");
       setPath(null);
-    } else {
-      const timer = setTimeout(() => {
-        setInputErrorString("");
-        setPath(null);
-      }, 3000);
+      return;
+    }
 
-      setTimerArr((prev) => [...prev, timer]);
+    const timer = setTimeout(() => {
+      setInputErrorString("");
+      setPath(null);
+    }, 3000);
 
-      for (let i = 0; i < timerArr.length - 1; i++) {
-        clearTimeout(timerArr[i]);
-      }
+    setTimerArr((prev) => [...prev, timer]);
+
+    for (let i = 0; i < timerArr.length - 1; i += 1) {
+      clearTimeout(timerArr[i]);
     }
   }
-
-  // ================= SUBMIT =================
-  const [loading, setLoading] = useState(false);
 
   async function handleOnSubmit(event) {
     event.preventDefault();
@@ -103,21 +100,28 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
         message &&
         typeof message === "object" &&
         Array.isArray(message.path) &&
-        message?.path.length > 0
+        message.path.length > 0
       ) {
-        invalidView(message?.msg);
-        setPath(message?.path[0]);
-        setInputErrorString(message?.msg);
+        invalidView(true);
+        setPath(message.path[0]);
+        setInputErrorString(message.msg);
       } else {
         setPath(null);
         setInputErrorString("");
         toast.warn(message);
       }
+
+      return;
     }
 
     if (resetPassViaOldPass.fulfilled.match(resultAction)) {
-      // ✅ CLEANUP
-      localStorage.clear();
+      localStorage.removeItem("user");
+      localStorage.removeItem("otpResetTrigger");
+      localStorage.removeItem("tries");
+      localStorage.removeItem("timeRemains");
+      localStorage.removeItem("tryPassReset");
+      localStorage.removeItem("tryRemains");
+      localStorage.removeItem("runCount");
 
       setClientCredentials({
         email: "",
@@ -127,13 +131,12 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
 
       await dispatch(checkMe());
 
-      toast.success("Password exchanged successfully ✅");
+      toast.success("Password changed successfully.");
 
       navigate("/home-feed", { replace: true });
     }
   }
 
-  // ================= VIEW PASSWORD =================
   const [view, setView] = useState(false);
 
   function viewInputField() {
@@ -145,7 +148,6 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
     setView(false);
   }
 
-  // ================= UI =================
   return (
     <main className={styles.container}>
       <section className={styles.card}>
@@ -164,8 +166,9 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
               type="text"
               className={styles.input}
               name="email"
+              placeholder="Enter your email"
+              onChange={handleOnChange}
               value={clientCredentials.email}
-              disabled
             />
           </fieldset>
 
@@ -212,7 +215,7 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
           </button>
 
           <p className={styles.link} onClick={() => navigate("/login")}>
-            Don't want to alter your old password? Go back to login
+            Don&apos;t want to alter your old password? Go back to login
           </p>
         </form>
       </section>

@@ -1,9 +1,14 @@
 import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
 import styles from "./EditPassword.module.css";
 import { useState } from "react";
+import { resetPassOtpReceived } from "../../features/auth/authThunks";
+import { InvalidInputTracker } from "./InvalidInputTracker";
+import { toast } from "react-toastify";
 
 export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   function passRemembered() {
     setOtpResetTrigger(false);
     localStorage.setItem("otpResetTrigger", JSON.stringify(false));
@@ -15,18 +20,83 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
     email: storedUser ? JSON.parse(storedUser).email : "",
     newPassword: "",
   });
+  const [loading, setLoading] = useState(false);
+  const [path, setPath] = useState(null);
+  const [inputErrorString, setInputErrorString] = useState("");
 
   function handleOnChange(e) {
     const { name, value } = e.target;
+    const formattedValue =
+      name === "email" ? value.trim().toLowerCase() : value.trim();
+
     setCredentials((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: formattedValue,
     }));
+
+    if (name === "email") {
+      const existingUser = JSON.parse(localStorage.getItem("user")) || {};
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          ...existingUser,
+          email: formattedValue,
+        }),
+      );
+    }
+
+    if (name === path) {
+      setPath(null);
+      setInputErrorString("");
+    }
   }
 
   //=================handling form submit and sending data to backend=================
   async function handleOnSubmit(e) {
     e.preventDefault();
+    setLoading(true);
+
+    const localUser = JSON.parse(localStorage.getItem("user")) || {};
+    const payload = {
+      email: credentials.email.trim().toLowerCase(),
+      newPassword: credentials.newPassword.trim(),
+    };
+
+    localStorage.setItem(
+      "user",
+      JSON.stringify({
+        ...localUser,
+        email: payload.email,
+        newPassword: payload.newPassword,
+        purpose: "reset-password",
+      }),
+    );
+
+    const resultAction = await dispatch(resetPassOtpReceived(payload));
+    setLoading(false);
+
+    if (resetPassOtpReceived.rejected.match(resultAction)) {
+      const message = resultAction.payload?.message;
+
+      if (
+        message &&
+        typeof message === "object" &&
+        Array.isArray(message.path) &&
+        message.path.length > 0
+      ) {
+        setPath(message.path[0]);
+        setInputErrorString(message.msg);
+        return;
+      }
+
+      toast.warn(message || "Could not send reset OTP");
+      return;
+    }
+
+    if (resetPassOtpReceived.fulfilled.match(resultAction)) {
+      toast.success(resultAction.payload?.message);
+      navigate("/verify-otp", { replace: true });
+    }
   }
 
   return (
@@ -49,8 +119,13 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
               className={styles.input}
               onChange={handleOnChange}
               value={credentials.email}
-              disabled
             />
+            {path === "email" && (
+              <InvalidInputTracker
+                className={styles.errorTracker}
+                inputErrorString={inputErrorString}
+              />
+            )}
           </fieldset>
 
           <fieldset className={styles.fieldset}>
@@ -63,9 +138,17 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
               onChange={handleOnChange}
               value={credentials.newPassword}
             />
+            {path === "newPassword" && (
+              <InvalidInputTracker
+                className={styles.errorTracker}
+                inputErrorString={inputErrorString}
+              />
+            )}
           </fieldset>
 
-          <button className={styles.button}>Reset Password</button>
+          <button className={styles.button} type="submit" disabled={loading}>
+            {loading ? "Sending OTP..." : "Reset Password"}
+          </button>
 
           <p className={styles.link} onClick={() => navigate("/login")}>
             Remember your password? Go back to login

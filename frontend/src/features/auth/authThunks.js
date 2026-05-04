@@ -171,6 +171,62 @@ export const resetPassViaOldPass = createAsyncThunk(
   },
 );
 
+export const resetPassOtpReceived = createAsyncThunk(
+  "auth/pass-reset-otp",
+  async (clientCredentials, thunkAPI) => {
+    try {
+      const response = await api.post(
+        "/auth/reset-password-with-otp",
+        clientCredentials,
+      );
+
+      return response.data;
+    } catch (error) {
+      const brokenResponse = {
+        message: "",
+        success: null,
+        status: null,
+      };
+
+      const { message, success } = error.response?.data;
+      const { status } = error.response;
+      brokenResponse.message = message;
+      brokenResponse.success = success;
+      brokenResponse.status = status;
+      return thunkAPI.rejectWithValue(brokenResponse);
+    }
+  },
+);
+
+export const otpVerifiedAndResetPassword = createAsyncThunk(
+  "auth/verify-reset-password-otp",
+  async (clientCredentials, thunkAPI) => {
+    try {
+      const response = await api.post(
+        "/auth/reset-password-with-otp/verify-otp",
+        clientCredentials,
+      );
+
+      return response.data;
+    } catch (error) {
+      const brokenResponse = {
+        message: "",
+        success: null,
+        status: null,
+        id: null,
+      };
+
+      const { message, success, id } = error.response?.data;
+      const { status } = error.response;
+      brokenResponse.message = message;
+      brokenResponse.success = success;
+      brokenResponse.status = status;
+      brokenResponse.id = id;
+      return thunkAPI.rejectWithValue(brokenResponse);
+    }
+  },
+);
+
 export const logOut = createAsyncThunk(
   "auth/logout",
   async (clientCredentials, thunkAPI) => {

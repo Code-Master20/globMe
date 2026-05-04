@@ -5,6 +5,7 @@ import styles from "../../pages/profile/LogInSignUp.module.css";
 import { useDispatch, useSelector } from "react-redux";
 import {
   otpVerifiedAndLoggedIn,
+  otpVerifiedAndResetPassword,
   otpVerifiedAndSignedUp,
 } from "../../features/auth/authThunks";
 import { toast } from "react-toastify";
@@ -58,6 +59,16 @@ export const OtpVerification = () => {
   const [redirect, setRedirect] = useState(false);
   const [tries, setTries] = useState(storedTries);
   const [timeRemains, setTimeRemains] = useState(storedTimes);
+
+  function clearOtpFlowState() {
+    localStorage.removeItem("user");
+    localStorage.removeItem("tries");
+    localStorage.removeItem("timeRemains");
+    localStorage.removeItem("otpResetTrigger");
+    localStorage.removeItem("tryPassReset");
+    localStorage.removeItem("tryRemains");
+    localStorage.removeItem("runCount");
+  }
 
   function onSubmitHelper(resultAction) {
     setLoading(false);
@@ -114,8 +125,7 @@ export const OtpVerification = () => {
 
       if (otpVerifiedAndLoggedIn.fulfilled.match(resultAction)) {
         setLoading(false);
-        localStorage.removeItem("user");
-        localStorage.removeItem("timeRemains");
+        clearOtpFlowState();
         toast.success(resultAction.payload?.message);
       }
     }
@@ -133,8 +143,24 @@ export const OtpVerification = () => {
       if (otpVerifiedAndSignedUp.fulfilled.match(resultAction)) {
         setLoading(false);
         toast.success(resultAction.payload?.message);
-        localStorage.removeItem("user");
-        localStorage.removeItem("timeRemains");
+        clearOtpFlowState();
+      }
+    }
+
+    if (purpose === "reset-password") {
+      const resultAction = await dispatch(
+        otpVerifiedAndResetPassword(clientCredentials),
+      );
+
+      if (otpVerifiedAndResetPassword.rejected.match(resultAction)) {
+        onSubmitHelper(resultAction);
+        return;
+      }
+
+      if (otpVerifiedAndResetPassword.fulfilled.match(resultAction)) {
+        setLoading(false);
+        clearOtpFlowState();
+        toast.success("Password reset complete. You are now signed in.");
       }
     }
   }
@@ -235,7 +261,8 @@ export const OtpVerification = () => {
             <h2 className={styles["auth-heading"]}>Enter your OTP</h2>
             <p className={styles["auth-subcopy"]}>
               Use the email code for {clientCredentials.email || "your account"}.
-              If the code expires, request a fresh sign-in attempt.
+              If the code expires, request a fresh{" "}
+              {purpose === "reset-password" ? "password reset" : "sign-in"} attempt.
             </p>
           </div>
 
@@ -296,8 +323,8 @@ export const OtpVerification = () => {
               </div>
 
               <p className={styles["form-footer-note"]}>
-                Keep this tab open while verifying so your login or sign-up
-                session stays in sync.
+                Keep this tab open while verifying so your auth session stays
+                in sync.
               </p>
             </form>
           </div>

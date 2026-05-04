@@ -120,11 +120,20 @@ const resetPasswordWithOtp = async (req, res, next) => {
         .send(res);
     }
 
-    await TemporaryUser.create({
-      username: userExisted.username,
-      email,
-      password: newPassword,
-    });
+    await TemporaryUser.findOneAndUpdate(
+      { email },
+      {
+        username: userExisted.username,
+        email,
+        password: newPassword,
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+        runValidators: true,
+      },
+    );
 
     req.user = {
       username: userExisted.username,

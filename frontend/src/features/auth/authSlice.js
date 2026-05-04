@@ -6,6 +6,8 @@ import {
   logInOtpReceived,
   otpVerifiedAndLoggedIn,
   resetPassViaOldPass,
+  resetPassOtpReceived,
+  otpVerifiedAndResetPassword,
   uploadProfilePic,
   uploadBanner,
 } from "./authThunks";
@@ -167,6 +169,49 @@ const authSlice = createSlice({
         state.successMessage = null;
         state.errorMessage = action.payload.message;
         state.status = action.payload.status;
+      })
+      .addCase(resetPassOtpReceived.pending, (state) => {
+        state.formLoading = true;
+        state.errorMessage = null;
+        state.successMessage = null;
+        state.otp.sent = false;
+      })
+      .addCase(resetPassOtpReceived.fulfilled, (state, action) => {
+        state.formLoading = false;
+        state.otp.sent = true;
+        state.success = action.payload.success;
+        state.status = action.payload.status;
+        state.successMessage = action.payload.message;
+        state.purpose = "reset-password";
+      })
+      .addCase(resetPassOtpReceived.rejected, (state, action) => {
+        state.formLoading = false;
+        state.otp.sent = false;
+        state.success = false;
+        state.successMessage = null;
+        state.errorMessage = action.payload.message;
+        state.status = action.payload.status;
+      })
+      .addCase(otpVerifiedAndResetPassword.pending, (state) => {
+        state.formLoading = true;
+        state.otp.verifying = true;
+      })
+      .addCase(otpVerifiedAndResetPassword.fulfilled, (state, action) => {
+        state.formLoading = false;
+        state.otp.verifying = false;
+        state.otp.verified = action.payload.success;
+        state.successMessage = action.payload.message;
+        state.user = action.payload.data;
+        state.isAuthenticated = action.payload.success;
+        localStorage.removeItem("user");
+      })
+      .addCase(otpVerifiedAndResetPassword.rejected, (state, action) => {
+        state.formLoading = false;
+        state.otp.verifying = false;
+        state.otp.verified = action.payload.success;
+        state.successMessage = null;
+        state.errorMessage = action.payload.message;
+        state.id = action.payload.id;
       })
 
       // ====================== UPLOAD PROFILE PIC ======================
