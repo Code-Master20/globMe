@@ -369,6 +369,29 @@
   font-family: Georgia, "Times New Roman", serif;
 }
 
+.loading-title {
+  max-width: 18ch;
+}
+
+.loading-email {
+  max-width: min(28rem, 100%);
+  padding: 0.8rem 1rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f7fbff;
+  font-size: 1rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.loading-copy {
+  max-width: 28rem;
+  color: rgba(237, 246, 255, 0.72);
+  line-height: 1.65;
+  font-size: 0.95rem;
+}
+
 .loading-glow {
   width: 6rem;
   height: 0.4rem;

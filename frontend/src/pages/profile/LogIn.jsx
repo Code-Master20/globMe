@@ -286,16 +286,23 @@ export const LogIn = () => {
   if (!hydrated) return null;
 
   if (loading) {
-    return (
-      <section className={styles["auth-loading-state"]}>
-        <div className={styles["auth-loading-card"]}>
-          <img src={globMe} alt="globMe" className={styles["loading-logo"]} />
-          <p className={styles["loading-kicker"]}>Signing you in</p>
-          <h1>Sending a verification code to {clientCredentials.email || loadingEmail}</h1>
-          <span className={styles["loading-glow"]}></span>
-        </div>
-      </section>
-    );
+      return (
+        <section className={styles["auth-loading-state"]}>
+          <div className={styles["auth-loading-card"]}>
+            <img src={globMe} alt="globMe" className={styles["loading-logo"]} />
+            <p className={styles["loading-kicker"]}>Signing you in</p>
+            <h1 className={styles["loading-title"]}>Sending your verification code</h1>
+            <p className={styles["loading-email"]}>
+              {clientCredentials.email || loadingEmail}
+            </p>
+            <p className={styles["loading-copy"]}>
+              Check your inbox in a moment and keep this tab open while we
+              prepare the next step.
+            </p>
+            <span className={styles["loading-glow"]}></span>
+          </div>
+        </section>
+      );
   }
 
   return (
