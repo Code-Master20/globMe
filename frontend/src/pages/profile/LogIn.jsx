@@ -389,7 +389,9 @@ export const LogIn = () => {
                 )}
               </div>
 
-              <div className={styles["input-elm"]}>
+              <div
+                className={`${styles["input-elm"]} ${styles["password-field"]}`}
+              >
                 <label htmlFor="password">Password</label>
                 <button
                   type="button"
