@@ -4,6 +4,23 @@ const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
 
+const normalizeListInput = (value, pattern = /\r?\n|,/) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => `${item ?? ""}`.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  return value
+    .split(pattern)
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
 /* =========================
    UPLOAD AVATAR
 ========================= */
@@ -202,4 +219,56 @@ const deleteBanner = async (req, res) => {
   }
 };
 
-module.exports = { uploadAvatar, uploadBanner, deleteAvatar, deleteBanner };
+const updateProfileDetails = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    const {
+      username,
+      bio,
+      location,
+      profession,
+      talent,
+      status,
+      gender,
+      dob,
+    } = req.body;
+
+    if (!username || !`${username}`.trim()) {
+      return new ErrorHandler(400, "Username is required").send(res);
+    }
+
+    user.username = `${username}`.trim();
+    user.bio = normalizeListInput(bio, /\r?\n/);
+    user.location = normalizeListInput(location);
+    user.profession = `${profession ?? ""}`.trim() || null;
+    user.talent = normalizeListInput(talent, /\r?\n|,/);
+    user.status = `${status ?? ""}`.trim() || null;
+    user.gender = `${gender ?? ""}`.trim() || null;
+    user.dob = `${dob ?? ""}`.trim() || null;
+
+    await user.save();
+
+    return new SuccessHandler(
+      200,
+      "Profile updated successfully",
+      toPublicUser(user),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Profile could not be updated")
+      .log("profile update error", error)
+      .send(res);
+  }
+};
+
+module.exports = {
+  uploadAvatar,
+  uploadBanner,
+  deleteAvatar,
+  deleteBanner,
+  updateProfileDetails,
+};
