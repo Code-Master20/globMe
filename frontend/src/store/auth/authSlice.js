@@ -10,6 +10,7 @@ import {
   otpVerifiedAndResetPassword,
   uploadProfilePic,
   uploadBanner,
+  updateProfileDetails,
 } from "./authThunks";
 
 //=============================== setting constants to localstorage for values' persistent =========================
@@ -240,6 +241,21 @@ const authSlice = createSlice({
       })
       .addCase(uploadBanner.rejected, (state, action) => {
         state.loading = false;
+        state.errorMessage = action.payload?.message;
+      })
+
+      // ====================== UPDATE PROFILE DETAILS ======================
+      .addCase(updateProfileDetails.pending, (state) => {
+        state.formLoading = true;
+        state.errorMessage = null;
+      })
+      .addCase(updateProfileDetails.fulfilled, (state, action) => {
+        state.formLoading = false;
+        state.user = action.payload.data;
+        state.successMessage = action.payload.message;
+      })
+      .addCase(updateProfileDetails.rejected, (state, action) => {
+        state.formLoading = false;
         state.errorMessage = action.payload?.message;
       });
   },

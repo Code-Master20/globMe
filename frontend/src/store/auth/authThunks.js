@@ -282,3 +282,19 @@ export const uploadBanner = createAsyncThunk(
     }
   },
 );
+
+export const updateProfileDetails = createAsyncThunk(
+  "auth/updateProfileDetails",
+  async (profileDetails, thunkAPI) => {
+    try {
+      const response = await api.patch("/user/profile", profileDetails);
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue({
+        status: error.response?.status,
+        message: error.response?.data?.message || "Profile update failed",
+        success: false,
+      });
+    }
+  },
+);

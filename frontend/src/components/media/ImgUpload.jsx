@@ -3,14 +3,19 @@ import { useRef } from "react";
 export const ImageUpload = ({
   Icon,
   className,
+  buttonClassName = "",
   onFileSelect,
   accept = "image/*",
   multiple = false,
   size = 25,
+  label = "",
+  disabled = false,
+  title,
 }) => {
   const fileInputRef = useRef(null);
 
   const handleIconClick = () => {
+    if (disabled) return;
     fileInputRef.current?.click();
   };
 
@@ -35,14 +40,21 @@ export const ImageUpload = ({
         multiple={multiple}
         ref={fileInputRef}
         onChange={handleFileChange}
+        disabled={disabled}
         style={{ display: "none" }}
       />
 
-      <Icon
-        size={size}
-        style={{ cursor: "pointer" }}
+      <button
+        type="button"
+        className={buttonClassName}
         onClick={handleIconClick}
-      />
+        disabled={disabled}
+        title={title || label || "Choose image"}
+        aria-label={title || label || "Choose image"}
+      >
+        <Icon size={size} />
+        {label ? <span>{label}</span> : null}
+      </button>
     </div>
   );
 };
