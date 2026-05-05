@@ -156,6 +156,10 @@
   flex-shrink: 0;
 }
 
+.mobileConnectionStatsWrap {
+  display: none;
+}
+
 .profilePic {
   display: block;
   border-radius: 50%;
@@ -171,33 +175,38 @@
   bottom: 0.95rem;
   padding: 0.35rem 0.72rem;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.88);
+  background: rgba(15, 23, 42, 0.68);
   color: #f8fafc;
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
+  transform: skew(-10deg);
 }
 
 .profileUploader {
   position: absolute;
   left: 50%;
   bottom: -0.8rem;
-  transform: translateX(-50%);
+  transform: translateX(-24%);
 }
 
 .avatarUploadButton {
-  width: 54px;
-  height: 54px;
+  width: 46px;
+  height: 46px;
+  aspect-ratio: 1 / 1;
   padding: 0;
-  border-radius: 50%;
-  background: #ffffff;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.2);
   color: #1d4ed8;
-  border: 1px solid #dbeafe;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   box-shadow: 0 14px 24px rgba(29, 78, 216, 0.14);
+  backdrop-filter: blur(10px);
 }
 
 .avatarUploadButton:hover {
-  background: #eff6ff;
+  background: rgba(239, 246, 255, 0.28);
   color: #1e40af;
 }
 
@@ -206,6 +215,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
+  flex: 1;
 }
 
 .identityRow {
@@ -268,32 +278,66 @@
   word-break: break-word;
 }
 
+.headerMetaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.2rem;
+  width: 100%;
+}
+
+.headerMetaText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
 .connectionStats {
   display: flex;
-  flex-wrap: wrap;
+  align-items: stretch;
   gap: 0.7rem;
+  justify-content: end;
+  flex-shrink: 0;
+  padding: 0.45rem;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .connectionCard {
-  min-width: 96px;
-  padding: 0.72rem 0.85rem;
-  border-radius: 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  min-width: 0;
+  padding: 0.5rem 0.95rem;
+  border-radius: 999px;
+  background: transparent;
+  border: none;
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
+  align-items: center;
+  justify-content: center;
+  min-width: 82px;
+}
+
+.connectionCard:not(:last-child) {
+  border-right: 1px solid #e2e8f0;
 }
 
 .connectionCard strong {
   color: #172033;
-  font-size: 1.08rem;
+  font-size: 1rem;
 }
 
 .connectionCard span {
   color: #64748b;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
+  text-align: center;
+}
+
+.connectionStatsMobile {
+  display: none;
 }
 
 .locationLine svg {
@@ -609,8 +653,18 @@
     align-items: flex-start;
   }
 
+  .headerMetaRow {
+    flex-direction: column;
+  }
+
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .connectionStats {
+    width: 100%;
+    max-width: 440px;
+    justify-content: stretch;
   }
 }
 
@@ -647,16 +701,88 @@
   }
 
   .profilePicContainer {
-    align-self: center;
+    align-self: flex-start;
+  }
+
+  .profileLeft {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    column-gap: 0.9rem;
+    row-gap: 0.65rem;
+    width: 100%;
+  }
+
+  .profilePicContainer {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .mobileConnectionStatsWrap {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    justify-content: flex-end;
+    align-items: flex-start;
+    min-width: 0;
+    padding-top: 0.15rem;
   }
 
   .userInfo {
     width: 100%;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    order: 0;
+    margin-top: 0.2rem;
+  }
+
+  .connectionStatsDesktop {
+    display: none;
+  }
+
+  .connectionStatsMobile {
+    display: flex;
   }
 
   .stats,
   .detailsGrid {
     grid-template-columns: 1fr;
+  }
+
+  .connectionStats {
+    width: auto;
+    max-width: 216px;
+    justify-content: center;
+    margin-left: auto;
+    margin-right: 0;
+    gap: 0.35rem;
+    padding: 0.35rem 0.4rem;
+  }
+
+  .connectionCard {
+    flex: 0 1 auto;
+    min-width: 54px;
+    padding: 0.38rem 0.52rem;
+  }
+
+  .connectionCard strong {
+    font-size: 0.88rem;
+  }
+
+  .connectionCard span {
+    font-size: 0.68rem;
+  }
+
+  .avatarUploadButton {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    border-radius: 999px;
+  }
+
+  .profileUploader {
+    bottom: -0.55rem;
+    transform: translateX(-16%);
   }
 
   .actionsRow {

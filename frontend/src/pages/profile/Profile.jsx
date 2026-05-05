@@ -199,33 +199,37 @@ export const Profile = () => {
       ? locationItems.map(formatDisplayValue).join(", ")
       : "";
   const profileStory = bioItems[0] || "";
-  const friendsCount = profileUser.friendsCount ?? 0;
-  const followersCount = profileUser.followersCount;
-  const followingCount = profileUser.followingCount;
+  const friendsCount =
+    typeof profileUser.friendsCount === "number" ? profileUser.friendsCount : 0;
+  const followersCount =
+    typeof profileUser.followersCount === "number"
+      ? profileUser.followersCount
+      : 0;
+  const followingCount =
+    typeof profileUser.followingCount === "number"
+      ? profileUser.followingCount
+      : 0;
+
+  const canVisitorSeeFollowers = typeof profileUser.followersCount === "number";
+  const canVisitorSeeFollowing = typeof profileUser.followingCount === "number";
 
   const connectionStats = [
     {
       label: "Friends",
       value: friendsCount,
-      alwaysVisible: true,
-    },
-    {
-      label: "Followers",
-      value: followersCount,
-      alwaysVisible: false,
+      visible: true,
     },
     {
       label: "Following",
       value: followingCount,
-      alwaysVisible: false,
+      visible: creatorActive && (isOwner || canVisitorSeeFollowing),
     },
-  ].filter((item) => {
-    if (item.alwaysVisible) {
-      return true;
-    }
-
-    return creatorActive && typeof item.value === "number";
-  });
+    {
+      label: "Followers",
+      value: followersCount,
+      visible: creatorActive && (isOwner || canVisitorSeeFollowers),
+    },
+  ].filter((item) => item.visible);
 
   const summaryStats = [
     {
@@ -348,6 +352,7 @@ export const Profile = () => {
                     className={styles.profileUploader}
                     buttonClassName={styles.avatarUploadButton}
                     onFileSelect={handleAvatarSelect}
+                    size={18}
                     disabled={loading}
                     title={
                       loading && uploadTarget === "avatar"
@@ -358,22 +363,11 @@ export const Profile = () => {
                 ) : null}
               </article>
 
-              <div className={styles.userInfo}>
-                <div className={styles.identityRow}>
-                  <h1 className={styles.name}>{profileUser.username}</h1>
-                  <span className={styles.statusPill}>{statusPillLabel}</span>
-                </div>
-
-                {professionLabel || isOwner ? (
-                  <p className={styles.profession}>{professionLabel || "--"}</p>
-                ) : null}
-
-                {profileUser.email ? (
-                  <p className={styles.emailLine}>{profileUser.email}</p>
-                ) : null}
-
-                {connectionStats.length > 0 ? (
-                  <div className={styles.connectionStats}>
+              {connectionStats.length > 0 ? (
+                <div className={styles.mobileConnectionStatsWrap}>
+                  <div
+                    className={`${styles.connectionStats} ${styles.connectionStatsMobile}`}
+                  >
                     {connectionStats.map((item) => (
                       <div key={item.label} className={styles.connectionCard}>
                         <strong>{item.value}</strong>
@@ -381,7 +375,39 @@ export const Profile = () => {
                       </div>
                     ))}
                   </div>
-                ) : null}
+                </div>
+              ) : null}
+
+              <div className={styles.userInfo}>
+                <div className={styles.identityRow}>
+                  <h1 className={styles.name}>{profileUser.username}</h1>
+                  <span className={styles.statusPill}>{statusPillLabel}</span>
+                </div>
+
+                <div className={styles.headerMetaRow}>
+                  <div className={styles.headerMetaText}>
+                    {professionLabel || isOwner ? (
+                      <p className={styles.profession}>{professionLabel || "--"}</p>
+                    ) : null}
+
+                    {profileUser.email ? (
+                      <p className={styles.emailLine}>{profileUser.email}</p>
+                    ) : null}
+                  </div>
+
+                  {connectionStats.length > 0 ? (
+                    <div
+                      className={`${styles.connectionStats} ${styles.connectionStatsDesktop}`}
+                    >
+                      {connectionStats.map((item) => (
+                        <div key={item.label} className={styles.connectionCard}>
+                          <strong>{item.value}</strong>
+                          <span>{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
 
                 {talentItems.length > 0 ? (
                   <div className={styles.topSkills}>
@@ -393,13 +419,6 @@ export const Profile = () => {
                   </div>
                 ) : null}
 
-                {locationLabel ? (
-                  <div className={styles.locationLine}>
-                    <MdEditLocationAlt />
-                    <span>{locationLabel}</span>
-                  </div>
-                ) : null}
-
                 {profileStory ? (
                   <p className={styles.profileStory}>{profileStory}</p>
                 ) : isOwner ? (
@@ -407,6 +426,13 @@ export const Profile = () => {
                     Add a short intro so visitors understand your personality,
                     work, and interests at a glance.
                   </p>
+                ) : null}
+
+                {locationLabel ? (
+                  <div className={styles.locationLine}>
+                    <MdEditLocationAlt />
+                    <span>{locationLabel}</span>
+                  </div>
                 ) : null}
 
                 {isOwner ? (
