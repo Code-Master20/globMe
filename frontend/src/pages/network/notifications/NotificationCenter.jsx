@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import noProfile from "../../../assets/noProfile.png";
 import {
@@ -18,6 +19,7 @@ const formatDisplayValue = (value) => {
 };
 
 export const NotificationCenter = () => {
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const { items, loading } = useSelector((state) => state.notifications);
 
@@ -53,24 +55,45 @@ export const NotificationCenter = () => {
                   notification.read ? styles.readCard : styles.unreadCard
                 }`}
               >
-                <img
-                  src={notification.actor?.avatar || noProfile}
-                  alt={notification.actor?.username || "user"}
-                  className={styles.avatar}
-                />
-                <div className={styles.notificationBody}>
-                  <div className={styles.notificationTop}>
-                    <h2>{notification.message}</h2>
-                    <span>{new Date(notification.createdAt).toLocaleString()}</span>
+                <button
+                  type="button"
+                  className={styles.notificationMain}
+                  onClick={() =>
+                    notification.actor?._id
+                      ? navigate(`/profile/${notification.actor._id}`)
+                      : null
+                  }
+                  disabled={!notification.actor?._id}
+                >
+                  <img
+                    src={notification.actor?.avatar || noProfile}
+                    alt={notification.actor?.username || "user"}
+                    className={styles.avatar}
+                  />
+                  <div className={styles.notificationBody}>
+                    <div className={styles.notificationTop}>
+                      <h2>{notification.message}</h2>
+                      <span>{new Date(notification.createdAt).toLocaleString()}</span>
+                    </div>
+                    {notification.actor?.profession ? (
+                      <p className={styles.actorMeta}>
+                        {formatDisplayValue(notification.actor.profession)}
+                      </p>
+                    ) : null}
+                    {notification.actor?.email ? (
+                      <p className={styles.actorMeta}>{notification.actor.email}</p>
+                    ) : null}
                   </div>
-                  {notification.actor?.profession ? (
-                    <p className={styles.actorMeta}>
-                      {formatDisplayValue(notification.actor.profession)}
-                    </p>
-                  ) : null}
-                  {notification.actor?.email ? (
-                    <p className={styles.actorMeta}>{notification.actor.email}</p>
-                  ) : null}
+                </button>
+                <div className={styles.notificationActions}>
+                  <button
+                    type="button"
+                    className={styles.viewBtn}
+                    onClick={() => navigate(`/profile/${notification.actor._id}`)}
+                    disabled={!notification.actor?._id}
+                  >
+                    View profile
+                  </button>
                 </div>
               </article>
             ))}

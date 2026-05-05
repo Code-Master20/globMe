@@ -46,11 +46,24 @@
 
 .notificationCard {
   display: flex;
+  justify-content: space-between;
   gap: 0.9rem;
   padding: 1rem;
   border-radius: 20px;
   border: 1px solid #e2e8f0;
   background: #ffffff;
+}
+
+.notificationMain {
+  display: flex;
+  gap: 0.9rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
 }
 
 .unreadCard {
@@ -74,6 +87,29 @@
 .notificationBody {
   min-width: 0;
   flex: 1;
+}
+
+.notificationActions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.viewBtn {
+  min-height: 40px;
+  padding: 0.7rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid #dbe2ea;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.viewBtn:disabled,
+.notificationMain:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .notificationTop {
@@ -113,6 +149,10 @@
     flex-direction: column;
   }
 
+  .notificationMain {
+    flex-direction: column;
+  }
+
   .notificationTop {
     flex-direction: column;
     gap: 0.35rem;
@@ -120,5 +160,10 @@
 
   .notificationTop span {
     white-space: normal;
+  }
+
+  .notificationActions,
+  .viewBtn {
+    width: 100%;
   }
 }

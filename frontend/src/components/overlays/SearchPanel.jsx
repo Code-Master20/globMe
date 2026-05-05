@@ -203,7 +203,11 @@ export const SearchPanel = ({ className, onClose }) => {
 
               return (
                 <article className={styles.resultCard} key={user._id}>
-                  <div className={styles.resultMain}>
+                  <button
+                    type="button"
+                    className={styles.resultMain}
+                    onClick={() => handleViewProfile(user._id)}
+                  >
                     <img
                       src={user.avatar || noProfile}
                       alt={user.username}
@@ -231,7 +235,7 @@ export const SearchPanel = ({ className, onClose }) => {
                         </div>
                       ) : null}
                     </div>
-                  </div>
+                  </button>
                   <div className={styles.resultAction}>
                     <button
                       type="button"

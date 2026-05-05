@@ -97,7 +97,11 @@ export const PeopleHub = () => {
 
               return (
                 <article className={styles.requestCard} key={user._id}>
-                  <div className={styles.requestMain}>
+                  <button
+                    type="button"
+                    className={styles.requestMain}
+                    onClick={() => navigate(`/profile/${user._id}`)}
+                  >
                     <img
                       src={user.avatar || noProfile}
                       alt={user.username}
@@ -121,7 +125,7 @@ export const PeopleHub = () => {
                         </div>
                       ) : null}
                     </div>
-                  </div>
+                  </button>
 
                   <div className={styles.cardActions}>
                     <button

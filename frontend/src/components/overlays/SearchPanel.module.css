@@ -145,6 +145,12 @@
   display: flex;
   gap: 0.85rem;
   min-width: 0;
+  flex: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
 }
 
 .resultAvatar {
