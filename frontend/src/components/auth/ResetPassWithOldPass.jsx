@@ -5,7 +5,7 @@ import styles from "./EditPassword.module.css";
 import {
   checkMe,
   resetPassViaOldPass,
-} from "../../features/auth/authThunks";
+} from "../../store/auth/authThunks";
 import { InvalidInputTracker } from "./InvalidInputTracker";
 import { toast } from "react-toastify";
 

@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import styles from "./EditPassword.module.css";
 import { useRef, useState } from "react";
-import { resetPassOtpReceived } from "../../features/auth/authThunks";
+import { resetPassOtpReceived } from "../../store/auth/authThunks";
 import { InvalidInputTracker } from "./InvalidInputTracker";
 import { toast } from "react-toastify";
 import { MdOutlineRemoveRedEye } from "react-icons/md";

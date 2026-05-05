@@ -6,7 +6,7 @@ import { RiImageEditLine, RiImageCircleAiFill } from "react-icons/ri";
 import { MdEditLocationAlt } from "react-icons/md";
 import { FaUserEdit } from "react-icons/fa";
 
-import { EditProfileInfo } from "../../components/forms/EditProfileInfo";
+import { EditProfileInfo } from "../../components/profile/EditProfileInfo";
 import { ImageUpload } from "../../components/media/ImgUpload";
 
 import { useState, useEffect } from "react";
@@ -14,7 +14,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   uploadBanner,
   uploadProfilePic,
-} from "../../features/auth/authThunks";
+} from "../../store/auth/authThunks";
 
 export const Profile = () => {
   const dispatch = useDispatch();

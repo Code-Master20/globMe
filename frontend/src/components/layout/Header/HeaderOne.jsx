@@ -6,7 +6,7 @@ import { MdAddCircleOutline } from "react-icons/md";
 import { HiOutlineSortDescending } from "react-icons/hi";
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { isDashboard } from "../../../features/navigation/pageSlice";
+import { isDashboard } from "../../../store/navigation/pageSlice";
 import { useSelector, useDispatch } from "react-redux";
 import { SearchPanel } from "../../overlays/SearchPanel";
 // import { FaUsersBetweenLines } from "react-icons/fa6";

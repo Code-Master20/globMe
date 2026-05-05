@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { ResetPassWithOldPass } from "./ResetPassWithOldPass";
-import { ResetPassWithOtp } from "./ResetPassWithOtp";
+import { ResetPassWithOldPass } from "../../components/auth/ResetPassWithOldPass";
+import { ResetPassWithOtp } from "../../components/auth/ResetPassWithOtp";
 
 export const EditPassword = () => {
   const [otpResetTrigger, setOtpResetTrigger] = useState(() => {

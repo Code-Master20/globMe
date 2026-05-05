@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { HeaderOne } from "../components/layout/Header/HeaderOne";
 import { HeaderTwo } from "../components/layout/Header/HeaderTwo";
 import { Outlet } from "react-router-dom";
-import { checkMe } from "../features/auth/authThunks";
+import { checkMe } from "../store/auth/authThunks";
 
 export const Root = () => {
   const dispatch = useDispatch();

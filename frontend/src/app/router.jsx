@@ -5,10 +5,12 @@ import {
   Route,
 } from "react-router-dom";
 import { Root } from "./Root.jsx";
-import { EditPassword } from "../components/forms/EditPassword.jsx";
-import { OtpVerification } from "../components/forms/OtpVerification.jsx";
-import { PrivateRoute } from "../routes/PrivateRoute.jsx";
-import { PublicRoute } from "../routes/PublicRoute.jsx";
+import { EditPassword } from "../pages/auth/EditPassword.jsx";
+import { LogIn } from "../pages/auth/LogIn.jsx";
+import { OtpVerification } from "../pages/auth/OtpVerification.jsx";
+import { SignUp } from "../pages/auth/SignUp.jsx";
+import { PrivateRoute } from "../routes/auth/PrivateRoute.jsx";
+import { PublicRoute } from "../routes/auth/PublicRoute.jsx";
 import { Dashboard } from "../pages/dashboard/Dashboard.jsx";
 import { HomeFeed } from "../pages/feeds/home/HomeFeed.jsx";
 import { PhotoFeed } from "../pages/feeds/photo/PhotoFeed.jsx";
@@ -16,9 +18,7 @@ import { PostFeed } from "../pages/feeds/post/PostFeed.jsx";
 import { VideoFeed } from "../pages/feeds/video/VideoFeed.jsx";
 import { NotificationCenter } from "../pages/network/notifications/NotificationCenter.jsx";
 import { PeopleHub } from "../pages/network/people/PeopleHub.jsx";
-import { LogIn } from "../pages/profile/LogIn.jsx";
 import { Profile } from "../pages/profile/Profile.jsx";
-import { SignUp } from "../pages/profile/SignUp.jsx";
 
 export const router = createBrowserRouter(
   createRoutesFromElements(

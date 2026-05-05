@@ -1,15 +1,15 @@
 import style from "./OtpVerification.module.css";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import styles from "../../pages/profile/LogInSignUp.module.css";
+import styles from "./LogInSignUp.module.css";
 import { useDispatch, useSelector } from "react-redux";
 import {
   otpVerifiedAndLoggedIn,
   otpVerifiedAndResetPassword,
   otpVerifiedAndSignedUp,
-} from "../../features/auth/authThunks";
+} from "../../store/auth/authThunks";
 import { toast } from "react-toastify";
-import { InvalidInputTracker } from "./InvalidInputTracker";
+import { InvalidInputTracker } from "../../components/auth/InvalidInputTracker";
 import globMe from "../../assets/globme.png";
 
 export const OtpVerification = () => {
