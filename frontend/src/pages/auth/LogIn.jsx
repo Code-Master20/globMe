@@ -11,6 +11,24 @@ import { MdOutlineRemoveRedEye } from "react-icons/md";
 import { FaRegEyeSlash } from "react-icons/fa6";
 import globMe from "../../assets/globme.png";
 
+const BLOCKED_STORAGE_KEY = "login-block-countdown";
+
+const parseBlockedCountdown = (message) => {
+  if (typeof message !== "string") {
+    return null;
+  }
+
+  const match = message.match(/(\d+)m\s*(\d+)s/);
+
+  if (!match) {
+    return null;
+  }
+
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  return minutes * 60 + seconds;
+};
+
 export const LogIn = () => {
   const { errorMessage } = useSelector((state) => state.auth);
 
@@ -72,11 +90,7 @@ export const LogIn = () => {
   });
 
   useEffect(() => {
-    localStorage.removeItem("timeRemains");
-  }, []);
-
-  useEffect(() => {
-    const storedTime = localStorage.getItem("time-remains");
+    const storedTime = localStorage.getItem(BLOCKED_STORAGE_KEY);
 
     if (storedTime) {
       const parsed = Number(JSON.parse(storedTime));
@@ -88,6 +102,11 @@ export const LogIn = () => {
     setHydrated(true);
   }, []);
 
+  useEffect(() => {
+    if (countdown === null) return;
+    setDisable(countdown > 0);
+  }, [countdown]);
+
   async function handleOnSubmit(event) {
     event.preventDefault();
     setLoading(true);
@@ -97,6 +116,7 @@ export const LogIn = () => {
     if (logInOtpReceived.rejected.match(resultAction)) {
       setLoading(false);
       const error = resultAction.payload.message;
+      const status = resultAction.payload.status;
 
       const timer = setTimeout(() => {
         setPath(null);
@@ -109,15 +129,29 @@ export const LogIn = () => {
       }
 
       if (typeof error === "string") {
+        if (status === 429 || error.includes("Too many failed attempts")) {
+          const blockedCountdown = parseBlockedCountdown(error);
+
+          setDisable(true);
+          setTries(0);
+          setCountdown(blockedCountdown);
+
+          if (blockedCountdown) {
+            localStorage.setItem(
+              BLOCKED_STORAGE_KEY,
+              JSON.stringify(blockedCountdown),
+            );
+          }
+
+          toast.warn(error);
+          return;
+        }
+
         setTries((prev) => {
           if (prev <= 0) return 0;
           return prev - 1;
         });
 
-        if (tries && error.includes("Too many failed attempts")) {
-          toast.warn("Invalid email or password.");
-          return;
-        }
         toast.warn(error);
         return;
       }
@@ -153,10 +187,8 @@ export const LogIn = () => {
   const runCountRef = useRef(JSON.parse(localStorage.getItem("runCount")) || 0);
 
   useEffect(() => {
-    localStorage.setItem("tryRemains", JSON.stringify(tries));
-
-    if (tries === 0) {
-      trackTime();
+    if (countdown === null) {
+      localStorage.setItem("tryRemains", JSON.stringify(tries));
     }
 
     let timer;
@@ -180,7 +212,7 @@ export const LogIn = () => {
     }
 
     return () => clearTimeout(timer);
-  }, [tries]);
+  }, [tries, countdown]);
 
   function resetCancel() {
     localStorage.removeItem("tryPassReset");
@@ -194,34 +226,13 @@ export const LogIn = () => {
     navigate("/reset-password");
   }
 
-  async function trackTime() {
-    if (tries === 0) {
-      setDisable(true);
-      const time = await dispatch(logInOtpReceived(clientCredentials));
-
-      if (logInOtpReceived.rejected.match(time)) {
-        const error = time.payload.message;
-        if (!error.includes("Too many failed attempts")) {
-          setCountdown(0);
-        }
-        if (error.includes("Too many failed attempts")) {
-          const match = error.match(/(\d+)m\s*(\d+)s/);
-          if (match) {
-            const minutes = Number(match[1]);
-            const seconds = Number(match[2]);
-            setCountdown(minutes * 60 + seconds);
-          }
-        }
-      }
-    }
-  }
-
   useEffect(() => {
     if (countdown === null) return;
 
     if (countdown === 0) {
-      console.clear();
       setDisable(false);
+      setCountdown(null);
+      localStorage.removeItem(BLOCKED_STORAGE_KEY);
       localStorage.removeItem("runCount");
       runCountRef.current = 0;
       localStorage.setItem("tryRemains", JSON.stringify(3));
@@ -229,11 +240,23 @@ export const LogIn = () => {
       return;
     }
 
-    const timer = setInterval(() => {
-      trackTime();
-    }, 800);
+    const timer = setTimeout(() => {
+      setCountdown((prev) => {
+        if (prev === null) return null;
 
-    return () => clearInterval(timer);
+        const nextValue = prev - 1;
+
+        if (nextValue > 0) {
+          localStorage.setItem(BLOCKED_STORAGE_KEY, JSON.stringify(nextValue));
+          return nextValue;
+        }
+
+        localStorage.removeItem(BLOCKED_STORAGE_KEY);
+        return 0;
+      });
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [countdown]);
 
   const minutes = countdown !== null ? Math.floor(countdown / 60) : 0;
