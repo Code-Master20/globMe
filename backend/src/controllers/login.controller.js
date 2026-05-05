@@ -1,6 +1,7 @@
 const User = require("../models/user.model");
 const SuccessHandler = require("../utils/successHandler.util");
 const ErrorHandler = require("../utils/errorHandler.util");
+const toPublicUser = require("../utils/publicUser.util");
 
 const logIn = async (req, res, _) => {
   try {
@@ -16,7 +17,7 @@ const logIn = async (req, res, _) => {
     });
 
     const data = {
-      id: userFound._id,
+      ...toPublicUser(userFound),
       username,
       email,
       creator,

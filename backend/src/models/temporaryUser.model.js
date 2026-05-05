@@ -25,7 +25,7 @@ const temporaryUserSchema = new mongoose.Schema(
       lowercase: true,
     },
     dob: {
-      tupe: String,
+      type: String,
     },
 
     talent: {

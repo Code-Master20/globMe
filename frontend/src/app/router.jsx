@@ -9,7 +9,7 @@ import { EditPassword } from "../components/forms/EditPassword.jsx";
 import { OtpVerification } from "../components/forms/OtpVerification.jsx";
 import { PrivateRoute } from "../routes/PrivateRoute.jsx";
 import { PublicRoute } from "../routes/PublicRoute.jsx";
-import { Dashboard } from "../pages/Dashboard/Dashboard.jsx";
+import { Dashboard } from "../pages/dashboard/Dashboard.jsx";
 import { HomeFeed } from "../pages/feeds/home/HomeFeed.jsx";
 import { PhotoFeed } from "../pages/feeds/photo/PhotoFeed.jsx";
 import { PostFeed } from "../pages/feeds/post/PostFeed.jsx";

@@ -2,6 +2,7 @@ const cloudinary = require("../config/cloudinary.utils");
 const User = require("../models/user.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
+const toPublicUser = require("../utils/publicUser.util");
 
 /* =========================
    UPLOAD AVATAR
@@ -41,9 +42,11 @@ const uploadAvatar = async (req, res) => {
 
           await user.save();
 
-          return new SuccessHandler(200, "DP updated successfully", user).send(
-            res,
-          );
+          return new SuccessHandler(
+            200,
+            "DP updated successfully",
+            toPublicUser(user),
+          ).send(res);
         } catch (dbError) {
           // Rollback newly uploaded image
           await cloudinary.uploader.destroy(result.public_id);
@@ -104,7 +107,7 @@ const uploadBanner = async (req, res) => {
           return new SuccessHandler(
             200,
             "Banner updated successfully",
-            user,
+            toPublicUser(user),
           ).send(res);
         } catch (dbError) {
           // Rollback newly uploaded image

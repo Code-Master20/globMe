@@ -2,6 +2,7 @@ const User = require("../models/user.model");
 const TemporaryUser = require("../models/temporaryUser.model");
 const SuccessHandler = require("../utils/successHandler.util");
 const ErrorHandler = require("../utils/errorHandler.util");
+const toPublicUser = require("../utils/publicUser.util");
 
 const signUp = async (req, res) => {
   try {
@@ -31,12 +32,7 @@ const signUp = async (req, res) => {
     });
 
     // 🔥 remove password and convert _id → id
-    const userObject = userCreated.toObject();
-    const { password: _, _id, ...rest } = userObject;
-    const data = {
-      id: _id,
-      ...rest,
-    };
+    const data = toPublicUser(userCreated);
 
     return new SuccessHandler(201, "sign-up successfully done", data).send(res);
   } catch (error) {

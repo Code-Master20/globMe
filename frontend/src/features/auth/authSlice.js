@@ -20,6 +20,7 @@ const authSlice = createSlice({
   initialState: {
     checkingAuth: false,
     formLoading: false,
+    loading: false,
     isAuthenticated: false,
     status: null,
     success: false,

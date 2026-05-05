@@ -4,15 +4,12 @@ import { PiVideoLight } from "react-icons/pi";
 import { BsPeople } from "react-icons/bs";
 import { IoIosNotificationsOutline } from "react-icons/io";
 import { TbPhotoVideo } from "react-icons/tb";
-import { TfiBarChart } from "react-icons/tfi";
 import { NavLink } from "react-router-dom";
 import noProfile from "../../../assets/noProfile.png";
-import { useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 
 export const HeaderTwo = () => {
   const { user } = useSelector((state) => state.auth);
-  // console.log(user);
 
   return (
     <header className={styles["header-container"]}>
@@ -55,7 +52,7 @@ export const HeaderTwo = () => {
           <IoIosNotificationsOutline />
         </NavLink>
         <NavLink to="/profile">
-          <img src={noProfile} alt="me" />
+          <img src={user?.avatar || noProfile} alt="me" />
         </NavLink>
       </nav>
     </header>

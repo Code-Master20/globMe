@@ -10,11 +10,15 @@ import { EditProfileInfo } from "../../components/forms/EditProfileInfo";
 import { ImageUpload } from "../../components/media/ImgUpload";
 
 import { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  uploadBanner,
+  uploadProfilePic,
+} from "../../features/auth/authThunks";
 
 export const Profile = () => {
-  const { user } = useSelector((state) => state.auth.user);
-  console.log(user);
+  const dispatch = useDispatch();
+  const { user, loading } = useSelector((state) => state.auth);
 
   const [width, setWidth] = useState(window.innerWidth);
   const [isCreatorMode, setIsCreatorMode] = useState(false);
@@ -28,17 +32,29 @@ export const Profile = () => {
   const profileSize = width < 768 ? 120 : 160;
 
   // ================= Upload Handlers =================
+  const handleAvatarSelect = (file) => {
+    dispatch(uploadProfilePic(file));
+  };
+
+  const handleBannerSelect = (file) => {
+    dispatch(uploadBanner(file));
+  };
 
   return (
     <main className={styles.mainContainer}>
       <section className={styles.contentContainer}>
         {/* ================= Banner ================= */}
         <div className={styles.bannerWrapper}>
-          <img src={noBanner} alt="Banner" className={styles.bannerImg} />
+          <img
+            src={user?.banner || noBanner}
+            alt="Banner"
+            className={styles.bannerImg}
+          />
 
           <ImageUpload
             Icon={RiImageEditLine}
             className={styles.bannerUploader}
+            onFileSelect={handleBannerSelect}
           />
         </div>
 
@@ -48,7 +64,7 @@ export const Profile = () => {
             <div className={styles.profileLeft}>
               <article className={styles["profile-pic-container"]}>
                 <img
-                  src={noProfile}
+                  src={user?.avatar || noProfile}
                   alt="Profile"
                   height={profileSize}
                   className={styles.profilePic}
@@ -59,6 +75,7 @@ export const Profile = () => {
                 <ImageUpload
                   Icon={RiImageCircleAiFill}
                   className={styles.profileUploader}
+                  onFileSelect={handleAvatarSelect}
                 />
               </article>
 
@@ -99,6 +116,7 @@ export const Profile = () => {
               <button
                 className={styles.creatorBtn}
                 onClick={() => setIsCreatorMode((prev) => !prev)}
+                disabled={loading}
               >
                 creator mode
                 <span className={styles.creatorIndicator}>

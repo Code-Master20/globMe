@@ -1,4 +1,5 @@
 // middlewares/expressMiddleware/otpVerify.middleware.js
+const crypto = require("node:crypto");
 const bcrypt = require("bcryptjs");
 const EmailOtp = require("../../models/emailOtp.model");
 const TemporaryUser = require("../../models/temporaryUser.model");
