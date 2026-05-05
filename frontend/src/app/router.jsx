@@ -11,7 +11,7 @@ import { OtpVerification } from "../pages/auth/OtpVerification.jsx";
 import { SignUp } from "../pages/auth/SignUp.jsx";
 import { PrivateRoute } from "../routes/auth/PrivateRoute.jsx";
 import { PublicRoute } from "../routes/auth/PublicRoute.jsx";
-import { DashboardTemp } from "../pages/dashboard/DashboardTemp.jsx";
+import { Dashboard } from "../pages/dashboard/Dashboard.jsx";
 import { HomeFeed } from "../pages/feeds/home/HomeFeed.jsx";
 import { PhotoFeed } from "../pages/feeds/photo/PhotoFeed.jsx";
 import { PostFeed } from "../pages/feeds/post/PostFeed.jsx";

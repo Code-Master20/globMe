@@ -3,7 +3,7 @@ import { LuSkipBack } from "react-icons/lu";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "react-router-dom";
 
-export const DashboardTemp = () => {
+export const Dashboard = () => {
   const dispatch = useDispatch();
   const {
     dashboard,
