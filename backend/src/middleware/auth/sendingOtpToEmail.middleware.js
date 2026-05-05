@@ -1,29 +1,17 @@
-// middlewares/expressMiddleware/sendingOtpToEmail.middleware.js
-const TemporaryUser = require("../../models/temporaryUser.model");
-const sendOtp = require("../../services/sendOtp.service");
-const User = require("../../models/user.model");
+const TemporaryUser = require("../../models/auth/temporaryUser.model");
+const User = require("../../models/auth/user.model");
+const BlockedEmail = require("../../models/auth/temBlockEmails.model");
+const sendOtp = require("../../services/auth/sendOtp.service");
 const ErrorHandler = require("../../utils/errorHandler.util");
 const SuccessHandler = require("../../utils/successHandler.util");
-const EmailOtp = require("../../models/emailOtp.model");
-const BlockedEmail = require("../../models/temBlockEmails.model");
 
-// ================= SIGN UP OTP =================
 const sendingOtpForSignUp = async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
     await TemporaryUser.deleteMany({ email });
-
-    await TemporaryUser.create({
-      username,
-      email,
-      password,
-    });
-
-    await sendOtp({
-      email,
-      purpose: "signup",
-    });
+    await TemporaryUser.create({ username, email, password });
+    await sendOtp({ email, purpose: "signup" });
 
     return new SuccessHandler(200, `verification code sent to ${email}`, {
       email,
@@ -35,19 +23,13 @@ const sendingOtpForSignUp = async (req, res) => {
   }
 };
 
-// ================= LOGIN OTP =================
-const ipAttempts = new Map();
-const IP_WINDOW = 18 * 60 * 1000; // 18 minutes
-const IP_MAX_ATTEMPTS = 15;
 const sendingOtpForLogIn = async (req, res) => {
   try {
     const { email, password } = req.body;
-
     const blocked = await BlockedEmail.findOne({ email });
 
     if (blocked && blocked.count > 2) {
       const timeLeft = Math.max(0, blocked.expiresAt.getTime() - Date.now());
-
       const minutes = Math.floor(timeLeft / 59991);
       const seconds = Math.floor((timeLeft % 60000) / 991);
 
@@ -76,16 +58,12 @@ const sendingOtpForLogIn = async (req, res) => {
       let attempts = await BlockedEmail.findOne({ email });
 
       if (!attempts) {
-        attempts = await BlockedEmail.create({
-          email,
-          count: 1,
-        });
+        attempts = await BlockedEmail.create({ email, count: 1 });
       } else {
         attempts.count += 1;
 
-        // 🚀 set expiry ONLY when blocked
         if (attempts.count > 2) {
-          attempts.expiresAt = new Date(Date.now() + 45 * 60 * 1000); // 45 min
+          attempts.expiresAt = new Date(Date.now() + 45 * 60 * 1000);
         }
 
         await attempts.save();
@@ -96,11 +74,7 @@ const sendingOtpForLogIn = async (req, res) => {
         .send(res);
     }
 
-    await sendOtp({
-      email,
-      purpose: "login",
-    });
-
+    await sendOtp({ email, purpose: "login" });
     await BlockedEmail.deleteOne({ email });
 
     return new SuccessHandler(200, `verification code sent to ${email}`, {
@@ -112,14 +86,11 @@ const sendingOtpForLogIn = async (req, res) => {
       .send(res);
   }
 };
-//===============PASSWORD RESET OTP==============
+
 const sendingOtpForPassReset = async (req, res) => {
   try {
-    const { username, email, newPassword } = req.user;
-    await sendOtp({
-      email,
-      purpose: "reset-password",
-    });
+    const { email } = req.user;
+    await sendOtp({ email, purpose: "reset-password" });
 
     return new SuccessHandler(
       200,

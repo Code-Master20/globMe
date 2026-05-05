@@ -1,8 +1,8 @@
 const cloudinary = require("../config/cloudinary.utils");
-const User = require("../models/user.model");
+const User = require("../models/auth/user.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
-const toPublicUser = require("../utils/publicUser.util");
+const toPublicUser = require("../utils/auth/publicUser.util");
 
 /* =========================
    UPLOAD AVATAR

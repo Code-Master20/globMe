@@ -1,28 +1,24 @@
-const express = require("express");
-const User = require("../../models/user.model");
+const User = require("../../models/auth/user.model");
+const TemporaryUser = require("../../models/auth/temporaryUser.model");
+const PasswordChangeAttempt = require("../../models/auth/passwordChangeBlocked.model");
+const AttemptCount = require("../../models/auth/attemptCount.model");
 const ErrorHandler = require("../../utils/errorHandler.util");
-const TemporaryUser = require("../../models/temporaryUser.model");
-const PasswordChangeAttempt = require("../../models/passwordChangeBlocked.model");
-const AttemptCount = require("../../models/attemptCount.model");
 
-// ================= RESET WITH OLD PASSWORD =================
 async function checkIfBlocked(email, res) {
   const blocked = await PasswordChangeAttempt.findOne({ email });
 
-  if (blocked) {
-    const minutesLeft = Math.ceil(
-      (blocked.expiresAt - new Date()) / (1000 * 60),
-    );
-
-    new ErrorHandler(
-      403,
-      `Too many attempts. Try again after ${minutesLeft} minutes`,
-    ).send(res);
-
-    return true; // stop execution
+  if (!blocked) {
+    return false;
   }
 
-  return false;
+  const minutesLeft = Math.ceil((blocked.expiresAt - new Date()) / (1000 * 60));
+
+  new ErrorHandler(
+    403,
+    `Too many attempts. Try again after ${minutesLeft} minutes`,
+  ).send(res);
+
+  return true;
 }
 
 async function recordFailedAttempt(email) {
@@ -38,8 +34,8 @@ async function recordFailedAttempt(email) {
   if (attempt.count >= 5) {
     await PasswordChangeAttempt.create({
       email,
-      lockUntil: new Date(Date.now() + 30 * 60 * 1000), // 🔥 dynamic
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 min block
+      lockUntil: new Date(Date.now() + 30 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
     });
 
     attempt.count = 0;
@@ -56,49 +52,37 @@ const resetPasswordWithOldPassword = async (req, res, next) => {
   try {
     const { email, password, newPassword } = req.body;
 
-    // 🔒 Step 1: Check if blocked
     const isBlocked = await checkIfBlocked(email, res);
     if (isBlocked) return;
 
-    // 🔍 Step 2: Find user
     const userExisted = await User.findOne({ email });
 
-    // ❌ Step 3: If user not found
     if (!userExisted) {
       await recordFailedAttempt(email);
-
       return new ErrorHandler(404, "email or password not matched")
         .log("password reset", "email not registered")
         .send(res);
     }
 
-    // 🔑 Step 4: Check old password
     const isMatchOldPassword = await userExisted.comparePassword(password);
 
-    // ❌ Step 5: Wrong password
     if (!isMatchOldPassword) {
       await recordFailedAttempt(email);
-
       return new ErrorHandler(401, "email or password not matched")
         .log("password mismatch", "user entered wrong old password")
         .send(res);
     }
 
-    // ✅ Step 6: Success → reset attempts
     await resetAttempts(email);
-
-    // 🔥 Step 7: Update password
     userExisted.password = newPassword;
     await userExisted.save();
 
-    // attach user to request
     req.user = {
       id: userExisted._id,
       username: userExisted.username,
       email: userExisted.email,
       creator: userExisted.creator,
     };
-
     next();
   } catch (error) {
     return new ErrorHandler(500, "internal server error")
@@ -107,11 +91,9 @@ const resetPasswordWithOldPassword = async (req, res, next) => {
   }
 };
 
-// ================= RESET WITH OTP =================
 const resetPasswordWithOtp = async (req, res, next) => {
   try {
     const { email, newPassword } = req.body;
-
     const userExisted = await User.findOne({ email });
 
     if (!userExisted) {

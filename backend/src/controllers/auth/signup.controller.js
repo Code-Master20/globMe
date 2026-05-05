@@ -1,8 +1,8 @@
-const User = require("../models/user.model");
-const TemporaryUser = require("../models/temporaryUser.model");
-const SuccessHandler = require("../utils/successHandler.util");
-const ErrorHandler = require("../utils/errorHandler.util");
-const toPublicUser = require("../utils/publicUser.util");
+const User = require("../../models/auth/user.model");
+const TemporaryUser = require("../../models/auth/temporaryUser.model");
+const toPublicUser = require("../../utils/auth/publicUser.util");
+const SuccessHandler = require("../../utils/successHandler.util");
+const ErrorHandler = require("../../utils/errorHandler.util");
 
 const signUp = async (req, res) => {
   try {
@@ -21,6 +21,7 @@ const signUp = async (req, res) => {
 
     const userCreated = await User.create({ username, email, password });
     await TemporaryUser.deleteMany({ email });
+
     const token = userCreated.generateLogTrackTkn();
 
     const isProd = process.env.NODE_ENV === "production";
@@ -31,10 +32,11 @@ const signUp = async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
-    // 🔥 remove password and convert _id → id
-    const data = toPublicUser(userCreated);
-
-    return new SuccessHandler(201, "sign-up successfully done", data).send(res);
+    return new SuccessHandler(
+      201,
+      "sign-up successfully done",
+      toPublicUser(userCreated),
+    ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "internal server error")
       .log("user not created", error)

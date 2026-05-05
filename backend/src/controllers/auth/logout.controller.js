@@ -1,4 +1,4 @@
-const SuccessHandler = require("../utils/successHandler.util");
+const SuccessHandler = require("../../utils/successHandler.util");
 
 const logOut = async (req, res, next) => {
   const isProd = process.env.NODE_ENV === "production";

@@ -1,7 +1,7 @@
-const User = require("../models/user.model");
-const SuccessHandler = require("../utils/successHandler.util");
-const ErrorHandler = require("../utils/errorHandler.util");
-const toPublicUser = require("../utils/publicUser.util");
+const User = require("../../models/auth/user.model");
+const toPublicUser = require("../../utils/auth/publicUser.util");
+const SuccessHandler = require("../../utils/successHandler.util");
+const ErrorHandler = require("../../utils/errorHandler.util");
 
 const logIn = async (req, res, _) => {
   try {

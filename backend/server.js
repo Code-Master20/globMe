@@ -3,12 +3,8 @@ dotenv.config();
 const express = require("express");
 const connectDB = require("./src/config/database.util");
 const cookieParser = require("cookie-parser");
-const signUpRoute = require("./src/routes/signup.router");
-const logInRoute = require("./src/routes/login.router");
-const logOutRoute = require("./src/routes/logout.router");
-const passResetRoute = require("./src/routes/resetPass.router");
+const authRouter = require("./src/routes/auth/auth.router");
 const userMediaRoute = require("./src/routes/userMedia.router");
-const meRoute = require("./src/routes/me.router");
 const cors = require("cors");
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
@@ -28,11 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 //all routes
-app.use("/api/auth", signUpRoute);
-app.use("/api/auth", logInRoute);
-app.use("/api/auth", passResetRoute);
-app.use("/api/auth", logOutRoute);
-app.use("/api/auth", meRoute);
+app.use("/api/auth", authRouter);
 // app.use("/api/media", uploadRoute);
 // app.use("/api/post", postRoute);
 app.use("/api/user", userMediaRoute);

@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const User = require("../../models/user.model");
+const User = require("../../models/auth/user.model");
 const ErrorHandler = require("../../utils/errorHandler.util");
 
 const isMeMiddleware = async (req, res, next) => {
@@ -24,9 +24,9 @@ const isMeMiddleware = async (req, res, next) => {
       return new ErrorHandler(404, "User not found").send(res);
     }
 
-    req.user = user; // 🔥 full database user
+    req.user = user;
     next();
-  } catch (err) {
+  } catch (error) {
     return new ErrorHandler(
       401,
       "Invalid or expired token, please log-in again",
