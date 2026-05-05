@@ -18,7 +18,6 @@ export const Dashboard = () => {
     notificationFeed,
     profileFeed,
   } = useSelector((state) => state.pageTracker);
-  console.log(dashboard);
 
   const backToPrePage = () => {};
   return (
