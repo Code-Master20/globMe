@@ -109,6 +109,59 @@
   font-weight: 600;
 }
 
+.privacyHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.privacyHeader span {
+  color: #7a8078;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.visibilityGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.visibilityToggle {
+  min-height: 56px;
+  padding: 0.8rem 0.95rem;
+  border-radius: 16px;
+  border: 1px solid #e8ddcc;
+  background: #fffaf3;
+  color: #2b342f;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.visibilityToggle span {
+  font-weight: 600;
+}
+
+.visibilityToggle strong {
+  font-size: 0.82rem;
+}
+
+.visibilityOn {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.visibilityOff {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
 .tableHeaderRow {
   display: flex;
   align-items: center;
@@ -262,6 +315,10 @@
   .tableHeaderRow {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .visibilityGrid {
+    grid-template-columns: 1fr;
   }
 
   .skillRow {

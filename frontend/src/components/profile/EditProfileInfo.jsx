@@ -24,7 +24,28 @@ const buildFormState = (user) => ({
   status: user?.status || "",
   gender: user?.gender || "",
   dob: user?.dob || "",
+  profileVisibility: {
+    email: user?.profileVisibility?.email ?? true,
+    profession: user?.profileVisibility?.profession ?? true,
+    bio: user?.profileVisibility?.bio ?? true,
+    location: user?.profileVisibility?.location ?? true,
+    talent: user?.profileVisibility?.talent ?? true,
+    status: user?.profileVisibility?.status ?? true,
+    gender: user?.profileVisibility?.gender ?? true,
+    dob: user?.profileVisibility?.dob ?? true,
+  },
 });
+
+const visibilityFields = [
+  { key: "email", label: "Email" },
+  { key: "profession", label: "Profession" },
+  { key: "bio", label: "Bio" },
+  { key: "location", label: "Location" },
+  { key: "talent", label: "Talents/Skills" },
+  { key: "status", label: "Relationship status" },
+  { key: "gender", label: "Gender" },
+  { key: "dob", label: "Date of birth" },
+];
 
 export const EditProfileInfo = ({ Icon, className }) => {
   const dispatch = useDispatch();
@@ -61,6 +82,7 @@ export const EditProfileInfo = ({ Icon, className }) => {
       bio: formData.bio,
       location: formData.location,
       talent: formData.talent.map((item) => item.trim()).filter(Boolean),
+      profileVisibility: formData.profileVisibility,
     };
 
     const resultAction = await dispatch(updateProfileDetails(payload));
@@ -99,6 +121,16 @@ export const EditProfileInfo = ({ Icon, className }) => {
         talent: nextTalents.length > 0 ? nextTalents : [""],
       };
     });
+  };
+
+  const handleVisibilityToggle = (field) => {
+    setFormData((prev) => ({
+      ...prev,
+      profileVisibility: {
+        ...prev.profileVisibility,
+        [field]: !prev.profileVisibility[field],
+      },
+    }));
   };
 
   return (
@@ -259,6 +291,32 @@ export const EditProfileInfo = ({ Icon, className }) => {
                   value={formData.dob}
                   onChange={handleChange}
                 />
+              </div>
+
+              <div className={`${styles.field} ${styles.fieldWide}`}>
+                <div className={styles.privacyHeader}>
+                  <label>Visible To Others</label>
+                  <span>Hide any field you do not want other users to see.</span>
+                </div>
+                <div className={styles.visibilityGrid}>
+                  {visibilityFields.map((field) => (
+                    <button
+                      key={field.key}
+                      type="button"
+                      className={`${styles.visibilityToggle} ${
+                        formData.profileVisibility[field.key]
+                          ? styles.visibilityOn
+                          : styles.visibilityOff
+                      }`}
+                      onClick={() => handleVisibilityToggle(field.key)}
+                    >
+                      <span>{field.label}</span>
+                      <strong>
+                        {formData.profileVisibility[field.key] ? "Visible" : "Hidden"}
+                      </strong>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 

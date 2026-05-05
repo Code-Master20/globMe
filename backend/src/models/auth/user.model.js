@@ -93,6 +93,41 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
+    profileVisibility: {
+      email: {
+        type: Boolean,
+        default: true,
+      },
+      profession: {
+        type: Boolean,
+        default: true,
+      },
+      bio: {
+        type: Boolean,
+        default: true,
+      },
+      location: {
+        type: Boolean,
+        default: true,
+      },
+      talent: {
+        type: Boolean,
+        default: true,
+      },
+      status: {
+        type: Boolean,
+        default: true,
+      },
+      gender: {
+        type: Boolean,
+        default: true,
+      },
+      dob: {
+        type: Boolean,
+        default: true,
+      },
+    },
+
     friendRequestsSent: [
       {
         type: mongoose.Schema.Types.ObjectId,

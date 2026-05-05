@@ -1,8 +1,10 @@
+const mongoose = require("mongoose");
 const User = require("../models/auth/user.model");
 const Notification = require("../models/notification.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const sendRelationshipEmail = require("../services/network/sendRelationshipEmail.util");
+const toPublicUser = require("../utils/auth/publicUser.util");
 
 const getRelationshipStatus = (viewer, targetId) => {
   const normalizedTargetId = `${targetId}`;
@@ -33,25 +35,29 @@ const searchUsers = async (req, res) => {
       return new SuccessHandler(200, "Search results", []).send(res);
     }
 
+    if (query.length > 80) {
+      return new ErrorHandler(400, "Search query is too long").send(res);
+    }
+
     const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const searchRegex = new RegExp(safeQuery, "i");
 
     const users = await User.find({
       _id: { $ne: req.user._id },
-      $or: [{ username: searchRegex }, { email: searchRegex }],
+      $or: [
+        { username: searchRegex },
+        {
+          $and: [{ "profileVisibility.email": true }, { email: searchRegex }],
+        },
+      ],
     })
-      .select("username email avatar profession location bio talent")
+      .select(
+        "username email avatar profession location bio talent status gender dob profileVisibility",
+      )
       .limit(12);
 
     const results = users.map((user) => ({
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-      avatar: user.avatar,
-      profession: user.profession,
-      location: user.location,
-      bio: user.bio,
-      talent: user.talent,
+      ...toPublicUser(user, { viewerId: req.user._id }),
       relationshipStatus: getRelationshipStatus(req.user, user._id),
     }));
 
@@ -68,7 +74,7 @@ const getReceivedFriendRequests = async (req, res) => {
     const user = await User.findById(req.user._id)
       .populate(
         "friendRequestsReceived",
-        "username email avatar profession location bio talent",
+        "username email avatar profession location bio talent status gender dob profileVisibility",
       )
       .select("friendRequestsReceived");
 
@@ -76,16 +82,9 @@ const getReceivedFriendRequests = async (req, res) => {
       return new ErrorHandler(404, "User not found").send(res);
     }
 
-    const requests = (user.friendRequestsReceived || []).map((requestUser) => ({
-      _id: requestUser._id,
-      username: requestUser.username,
-      email: requestUser.email,
-      avatar: requestUser.avatar,
-      profession: requestUser.profession,
-      location: requestUser.location,
-      bio: requestUser.bio,
-      talent: requestUser.talent,
-    }));
+    const requests = (user.friendRequestsReceived || []).map((requestUser) =>
+      toPublicUser(requestUser, { viewerId: req.user._id }),
+    );
 
     return new SuccessHandler(200, "Friend requests", requests).send(res);
   } catch (error) {
@@ -98,7 +97,7 @@ const getReceivedFriendRequests = async (req, res) => {
 const getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({ user: req.user._id })
-      .populate("actor", "username email avatar profession")
+      .populate("actor", "username avatar profession profileVisibility creator")
       .sort({ createdAt: -1 })
       .limit(30);
 
@@ -109,13 +108,7 @@ const getNotifications = async (req, res) => {
       read: notification.read,
       createdAt: notification.createdAt,
       actor: notification.actor
-        ? {
-            _id: notification.actor._id,
-            username: notification.actor.username,
-            email: notification.actor.email,
-            avatar: notification.actor.avatar,
-            profession: notification.actor.profession,
-          }
+        ? toPublicUser(notification.actor, { viewerId: req.user._id })
         : null,
     }));
 
@@ -151,8 +144,14 @@ const markNotificationsRead = async (req, res) => {
 
 const sendFriendRequest = async (req, res) => {
   try {
+    const { targetUserId } = req.params;
+
+    if (!mongoose.isValidObjectId(targetUserId)) {
+      return new ErrorHandler(400, "Invalid target user id").send(res);
+    }
+
     const sender = await User.findById(req.user._id);
-    const receiver = await User.findById(req.params.targetUserId);
+    const receiver = await User.findById(targetUserId);
 
     if (!sender) {
       return new ErrorHandler(404, "Sender not found").send(res);
@@ -230,8 +229,14 @@ const sendFriendRequest = async (req, res) => {
 
 const acceptFriendRequest = async (req, res) => {
   try {
+    const { requesterUserId } = req.params;
+
+    if (!mongoose.isValidObjectId(requesterUserId)) {
+      return new ErrorHandler(400, "Invalid requester user id").send(res);
+    }
+
     const receiver = await User.findById(req.user._id);
-    const sender = await User.findById(req.params.requesterUserId);
+    const sender = await User.findById(requesterUserId);
 
     if (!receiver) {
       return new ErrorHandler(404, "User not found").send(res);

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import noProfile from "../../assets/noProfile.png";
 import api from "../../lib/api";
@@ -23,6 +24,7 @@ const getLocationLabel = (value) => {
 };
 
 export const SearchPanel = ({ className, onClose }) => {
+  const navigate = useNavigate();
   const [activeType, setActiveType] = useState("profile");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -94,6 +96,11 @@ export const SearchPanel = ({ className, onClose }) => {
       event.preventDefault();
       handleSearch();
     }
+  };
+
+  const handleViewProfile = (targetUserId) => {
+    navigate(`/profile/${targetUserId}`);
+    onClose?.();
   };
 
   const renderAction = (user) => {
@@ -209,7 +216,9 @@ export const SearchPanel = ({ className, onClose }) => {
                           <span>{formatDisplayValue(user.profession)}</span>
                         ) : null}
                       </div>
-                      <p className={styles.resultEmail}>{user.email}</p>
+                      {user.email ? (
+                        <p className={styles.resultEmail}>{user.email}</p>
+                      ) : null}
                       {location ? (
                         <p className={styles.resultLocation}>{location}</p>
                       ) : null}
@@ -223,7 +232,16 @@ export const SearchPanel = ({ className, onClose }) => {
                       ) : null}
                     </div>
                   </div>
-                  <div className={styles.resultAction}>{renderAction(user)}</div>
+                  <div className={styles.resultAction}>
+                    <button
+                      type="button"
+                      className={styles.viewBtn}
+                      onClick={() => handleViewProfile(user._id)}
+                    >
+                      View profile
+                    </button>
+                    {renderAction(user)}
+                  </div>
                 </article>
               );
             })}

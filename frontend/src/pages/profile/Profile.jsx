@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useParams } from "react-router-dom";
 import { FaUserEdit } from "react-icons/fa";
 import { RiImageCircleAiFill, RiImageEditLine } from "react-icons/ri";
 import {
@@ -17,10 +18,8 @@ import noBanner from "../../assets/noBanner.png";
 import noProfile from "../../assets/noProfile.png";
 import { EditProfileInfo } from "../../components/profile/EditProfileInfo";
 import { ImageUpload } from "../../components/media/ImgUpload";
-import {
-  uploadBanner,
-  uploadProfilePic,
-} from "../../store/auth/authThunks";
+import { uploadBanner, uploadProfilePic } from "../../store/auth/authThunks";
+import api from "../../lib/api";
 
 const listify = (value) => {
   if (Array.isArray(value)) {
@@ -47,12 +46,18 @@ const formatDisplayValue = (value) => {
 };
 
 export const Profile = () => {
+  const { userId } = useParams();
   const dispatch = useDispatch();
   const { user, loading } = useSelector((state) => state.auth);
 
   const [width, setWidth] = useState(window.innerWidth);
   const [isCreatorMode, setIsCreatorMode] = useState(false);
   const [uploadTarget, setUploadTarget] = useState(null);
+  const [viewedUser, setViewedUser] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState("");
+
+  const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
 
   useEffect(() => {
     const handleResize = () => setWidth(window.innerWidth);
@@ -66,7 +71,50 @@ export const Profile = () => {
     }
   }, [loading]);
 
-  const profileSize = width < 768 ? 120 : 160;
+  useEffect(() => {
+    if (!user) {
+      setViewedUser(null);
+      return;
+    }
+
+    if (isOwner) {
+      setViewedUser(null);
+      setProfileError("");
+      setProfileLoading(false);
+      return;
+    }
+
+    let ignore = false;
+
+    const loadViewedProfile = async () => {
+      try {
+        setProfileLoading(true);
+        setProfileError("");
+        const response = await api.get(`/user/profile/${userId}`);
+
+        if (!ignore) {
+          setViewedUser(response.data?.data || null);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setViewedUser(null);
+          setProfileError(
+            error.response?.data?.message || "That profile could not be loaded.",
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setProfileLoading(false);
+        }
+      }
+    };
+
+    loadViewedProfile();
+
+    return () => {
+      ignore = true;
+    };
+  }, [isOwner, user, userId]);
 
   const handleAvatarSelect = (file) => {
     setUploadTarget("avatar");
@@ -89,22 +137,50 @@ export const Profile = () => {
     );
   }
 
-  const creatorActive = user.creator || isCreatorMode;
-  const bioItems = listify(user.bio);
-  const locationItems = listify(user.location);
-  const talentItems = listify(user.talent);
+  if (!isOwner && profileLoading) {
+    return (
+      <main className={styles.mainContainer}>
+        <section className={styles.emptyState}>
+          <h1>Loading profile...</h1>
+          <p>We are pulling the public view for this member right now.</p>
+        </section>
+      </main>
+    );
+  }
+
+  const profileUser = isOwner ? user : viewedUser;
+
+  if (!profileUser) {
+    return (
+      <main className={styles.mainContainer}>
+        <section className={styles.emptyState}>
+          <h1>Profile unavailable</h1>
+          <p>{profileError || "That profile could not be found right now."}</p>
+        </section>
+      </main>
+    );
+  }
+
+  const profileSize = width < 768 ? 120 : 160;
+  const creatorActive = isOwner
+    ? Boolean(profileUser.creator) || isCreatorMode
+    : Boolean(profileUser.creator);
+  const bioItems = listify(profileUser.bio);
+  const locationItems = listify(profileUser.location);
+  const talentItems = listify(profileUser.talent);
+  const professionLabel = formatDisplayValue(profileUser.profession);
 
   const profileCompletionFields = [
-    user.username,
-    user.email,
-    user.avatar,
-    user.banner,
-    user.profession,
+    profileUser.username,
+    profileUser.email,
+    profileUser.avatar,
+    profileUser.banner,
+    profileUser.profession,
     bioItems.length,
     locationItems.length,
-    user.status,
-    user.gender,
-    user.dob,
+    profileUser.status,
+    profileUser.gender,
+    profileUser.dob,
     talentItems.length,
   ];
 
@@ -114,17 +190,15 @@ export const Profile = () => {
   );
   const profileCompletionRemainder = Math.max(0, 100 - profileCompletion);
 
-  const joinedOn = user.createdAt
-    ? new Date(user.createdAt).toLocaleDateString()
+  const joinedOn = profileUser.createdAt
+    ? new Date(profileUser.createdAt).toLocaleDateString()
     : "Recently";
 
   const locationLabel =
     locationItems.length > 0
       ? locationItems.map(formatDisplayValue).join(", ")
       : "";
-  const profileStory =
-    bioItems[0] ||
-    "Add a short intro so visitors understand your personality, work, and interests at a glance.";
+  const profileStory = bioItems[0] || "";
 
   const summaryStats = [
     {
@@ -145,34 +219,34 @@ export const Profile = () => {
     {
       label: "Creator",
       value: creatorActive ? "On" : "Off",
-      caption: user.creator ? "Saved on account" : "Preview mode",
+      caption: profileUser.creator ? "Saved on account" : "Preview mode",
     },
   ];
 
   const detailRows = [
     {
       label: "Email",
-      value: user.email || "—",
+      value: profileUser.email || "--",
       icon: <MdMailOutline />,
     },
     {
       label: "Profession",
-      value: formatDisplayValue(user.profession),
+      value: professionLabel || "--",
       icon: <MdOutlineWorkOutline />,
     },
     {
       label: "Relationship",
-      value: formatDisplayValue(user.status),
+      value: formatDisplayValue(profileUser.status) || "--",
       icon: <MdOutlineFavoriteBorder />,
     },
     {
       label: "Gender",
-      value: formatDisplayValue(user.gender),
+      value: formatDisplayValue(profileUser.gender) || "--",
       icon: <MdOutlineWc />,
     },
     {
       label: "Birthday",
-      value: user.dob || "—",
+      value: profileUser.dob || "--",
       icon: <MdOutlineCake />,
     },
     {
@@ -182,77 +256,94 @@ export const Profile = () => {
     },
   ];
 
+  const statusPillLabel = isOwner
+    ? creatorActive
+      ? "Creator mode"
+      : "Personal profile"
+    : creatorActive
+      ? "Creator profile"
+      : "Public profile";
+
   return (
     <main className={styles.mainContainer}>
       <section className={styles.contentContainer}>
         <div className={styles.bannerWrapper}>
           <img
-            src={user.banner || noBanner}
-            alt={`${user.username || "User"} banner`}
+            src={profileUser.banner || noBanner}
+            alt={`${profileUser.username || "User"} banner`}
             className={styles.bannerImg}
           />
           <div className={styles.bannerOverlay} />
           <div className={styles.bannerContent}>
             <div className={styles.bannerText}>
-              <h2>{user.username}</h2>
+              <h2>{profileUser.username}</h2>
             </div>
           </div>
-          <ImageUpload
-            Icon={RiImageEditLine}
-            className={styles.bannerUploader}
-            buttonClassName={styles.bannerUploadButton}
-            onFileSelect={handleBannerSelect}
-            disabled={loading}
-            title={
-              loading && uploadTarget === "banner"
-                ? "Uploading banner"
-                : "Upload profile banner"
-            }
-          />
+          {isOwner ? (
+            <ImageUpload
+              Icon={RiImageEditLine}
+              className={styles.bannerUploader}
+              buttonClassName={styles.bannerUploadButton}
+              onFileSelect={handleBannerSelect}
+              disabled={loading}
+              title={
+                loading && uploadTarget === "banner"
+                  ? "Uploading banner"
+                  : "Upload profile banner"
+              }
+            />
+          ) : null}
         </div>
 
         <div className={styles.profileCard}>
-          <div className={styles.profileHeader}>
+          <div
+            className={`${styles.profileHeader} ${
+              !isOwner ? styles.profileHeaderVisitor : ""
+            }`}
+          >
             <div className={styles.profileLeft}>
               <article className={styles.profilePicContainer}>
                 <img
-                  src={user.avatar || noProfile}
-                  alt={`${user.username || "User"} profile`}
+                  src={profileUser.avatar || noProfile}
+                  alt={`${profileUser.username || "User"} profile`}
                   height={profileSize}
                   width={profileSize}
                   className={styles.profilePic}
                 />
 
-                {creatorActive && (
+                {creatorActive ? (
                   <strong className={styles.creatorBadge}>creator</strong>
-                )}
+                ) : null}
 
-                <ImageUpload
-                  Icon={RiImageCircleAiFill}
-                  className={styles.profileUploader}
-                  buttonClassName={styles.avatarUploadButton}
-                  onFileSelect={handleAvatarSelect}
-                  disabled={loading}
-                  title={
-                    loading && uploadTarget === "avatar"
-                      ? "Uploading profile photo"
-                      : "Upload profile photo"
-                  }
-                />
+                {isOwner ? (
+                  <ImageUpload
+                    Icon={RiImageCircleAiFill}
+                    className={styles.profileUploader}
+                    buttonClassName={styles.avatarUploadButton}
+                    onFileSelect={handleAvatarSelect}
+                    disabled={loading}
+                    title={
+                      loading && uploadTarget === "avatar"
+                        ? "Uploading profile photo"
+                        : "Upload profile photo"
+                    }
+                  />
+                ) : null}
               </article>
 
               <div className={styles.userInfo}>
                 <div className={styles.identityRow}>
-                  <h1 className={styles.name}>{user.username}</h1>
-                  <span className={styles.statusPill}>
-                    {creatorActive ? "Creator mode" : "Personal profile"}
-                  </span>
+                  <h1 className={styles.name}>{profileUser.username}</h1>
+                  <span className={styles.statusPill}>{statusPillLabel}</span>
                 </div>
 
-                <p className={styles.profession}>
-                  {formatDisplayValue(user.profession) || "—"}
-                </p>
-                <p className={styles.emailLine}>{user.email}</p>
+                {professionLabel || isOwner ? (
+                  <p className={styles.profession}>{professionLabel || "--"}</p>
+                ) : null}
+
+                {profileUser.email ? (
+                  <p className={styles.emailLine}>{profileUser.email}</p>
+                ) : null}
 
                 {talentItems.length > 0 ? (
                   <div className={styles.topSkills}>
@@ -271,161 +362,180 @@ export const Profile = () => {
                   </div>
                 ) : null}
 
-                <p className={styles.profileStory}>{profileStory}</p>
+                {profileStory ? (
+                  <p className={styles.profileStory}>{profileStory}</p>
+                ) : isOwner ? (
+                  <p className={styles.profileStory}>
+                    Add a short intro so visitors understand your personality,
+                    work, and interests at a glance.
+                  </p>
+                ) : null}
 
-                <div className={styles.actionsRow}>
-                  <EditProfileInfo
-                    Icon={FaUserEdit}
-                    className={styles.editProfileBtn}
-                  />
+                {isOwner ? (
+                  <div className={styles.actionsRow}>
+                    <EditProfileInfo
+                      Icon={FaUserEdit}
+                      className={styles.editProfileBtn}
+                    />
 
-                  <button
-                    className={styles.creatorBtn}
-                    onClick={() => setIsCreatorMode((prev) => !prev)}
-                    disabled={loading}
-                  >
-                    {creatorActive
-                      ? "creator mode on"
-                      : "enable creator preview"}
-                    <span className={styles.creatorIndicator}>
-                      {creatorActive ? "on" : "off"}
-                    </span>
-                  </button>
-                </div>
+                    <button
+                      className={styles.creatorBtn}
+                      onClick={() => setIsCreatorMode((prev) => !prev)}
+                      disabled={loading}
+                    >
+                      {creatorActive
+                        ? "creator mode on"
+                        : "enable creator preview"}
+                      <span className={styles.creatorIndicator}>
+                        {creatorActive ? "on" : "off"}
+                      </span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className={styles.viewerNote}>
+                    Only information this member chose to share is visible here.
+                  </div>
+                )}
               </div>
             </div>
 
-            <aside className={styles.summaryColumn}>
-              {profileCompletion < 100 ? (
-                <div className={styles.completionCard}>
-                  <div className={styles.panelHeader}>
-                    <h2>Profile strength</h2>
-                    <span>{profileCompletion}% complete</span>
+            {isOwner ? (
+              <aside className={styles.summaryColumn}>
+                {profileCompletion < 100 ? (
+                  <div className={styles.completionCard}>
+                    <div className={styles.panelHeader}>
+                      <h2>Profile strength</h2>
+                      <span>{profileCompletion}% complete</span>
+                    </div>
+
+                    <div className={styles.progressTrack} aria-hidden="true">
+                      <span
+                        className={styles.progressFill}
+                        style={{
+                          width: `${profileCompletion}%`,
+                          flexBasis: `${profileCompletion}%`,
+                        }}
+                      />
+                      <span
+                        className={styles.progressRest}
+                        style={{
+                          width: `${profileCompletionRemainder}%`,
+                          flexBasis: `${profileCompletionRemainder}%`,
+                        }}
+                      />
+                    </div>
+
+                    <p className={styles.completionCopy}>
+                      Add more details, talents, and profile media to make the
+                      page feel richer and easier to trust.
+                    </p>
                   </div>
+                ) : null}
 
-                  <div className={styles.progressTrack} aria-hidden="true">
-                    <span
-                      className={styles.progressFill}
-                      style={{
-                        width: `${profileCompletion}%`,
-                        flexBasis: `${profileCompletion}%`,
-                      }}
-                    />
-                    <span
-                      className={styles.progressRest}
-                      style={{
-                        width: `${profileCompletionRemainder}%`,
-                        flexBasis: `${profileCompletionRemainder}%`,
-                      }}
-                    />
-                  </div>
-
-                  <p className={styles.completionCopy}>
-                    Add more details, talents, and profile media to make the page
-                    feel richer and easier to trust.
-                  </p>
-                </div>
-              ) : null}
-
-              <ul className={styles.stats}>
-                {summaryStats.map((stat) => (
-                  <li key={stat.label}>
-                    <span>{stat.label}</span>
-                    <strong>{stat.value}</strong>
-                    <small>{stat.caption}</small>
-                  </li>
-                ))}
-              </ul>
-            </aside>
+                <ul className={styles.stats}>
+                  {summaryStats.map((stat) => (
+                    <li key={stat.label}>
+                      <span>{stat.label}</span>
+                      <strong>{stat.value}</strong>
+                      <small>{stat.caption}</small>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            ) : null}
           </div>
 
-          <section className={styles.gridLayout}>
-            <article className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <h2>About</h2>
-                <span>{bioItems.length || 0} lines</span>
-              </div>
-
-              {bioItems.length > 0 ? (
-                <div className={styles.bioSection}>
-                  {bioItems.map((line, index) => (
-                    <p key={`${line}-${index}`}>{line}</p>
-                  ))}
+          {isOwner ? (
+            <section className={styles.gridLayout}>
+              <article className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <h2>About</h2>
+                  <span>{bioItems.length || 0} lines</span>
                 </div>
-              ) : (
-                <div className={styles.placeholderBox}>
-                  Add a bio so people can understand what you are about.
-                </div>
-              )}
-            </article>
 
-            <article className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <h2>Details</h2>
-                <span>Account info</span>
-              </div>
-
-              <div className={styles.detailsGrid}>
-                {detailRows.map((detail) => (
-                  <div className={styles.detailCard} key={detail.label}>
-                    <span className={styles.detailIcon}>{detail.icon}</span>
-                    <div>
-                      <small>{detail.label}</small>
-                      <p>{detail.value || "—"}</p>
-                    </div>
+                {bioItems.length > 0 ? (
+                  <div className={styles.bioSection}>
+                    {bioItems.map((line, index) => (
+                      <p key={`${line}-${index}`}>{line}</p>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </article>
+                ) : (
+                  <div className={styles.placeholderBox}>
+                    Add a bio so people can understand what you are about.
+                  </div>
+                )}
+              </article>
 
-            <article className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <h2>Talents/Skills</h2>
-                <span>{talentItems.length || 0} listed</span>
-              </div>
+              <article className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <h2>Details</h2>
+                  <span>Account info</span>
+                </div>
 
-              {talentItems.length > 0 ? (
-                <div className={styles.tagGroup}>
-                  {talentItems.map((talent) => (
-                    <span key={talent} className={styles.tag}>
-                      <MdOutlineAutoAwesome />
-                      {formatDisplayValue(talent)}
-                    </span>
+                <div className={styles.detailsGrid}>
+                  {detailRows.map((detail) => (
+                    <div className={styles.detailCard} key={detail.label}>
+                      <span className={styles.detailIcon}>{detail.icon}</span>
+                      <div>
+                        <small>{detail.label}</small>
+                        <p>{detail.value}</p>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <div className={styles.placeholderBox}>
-                  Highlight your strengths here so your profile feels alive.
-                </div>
-              )}
-            </article>
+              </article>
 
-            <article className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <h2>Profile status</h2>
-                <span>Quick overview</span>
-              </div>
+              <article className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <h2>Talents/Skills</h2>
+                  <span>{talentItems.length || 0} listed</span>
+                </div>
 
-              <div className={styles.statusStack}>
-                <div className={styles.statusRow}>
-                  <span>Avatar</span>
-                  <strong>{user.avatar ? "Uploaded" : "Missing"}</strong>
+                {talentItems.length > 0 ? (
+                  <div className={styles.tagGroup}>
+                    {talentItems.map((talent) => (
+                      <span key={talent} className={styles.tag}>
+                        <MdOutlineAutoAwesome />
+                        {formatDisplayValue(talent)}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className={styles.placeholderBox}>
+                    Highlight your strengths here so your profile feels alive.
+                  </div>
+                )}
+              </article>
+
+              <article className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <h2>Profile status</h2>
+                  <span>Quick overview</span>
                 </div>
-                <div className={styles.statusRow}>
-                  <span>Banner</span>
-                  <strong>{user.banner ? "Uploaded" : "Missing"}</strong>
+
+                <div className={styles.statusStack}>
+                  <div className={styles.statusRow}>
+                    <span>Avatar</span>
+                    <strong>{profileUser.avatar ? "Uploaded" : "Missing"}</strong>
+                  </div>
+                  <div className={styles.statusRow}>
+                    <span>Banner</span>
+                    <strong>{profileUser.banner ? "Uploaded" : "Missing"}</strong>
+                  </div>
+                  <div className={styles.statusRow}>
+                    <span>Location</span>
+                    <strong>
+                      {locationItems.length > 0 ? "Added" : "Missing"}
+                    </strong>
+                  </div>
+                  <div className={styles.statusRow}>
+                    <span>Creator mode</span>
+                    <strong>{creatorActive ? "Active" : "Inactive"}</strong>
+                  </div>
                 </div>
-                <div className={styles.statusRow}>
-                  <span>Location</span>
-                  <strong>{locationItems.length > 0 ? "Added" : "Missing"}</strong>
-                </div>
-                <div className={styles.statusRow}>
-                  <span>Creator mode</span>
-                  <strong>{creatorActive ? "Active" : "Inactive"}</strong>
-                </div>
-              </div>
-            </article>
-          </section>
+              </article>
+            </section>
+          ) : null}
         </div>
       </section>
     </main>

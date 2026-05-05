@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary.utils");
 const User = require("../models/auth/user.model");
 const ErrorHandler = require("../utils/errorHandler.util");
@@ -62,7 +63,7 @@ const uploadAvatar = async (req, res) => {
           return new SuccessHandler(
             200,
             "DP updated successfully",
-            toPublicUser(user),
+            toPublicUser(user, { viewerId: user._id }),
           ).send(res);
         } catch (dbError) {
           // Rollback newly uploaded image
@@ -124,7 +125,7 @@ const uploadBanner = async (req, res) => {
           return new SuccessHandler(
             200,
             "Banner updated successfully",
-            toPublicUser(user),
+            toPublicUser(user, { viewerId: user._id }),
           ).send(res);
         } catch (dbError) {
           // Rollback newly uploaded image
@@ -236,6 +237,7 @@ const updateProfileDetails = async (req, res) => {
       status,
       gender,
       dob,
+      profileVisibility,
     } = req.body;
 
     if (!username || !`${username}`.trim()) {
@@ -251,16 +253,62 @@ const updateProfileDetails = async (req, res) => {
     user.gender = `${gender ?? ""}`.trim() || null;
     user.dob = `${dob ?? ""}`.trim() || null;
 
+    if (profileVisibility && typeof profileVisibility === "object") {
+      const visibilityKeys = [
+        "email",
+        "profession",
+        "bio",
+        "location",
+        "talent",
+        "status",
+        "gender",
+        "dob",
+      ];
+
+      visibilityKeys.forEach((key) => {
+        if (typeof profileVisibility[key] === "boolean") {
+          user.profileVisibility[key] = profileVisibility[key];
+        }
+      });
+    }
+
     await user.save();
 
     return new SuccessHandler(
       200,
       "Profile updated successfully",
-      toPublicUser(user),
+      toPublicUser(user, { viewerId: user._id }),
     ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Profile could not be updated")
       .log("profile update error", error)
+      .send(res);
+  }
+};
+
+const getProfileView = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const viewerId = req.user?.id || req.user?._id;
+
+    if (!mongoose.isValidObjectId(userId)) {
+      return new ErrorHandler(400, "Invalid profile id").send(res);
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return new ErrorHandler(404, "Profile not found").send(res);
+    }
+
+    return new SuccessHandler(
+      200,
+      "Profile loaded successfully",
+      toPublicUser(user, { viewerId }),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Profile could not be loaded")
+      .log("profile view error", error)
       .send(res);
   }
 };
@@ -271,4 +319,5 @@ module.exports = {
   deleteAvatar,
   deleteBanner,
   updateProfileDetails,
+  getProfileView,
 };

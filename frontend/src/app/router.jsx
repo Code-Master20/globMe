@@ -120,6 +120,14 @@ export const router = createBrowserRouter(
           </PrivateRoute>
         }
       />
+      <Route
+        path="profile/:userId"
+        element={
+          <PrivateRoute>
+            <Profile />
+          </PrivateRoute>
+        }
+      />
     </Route>,
   ),
 );

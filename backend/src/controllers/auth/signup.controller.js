@@ -35,7 +35,7 @@ const signUp = async (req, res) => {
     return new SuccessHandler(
       201,
       "sign-up successfully done",
-      toPublicUser(userCreated),
+      toPublicUser(userCreated, { viewerId: userCreated._id }),
     ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "internal server error")

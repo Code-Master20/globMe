@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import noProfile from "../../../assets/noProfile.png";
 import api from "../../../lib/api";
@@ -23,6 +24,7 @@ const getLocationLabel = (value) => {
 };
 
 export const PeopleHub = () => {
+  const navigate = useNavigate();
   const [friendRequests, setFriendRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [acceptingId, setAcceptingId] = useState(null);
@@ -108,7 +110,7 @@ export const PeopleHub = () => {
                           <span>{formatDisplayValue(user.profession)}</span>
                         ) : null}
                       </div>
-                      <p className={styles.email}>{user.email}</p>
+                      {user.email ? <p className={styles.email}>{user.email}</p> : null}
                       {location ? <p className={styles.location}>{location}</p> : null}
                       {bio ? <p className={styles.bio}>{bio}</p> : null}
                       {talents.length > 0 ? (
@@ -121,14 +123,23 @@ export const PeopleHub = () => {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    className={styles.acceptBtn}
-                    onClick={() => handleAccept(user._id)}
-                    disabled={acceptingId === user._id}
-                  >
-                    {acceptingId === user._id ? "Accepting..." : "Accept"}
-                  </button>
+                  <div className={styles.cardActions}>
+                    <button
+                      type="button"
+                      className={styles.viewBtn}
+                      onClick={() => navigate(`/profile/${user._id}`)}
+                    >
+                      View profile
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.acceptBtn}
+                      onClick={() => handleAccept(user._id)}
+                      disabled={acceptingId === user._id}
+                    >
+                      {acceptingId === user._id ? "Accepting..." : "Accept"}
+                    </button>
+                  </div>
                 </article>
               );
             })}

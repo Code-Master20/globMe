@@ -11,6 +11,7 @@ const {
   deleteAvatar,
   deleteBanner,
   updateProfileDetails,
+  getProfileView,
 } = require("../controllers/userMedia.controller");
 
 const handleSingleImageUpload = (fieldName) => (req, res, next) => {
@@ -42,6 +43,7 @@ router.post(
 );
 
 router.patch("/profile", isMeMiddleware, updateProfileDetails);
+router.get("/profile/:userId", isMeMiddleware, getProfileView);
 
 router.delete("/delete-avatar", isMeMiddleware, deleteAvatar);
 router.delete("/delete-banner", isMeMiddleware, deleteBanner);
