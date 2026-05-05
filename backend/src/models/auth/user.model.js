@@ -126,6 +126,14 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: true,
       },
+      followersCount: {
+        type: Boolean,
+        default: false,
+      },
+      followingCount: {
+        type: Boolean,
+        default: false,
+      },
     },
 
     friendRequestsSent: [
@@ -143,6 +151,20 @@ const userSchema = new mongoose.Schema(
     ],
 
     friends: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    followers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    following: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",

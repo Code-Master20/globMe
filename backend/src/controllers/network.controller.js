@@ -27,6 +27,19 @@ const getRelationshipStatus = (viewer, targetId) => {
   return "none";
 };
 
+const hasRelationship = (list = [], targetId) =>
+  list.some((id) => `${id}` === `${targetId}`);
+
+const addRelationshipIfMissing = (list, targetId) => {
+  const normalizedList = Array.isArray(list) ? list : [];
+
+  if (!hasRelationship(normalizedList, targetId)) {
+    normalizedList.push(targetId);
+  }
+
+  return normalizedList;
+};
+
 const searchUsers = async (req, res) => {
   try {
     const query = `${req.query.q ?? ""}`.trim();
@@ -167,7 +180,7 @@ const sendFriendRequest = async (req, res) => {
       );
     }
 
-    if ((sender.friends || []).some((id) => `${id}` === `${receiver._id}`)) {
+    if (hasRelationship(sender.friends, receiver._id)) {
       return new ErrorHandler(400, "You are already friends").send(res);
     }
 
@@ -192,6 +205,11 @@ const sendFriendRequest = async (req, res) => {
 
     sender.friendRequestsSent.push(receiver._id);
     receiver.friendRequestsReceived.push(sender._id);
+
+    if (receiver.creator) {
+      sender.following = addRelationshipIfMissing(sender.following, receiver._id);
+      receiver.followers = addRelationshipIfMissing(receiver.followers, sender._id);
+    }
 
     await Promise.all([sender.save(), receiver.save()]);
     await Notification.create({
@@ -261,12 +279,12 @@ const acceptFriendRequest = async (req, res) => {
       (id) => `${id}` !== `${receiver._id}`,
     );
 
-    if (!(receiver.friends || []).some((id) => `${id}` === `${sender._id}`)) {
-      receiver.friends.push(sender._id);
-    }
+    receiver.friends = addRelationshipIfMissing(receiver.friends, sender._id);
+    sender.friends = addRelationshipIfMissing(sender.friends, receiver._id);
 
-    if (!(sender.friends || []).some((id) => `${id}` === `${receiver._id}`)) {
-      sender.friends.push(receiver._id);
+    if (receiver.creator) {
+      sender.following = addRelationshipIfMissing(sender.following, receiver._id);
+      receiver.followers = addRelationshipIfMissing(receiver.followers, sender._id);
     }
 
     await Promise.all([receiver.save(), sender.save()]);

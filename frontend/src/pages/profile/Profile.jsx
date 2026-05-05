@@ -199,6 +199,33 @@ export const Profile = () => {
       ? locationItems.map(formatDisplayValue).join(", ")
       : "";
   const profileStory = bioItems[0] || "";
+  const friendsCount = profileUser.friendsCount ?? 0;
+  const followersCount = profileUser.followersCount;
+  const followingCount = profileUser.followingCount;
+
+  const connectionStats = [
+    {
+      label: "Friends",
+      value: friendsCount,
+      alwaysVisible: true,
+    },
+    {
+      label: "Followers",
+      value: followersCount,
+      alwaysVisible: false,
+    },
+    {
+      label: "Following",
+      value: followingCount,
+      alwaysVisible: false,
+    },
+  ].filter((item) => {
+    if (item.alwaysVisible) {
+      return true;
+    }
+
+    return creatorActive && typeof item.value === "number";
+  });
 
   const summaryStats = [
     {
@@ -343,6 +370,17 @@ export const Profile = () => {
 
                 {profileUser.email ? (
                   <p className={styles.emailLine}>{profileUser.email}</p>
+                ) : null}
+
+                {connectionStats.length > 0 ? (
+                  <div className={styles.connectionStats}>
+                    {connectionStats.map((item) => (
+                      <div key={item.label} className={styles.connectionCard}>
+                        <strong>{item.value}</strong>
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 ) : null}
 
                 {talentItems.length > 0 ? (

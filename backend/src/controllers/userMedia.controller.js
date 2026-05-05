@@ -263,6 +263,8 @@ const updateProfileDetails = async (req, res) => {
         "status",
         "gender",
         "dob",
+        "followersCount",
+        "followingCount",
       ];
 
       visibilityKeys.forEach((key) => {
