@@ -1,0 +1,124 @@
+.page {
+  width: 100%;
+  min-height: 100%;
+  padding: 1rem;
+  background: #f8fafc;
+}
+
+.content {
+  width: min(980px, 100%);
+  margin: 0 auto;
+}
+
+.pageHeader {
+  margin-bottom: 1.2rem;
+}
+
+.pageHeader p {
+  color: #64748b;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+}
+
+.pageHeader h1 {
+  margin-top: 0.25rem;
+  color: #172033;
+}
+
+.placeholder {
+  min-height: 220px;
+  border-radius: 20px;
+  border: 1px dashed #d8e0ea;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #64748b;
+  padding: 1.5rem;
+}
+
+.notificationList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.notificationCard {
+  display: flex;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.unreadCard {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.readCard {
+  opacity: 0.92;
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.notificationBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.notificationTop {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.notificationTop h2 {
+  color: #172033;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.notificationTop span,
+.actorMeta {
+  color: #64748b;
+}
+
+.notificationTop span {
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.actorMeta {
+  margin-top: 0.3rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 0.75rem;
+  }
+
+  .notificationCard {
+    flex-direction: column;
+  }
+
+  .notificationTop {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .notificationTop span {
+    white-space: normal;
+  }
+}

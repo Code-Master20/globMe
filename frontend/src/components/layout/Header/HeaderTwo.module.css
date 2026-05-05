@@ -24,6 +24,11 @@
   width: fit-content;
   height: fit-content;
 }
+
+.header-first-child a {
+  position: relative;
+}
+
 .header-first-child a img {
   height: 2.8rem;
   width: 2.8rem;
@@ -31,6 +36,24 @@
   border: 2.5px solid rgba(128, 128, 128, 0.9);
 }
 
+.notificationBadge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.55rem;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.22rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconActived,
 .iconActivated {
   color: blue;
 }

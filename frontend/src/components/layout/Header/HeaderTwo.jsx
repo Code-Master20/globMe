@@ -10,6 +10,7 @@ import { useSelector } from "react-redux";
 
 export const HeaderTwo = () => {
   const { user } = useSelector((state) => state.auth);
+  const { unreadCount } = useSelector((state) => state.notifications);
 
   return (
     <header className={styles["header-container"]}>
@@ -49,6 +50,11 @@ export const HeaderTwo = () => {
           to="/notifications"
           className={({ isActive }) => (isActive ? styles.iconActived : "")}
         >
+          {unreadCount > 0 ? (
+            <span className={styles.notificationBadge}>
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          ) : null}
           <IoIosNotificationsOutline />
         </NavLink>
         <NavLink to="/profile">

@@ -5,6 +5,7 @@ import { HeaderOne } from "../components/layout/Header/HeaderOne";
 import { HeaderTwo } from "../components/layout/Header/HeaderTwo";
 import { Outlet } from "react-router-dom";
 import { checkMe } from "../store/auth/authThunks";
+import { fetchNotifications } from "../store/notifications/notificationsThunks";
 
 export const Root = () => {
   const dispatch = useDispatch();
@@ -13,6 +14,17 @@ export const Root = () => {
   useEffect(() => {
     dispatch(checkMe());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(fetchNotifications());
+      const timer = setInterval(() => {
+        dispatch(fetchNotifications());
+      }, 30000);
+
+      return () => clearInterval(timer);
+    }
+  }, [dispatch, isAuthenticated]);
 
   if (checkingAuth) {
     return (

@@ -1,0 +1,33 @@
+import { createAsyncThunk } from "@reduxjs/toolkit";
+import api from "../../lib/api";
+
+export const fetchNotifications = createAsyncThunk(
+  "notifications/fetchNotifications",
+  async (_, thunkAPI) => {
+    try {
+      const response = await api.get("/network/notifications");
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue({
+        status: error.response?.status,
+        message: error.response?.data?.message || "Could not fetch notifications",
+      });
+    }
+  },
+);
+
+export const markNotificationsRead = createAsyncThunk(
+  "notifications/markNotificationsRead",
+  async (_, thunkAPI) => {
+    try {
+      const response = await api.patch("/network/notifications/read");
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue({
+        status: error.response?.status,
+        message:
+          error.response?.data?.message || "Could not mark notifications as read",
+      });
+    }
+  },
+);
