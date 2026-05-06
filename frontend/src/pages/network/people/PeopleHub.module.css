@@ -31,7 +31,8 @@
 
 .refreshBtn,
 .viewBtn,
-.acceptBtn {
+.acceptBtn,
+.rejectBtn {
   min-height: 44px;
   border: none;
   border-radius: 14px;
@@ -51,6 +52,12 @@
   color: #ffffff;
 }
 
+.rejectBtn {
+  padding: 0.8rem 1rem;
+  background: #fff1f2;
+  color: #be123c;
+}
+
 .viewBtn {
   padding: 0.8rem 1rem;
   border: 1px solid #dbe2ea;
@@ -58,7 +65,8 @@
   color: #334155;
 }
 
-.acceptBtn:disabled {
+.acceptBtn:disabled,
+.rejectBtn:disabled {
   opacity: 0.72;
   cursor: wait;
 }
@@ -182,6 +190,7 @@
 
   .cardActions,
   .acceptBtn,
+  .rejectBtn,
   .refreshBtn,
   .viewBtn {
     width: 100%;

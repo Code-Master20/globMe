@@ -78,3 +78,108 @@ body {
   box-sizing: border-box;
   cursor: default;
 }
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+
+.Toastify__toast-container {
+  width: min(36rem, calc(100vw - 2rem));
+  padding: 1rem;
+}
+
+.appToast {
+  min-height: 6.4rem;
+  margin-bottom: 1rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 1.8rem;
+  border: 1px solid transparent;
+  box-shadow: 0 1.8rem 4rem rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(14px);
+  color: #172033;
+  font-size: 1.38rem;
+}
+
+.appToastBody {
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.appToastProgress {
+  height: 0.4rem;
+  opacity: 0.9;
+}
+
+.appToast .Toastify__toast-icon {
+  width: 2.4rem;
+  margin-inline-end: 1rem;
+}
+
+.appToast .Toastify__close-button {
+  color: inherit;
+}
+
+.appToast--success {
+  background: linear-gradient(135deg, rgba(240, 253, 244, 0.98), rgba(220, 252, 231, 0.96));
+  border-color: rgba(34, 197, 94, 0.22);
+  color: #166534;
+}
+
+.appToast--success .appToastProgress,
+.appToast--success .Toastify__toast-icon {
+  color: #16a34a;
+}
+
+.appToast--error {
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.99), rgba(254, 226, 226, 0.97));
+  border-color: rgba(239, 68, 68, 0.22);
+  color: #b91c1c;
+}
+
+.appToast--error .appToastProgress,
+.appToast--error .Toastify__toast-icon {
+  color: #dc2626;
+}
+
+.appToast--warning {
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.99), rgba(254, 243, 199, 0.97));
+  border-color: rgba(245, 158, 11, 0.22);
+  color: #b45309;
+}
+
+.appToast--warning .appToastProgress,
+.appToast--warning .Toastify__toast-icon {
+  color: #d97706;
+}
+
+.appToast--info,
+.appToast--default {
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.99), rgba(219, 234, 254, 0.97));
+  border-color: rgba(59, 130, 246, 0.2);
+  color: #1d4ed8;
+}
+
+.appToast--info .appToastProgress,
+.appToast--info .Toastify__toast-icon,
+.appToast--default .appToastProgress,
+.appToast--default .Toastify__toast-icon {
+  color: #2563eb;
+}
+
+@media (max-width: 640px) {
+  .Toastify__toast-container {
+    inset-inline: 0;
+    width: 100%;
+    padding: 0.8rem;
+  }
+
+  .appToast {
+    min-height: 5.8rem;
+    border-radius: 1.6rem;
+    font-size: 1.28rem;
+  }
+}

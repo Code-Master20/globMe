@@ -413,6 +413,34 @@
   opacity: 0.72;
 }
 
+.friendActionGhostBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.75rem 1rem;
+  border: 1px solid #fecdd3;
+  border-radius: 16px;
+  background: #fff1f2;
+  color: #be123c;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    opacity 150ms ease,
+    background 150ms ease;
+}
+
+.friendActionGhostBtn:hover {
+  transform: translateY(-1px);
+  background: #ffe4e6;
+}
+
+.friendActionGhostBtn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .actionsRow {
   display: flex;
   gap: 0.9rem;

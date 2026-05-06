@@ -7,6 +7,7 @@ const {
   markNotificationsRead,
   sendFriendRequest,
   acceptFriendRequest,
+  rejectFriendRequest,
 } = require("../controllers/network.controller");
 
 router.get("/search-users", isMeMiddleware, searchUsers);
@@ -21,6 +22,11 @@ router.post(
   "/friend-requests/:requesterUserId/accept",
   isMeMiddleware,
   acceptFriendRequest,
+);
+router.post(
+  "/friend-requests/:requesterUserId/reject",
+  isMeMiddleware,
+  rejectFriendRequest,
 );
 router.patch("/notifications/read", isMeMiddleware, markNotificationsRead);
 

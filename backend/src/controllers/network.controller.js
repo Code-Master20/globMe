@@ -40,6 +40,11 @@ const addRelationshipIfMissing = (list, targetId) => {
   return normalizedList;
 };
 
+const removeRelationshipIfPresent = (list, targetId) => {
+  const normalizedList = Array.isArray(list) ? list : [];
+  return normalizedList.filter((id) => `${id}` !== `${targetId}`);
+};
+
 const searchUsers = async (req, res) => {
   try {
     const query = `${req.query.q ?? ""}`.trim();
@@ -321,6 +326,63 @@ const acceptFriendRequest = async (req, res) => {
   }
 };
 
+const rejectFriendRequest = async (req, res) => {
+  try {
+    const { requesterUserId } = req.params;
+
+    if (!mongoose.isValidObjectId(requesterUserId)) {
+      return new ErrorHandler(400, "Invalid requester user id").send(res);
+    }
+
+    const receiver = await User.findById(req.user._id);
+    const sender = await User.findById(requesterUserId);
+
+    if (!receiver) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    if (!sender) {
+      return new ErrorHandler(404, "Request sender not found").send(res);
+    }
+
+    const hasIncomingRequest = (receiver.friendRequestsReceived || []).some(
+      (id) => `${id}` === `${sender._id}`,
+    );
+
+    if (!hasIncomingRequest) {
+      return new ErrorHandler(400, "No pending request from this user").send(res);
+    }
+
+    receiver.friendRequestsReceived = removeRelationshipIfPresent(
+      receiver.friendRequestsReceived,
+      sender._id,
+    );
+    sender.friendRequestsSent = removeRelationshipIfPresent(
+      sender.friendRequestsSent,
+      receiver._id,
+    );
+
+    if (receiver.creator) {
+      sender.following = removeRelationshipIfPresent(sender.following, receiver._id);
+      receiver.followers = removeRelationshipIfPresent(
+        receiver.followers,
+        sender._id,
+      );
+    }
+
+    await Promise.all([receiver.save(), sender.save()]);
+
+    return new SuccessHandler(200, "Friend request rejected", {
+      requesterUserId: sender._id,
+      relationshipStatus: "none",
+    }).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Friend request could not be rejected")
+      .log("friend rejection error", error)
+      .send(res);
+  }
+};
+
 module.exports = {
   searchUsers,
   getReceivedFriendRequests,
@@ -328,4 +390,5 @@ module.exports = {
   markNotificationsRead,
   sendFriendRequest,
   acceptFriendRequest,
+  rejectFriendRequest,
 };

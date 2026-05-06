@@ -195,6 +195,35 @@ export const Profile = () => {
     }
   };
 
+  const handleRejectFriendRequest = async () => {
+    if (!profileUser?._id || isOwner) {
+      return;
+    }
+
+    try {
+      setRelationshipLoading(true);
+      const response = await api.post(
+        `/network/friend-requests/${profileUser._id}/reject`,
+      );
+
+      setViewedUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              relationshipStatus:
+                response.data?.data?.relationshipStatus || "none",
+            }
+          : prev,
+      );
+
+      toast.success(response.data?.message || "Friend request rejected");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not reject request");
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
   if (!user) {
     return (
       <main className={styles.mainContainer}>
@@ -427,6 +456,14 @@ export const Profile = () => {
       return (
         <div className={styles.visitorRelationshipRow}>
           <span className={styles.relationshipChip}>Sent you a request</span>
+          <button
+            type="button"
+            className={styles.friendActionGhostBtn}
+            onClick={handleRejectFriendRequest}
+            disabled={relationshipLoading}
+          >
+            {relationshipLoading ? "Rejecting..." : "Reject"}
+          </button>
           <button
             type="button"
             className={styles.friendActionBtn}

@@ -28,6 +28,7 @@ export const PeopleHub = () => {
   const [friendRequests, setFriendRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [acceptingId, setAcceptingId] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
 
   const loadFriendRequests = async () => {
     try {
@@ -62,6 +63,25 @@ export const PeopleHub = () => {
       toast.error(error.response?.data?.message || "Could not accept request");
     } finally {
       setAcceptingId(null);
+    }
+  };
+
+  const handleReject = async (requesterUserId) => {
+    try {
+      setRejectingId(requesterUserId);
+      const response = await api.post(
+        `/network/friend-requests/${requesterUserId}/reject`,
+      );
+
+      setFriendRequests((prev) =>
+        prev.filter((user) => user._id !== requesterUserId),
+      );
+
+      toast.success(response.data?.message || "Friend request rejected");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not reject request");
+    } finally {
+      setRejectingId(null);
     }
   };
 
@@ -139,9 +159,21 @@ export const PeopleHub = () => {
                       type="button"
                       className={styles.acceptBtn}
                       onClick={() => handleAccept(user._id)}
-                      disabled={acceptingId === user._id}
+                      disabled={
+                        acceptingId === user._id || rejectingId === user._id
+                      }
                     >
                       {acceptingId === user._id ? "Accepting..." : "Accept"}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.rejectBtn}
+                      onClick={() => handleReject(user._id)}
+                      disabled={
+                        rejectingId === user._id || acceptingId === user._id
+                      }
+                    >
+                      {rejectingId === user._id ? "Rejecting..." : "Reject"}
                     </button>
                   </div>
                 </article>
