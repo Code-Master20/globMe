@@ -51,11 +51,42 @@ const visibilityFields = [
   { key: "followingCount", label: "Following (creator mode)" },
 ];
 
+const buildDetectedLocation = (address = {}, displayName = "") => {
+  const primaryParts = [
+    address.suburb || address.neighbourhood || address.hamlet || address.village,
+    address.city_district || address.state_district || address.county || address.city,
+    address.state,
+    address.postcode,
+    address.country,
+  ]
+    .map((part) => `${part ?? ""}`.trim())
+    .filter(Boolean);
+
+  const uniquePrimaryParts = [...new Set(primaryParts)];
+
+  if (uniquePrimaryParts.length > 0) {
+    return uniquePrimaryParts.join(", ");
+  }
+
+  const fallbackParts = [address.state, address.country]
+    .map((part) => `${part ?? ""}`.trim())
+    .filter(Boolean);
+
+  const uniqueFallbackParts = [...new Set(fallbackParts)];
+
+  if (uniqueFallbackParts.length > 0) {
+    return uniqueFallbackParts.join(", ");
+  }
+
+  return `${displayName ?? ""}`.trim();
+};
+
 export const EditProfileInfo = ({ Icon, className }) => {
   const dispatch = useDispatch();
   const { user, formLoading } = useSelector((state) => state.auth);
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState(buildFormState(user));
+  const [isLocating, setIsLocating] = useState(false);
 
   const handleToggle = () => {
     setIsOpen((prev) => {
@@ -137,6 +168,75 @@ export const EditProfileInfo = ({ Icon, className }) => {
     }));
   };
 
+  const handleUseCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      toast.error("Current location is not supported on this device.");
+      return;
+    }
+
+    try {
+      setIsLocating(true);
+
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 0,
+        });
+      });
+
+      const { latitude, longitude } = position.coords;
+      let locationText = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
+          {
+            headers: {
+              Accept: "application/json",
+            },
+          },
+        );
+
+        if (response.ok) {
+          const locationData = await response.json();
+          const address = locationData?.address || {};
+          const detectedLocation = buildDetectedLocation(
+            address,
+            locationData?.display_name,
+          );
+
+          if (detectedLocation) {
+            locationText = detectedLocation;
+          } else if (locationData?.display_name) {
+            locationText = locationData.display_name;
+          }
+        }
+      } catch {
+        // Keep coordinate fallback when reverse geocoding is unavailable.
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        location: locationText,
+      }));
+
+      toast.success("Current location added.");
+    } catch (error) {
+      if (error?.code === 1) {
+        toast.error("Location permission was denied.");
+      } else if (error?.code === 2) {
+        toast.error("Current location could not be determined.");
+      } else if (error?.code === 3) {
+        toast.error("Location request timed out.");
+      } else {
+        toast.error("Current location could not be added.");
+      }
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
   return (
     <>
       <button
@@ -208,13 +308,24 @@ export const EditProfileInfo = ({ Icon, className }) => {
               </div>
 
               <div className={styles.field}>
-                <label htmlFor="location">Location</label>
+                <div className={styles.fieldHeader}>
+                  <label htmlFor="location">Location</label>
+                  <button
+                    type="button"
+                    className={styles.locationButton}
+                    onClick={handleUseCurrentLocation}
+                    disabled={isLocating}
+                  >
+                    {isLocating ? "Locating..." : "Use current location"}
+                  </button>
+                </div>
                 <input
                   type="text"
                   id="location"
                   name="location"
                   value={formData.location}
                   onChange={handleChange}
+                  placeholder="Type your location"
                 />
               </div>
 
