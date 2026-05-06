@@ -38,15 +38,15 @@
 
 .notificationBadge {
   position: absolute;
-  top: -0.35rem;
-  right: -0.55rem;
-  min-width: 1.2rem;
-  height: 1.2rem;
-  padding: 0 0.22rem;
+  top: -0.2rem;
+  right: -0.35rem;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.16rem;
   border-radius: 999px;
   background: #dc2626;
   color: #ffffff;
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
