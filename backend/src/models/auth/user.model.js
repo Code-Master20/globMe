@@ -154,6 +154,20 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
+    friendRequestRejectsSent: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    friendRequestRejectsReceived: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
     friends: [
       {
         type: mongoose.Schema.Types.ObjectId,

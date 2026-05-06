@@ -45,6 +45,31 @@ const removeRelationshipIfPresent = (list, targetId) => {
   return normalizedList.filter((id) => `${id}` !== `${targetId}`);
 };
 
+const networkProfileFields =
+  "username email avatar profession location bio talent status gender dob profileVisibility creator";
+
+const mapUsersToPublic = (users = [], viewerId) =>
+  users.map((person) => toPublicUser(person, { viewerId }));
+
+const clearRejectHistoryBetweenUsers = (firstUser, secondUser) => {
+  firstUser.friendRequestRejectsSent = removeRelationshipIfPresent(
+    firstUser.friendRequestRejectsSent,
+    secondUser._id,
+  );
+  firstUser.friendRequestRejectsReceived = removeRelationshipIfPresent(
+    firstUser.friendRequestRejectsReceived,
+    secondUser._id,
+  );
+  secondUser.friendRequestRejectsSent = removeRelationshipIfPresent(
+    secondUser.friendRequestRejectsSent,
+    firstUser._id,
+  );
+  secondUser.friendRequestRejectsReceived = removeRelationshipIfPresent(
+    secondUser.friendRequestRejectsReceived,
+    firstUser._id,
+  );
+};
+
 const searchUsers = async (req, res) => {
   try {
     const query = `${req.query.q ?? ""}`.trim();
@@ -90,10 +115,7 @@ const searchUsers = async (req, res) => {
 const getReceivedFriendRequests = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .populate(
-        "friendRequestsReceived",
-        "username email avatar profession location bio talent status gender dob profileVisibility",
-      )
+      .populate("friendRequestsReceived", networkProfileFields)
       .select("friendRequestsReceived");
 
     if (!user) {
@@ -108,6 +130,58 @@ const getReceivedFriendRequests = async (req, res) => {
   } catch (error) {
     return new ErrorHandler(500, "Could not fetch friend requests")
       .log("friend requests error", error)
+      .send(res);
+  }
+};
+
+const getOwnerNetworkHub = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate("friends", networkProfileFields)
+      .populate("following", networkProfileFields)
+      .populate("followers", networkProfileFields)
+      .populate("friendRequestsSent", networkProfileFields)
+      .populate("friendRequestsReceived", networkProfileFields)
+      .populate("friendRequestRejectsSent", networkProfileFields)
+      .populate("friendRequestRejectsReceived", networkProfileFields)
+      .select(
+        [
+          "creator",
+          "friends",
+          "following",
+          "followers",
+          "friendRequestsSent",
+          "friendRequestsReceived",
+          "friendRequestRejectsSent",
+          "friendRequestRejectsReceived",
+        ].join(" "),
+      );
+
+    if (!user) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    return new SuccessHandler(200, "Network hub", {
+      creator: Boolean(user.creator),
+      friends: mapUsersToPublic(user.friends, req.user._id),
+      following: user.creator ? mapUsersToPublic(user.following, req.user._id) : [],
+      followers: user.creator ? mapUsersToPublic(user.followers, req.user._id) : [],
+      requests: {
+        sent: mapUsersToPublic(user.friendRequestsSent, req.user._id),
+        received: mapUsersToPublic(user.friendRequestsReceived, req.user._id),
+        rejectedByMe: mapUsersToPublic(
+          user.friendRequestRejectsSent,
+          req.user._id,
+        ),
+        rejectedMe: mapUsersToPublic(
+          user.friendRequestRejectsReceived,
+          req.user._id,
+        ),
+      },
+    }).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Could not load your network hub")
+      .log("owner network hub error", error)
       .send(res);
   }
 };
@@ -208,6 +282,8 @@ const sendFriendRequest = async (req, res) => {
       ).send(res);
     }
 
+    clearRejectHistoryBetweenUsers(sender, receiver);
+
     sender.friendRequestsSent.push(receiver._id);
     receiver.friendRequestsReceived.push(sender._id);
 
@@ -286,6 +362,7 @@ const acceptFriendRequest = async (req, res) => {
 
     receiver.friends = addRelationshipIfMissing(receiver.friends, sender._id);
     sender.friends = addRelationshipIfMissing(sender.friends, receiver._id);
+    clearRejectHistoryBetweenUsers(receiver, sender);
 
     if (receiver.creator) {
       sender.following = addRelationshipIfMissing(sender.following, receiver._id);
@@ -361,6 +438,14 @@ const rejectFriendRequest = async (req, res) => {
       sender.friendRequestsSent,
       receiver._id,
     );
+    receiver.friendRequestRejectsSent = addRelationshipIfMissing(
+      receiver.friendRequestRejectsSent,
+      sender._id,
+    );
+    sender.friendRequestRejectsReceived = addRelationshipIfMissing(
+      sender.friendRequestRejectsReceived,
+      receiver._id,
+    );
 
     if (receiver.creator) {
       sender.following = removeRelationshipIfPresent(sender.following, receiver._id);
@@ -386,6 +471,7 @@ const rejectFriendRequest = async (req, res) => {
 module.exports = {
   searchUsers,
   getReceivedFriendRequests,
+  getOwnerNetworkHub,
   getNotifications,
   markNotificationsRead,
   sendFriendRequest,

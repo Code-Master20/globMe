@@ -20,7 +20,7 @@ const storedUser = JSON.parse(localStorage.getItem("user")) || null;
 const authSlice = createSlice({
   name: "auth",
   initialState: {
-    checkingAuth: false,
+    checkingAuth: true,
     formLoading: false,
     loading: false,
     isAuthenticated: false,

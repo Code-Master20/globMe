@@ -3,6 +3,7 @@ const isMeMiddleware = require("../middleware/auth/isMe.middleware");
 const {
   searchUsers,
   getReceivedFriendRequests,
+  getOwnerNetworkHub,
   getNotifications,
   markNotificationsRead,
   sendFriendRequest,
@@ -11,6 +12,7 @@ const {
 } = require("../controllers/network.controller");
 
 router.get("/search-users", isMeMiddleware, searchUsers);
+router.get("/hub", isMeMiddleware, getOwnerNetworkHub);
 router.get("/friend-requests/received", isMeMiddleware, getReceivedFriendRequests);
 router.get("/notifications", isMeMiddleware, getNotifications);
 router.post(
