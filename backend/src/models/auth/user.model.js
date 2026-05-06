@@ -126,6 +126,10 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: true,
       },
+      friendsCount: {
+        type: Boolean,
+        default: true,
+      },
       followersCount: {
         type: Boolean,
         default: false,

@@ -110,7 +110,7 @@ const getReceivedFriendRequests = async (req, res) => {
 const getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({ user: req.user._id })
-      .populate("actor", "username avatar profession profileVisibility creator")
+      .populate("actor", "username avatar profession profileVisibility")
       .sort({ createdAt: -1 })
       .limit(30);
 

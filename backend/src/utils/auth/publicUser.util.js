@@ -3,7 +3,6 @@ const basePublicFields = [
   "username",
   "avatar",
   "banner",
-  "creator",
   "createdAt",
   "updatedAt",
 ];
@@ -19,7 +18,12 @@ const visibilityControlledFields = [
   "dob",
 ];
 
-const ownerVisibleFields = [...basePublicFields, ...visibilityControlledFields, "profileVisibility"];
+const ownerVisibleFields = [
+  ...basePublicFields,
+  "creator",
+  ...visibilityControlledFields,
+  "profileVisibility",
+];
 
 const pickAllowedFields = (source, allowedFields) =>
   allowedFields.reduce((accumulator, field) => {
@@ -58,7 +62,10 @@ const toPublicUser = (userDoc, options = {}) => {
 
   const publicUser = pickAllowedFields(userObject, basePublicFields);
   const visibility = userObject.profileVisibility || {};
-  publicUser.friendsCount = friendsCount;
+
+  if (visibility.friendsCount !== false) {
+    publicUser.friendsCount = friendsCount;
+  }
 
   visibilityControlledFields.forEach((field) => {
     if (visibility[field] !== false && userObject[field] !== undefined) {

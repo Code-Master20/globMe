@@ -263,6 +263,7 @@ const updateProfileDetails = async (req, res) => {
         "status",
         "gender",
         "dob",
+        "friendsCount",
         "followersCount",
         "followingCount",
       ];

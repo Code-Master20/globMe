@@ -33,6 +33,7 @@ const buildFormState = (user) => ({
     status: user?.profileVisibility?.status ?? true,
     gender: user?.profileVisibility?.gender ?? true,
     dob: user?.profileVisibility?.dob ?? true,
+    friendsCount: user?.profileVisibility?.friendsCount ?? true,
     followersCount: user?.profileVisibility?.followersCount ?? false,
     followingCount: user?.profileVisibility?.followingCount ?? false,
   },
@@ -47,6 +48,7 @@ const visibilityFields = [
   { key: "status", label: "Relationship status" },
   { key: "gender", label: "Gender" },
   { key: "dob", label: "Date of birth" },
+  { key: "friendsCount", label: "Friends" },
   { key: "followersCount", label: "Followers (creator mode)" },
   { key: "followingCount", label: "Following (creator mode)" },
 ];

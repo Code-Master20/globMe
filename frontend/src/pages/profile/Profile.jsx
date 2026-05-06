@@ -171,9 +171,10 @@ export const Profile = () => {
 
   const profileSize = width < 768 ? 120 : 160;
   const isSmallScreen = width <= 640;
+  const ownerCreatorEnabled = Boolean(profileUser.creator);
   const creatorActive = isOwner
-    ? Boolean(profileUser.creator) || isCreatorMode
-    : Boolean(profileUser.creator);
+    ? ownerCreatorEnabled || isCreatorMode
+    : false;
   const bioItems = listify(profileUser.bio);
   const locationItems = listify(profileUser.location);
   const talentItems = listify(profileUser.talent);
@@ -219,6 +220,7 @@ export const Profile = () => {
       ? profileUser.followingCount
       : 0;
 
+  const canVisitorSeeFriends = typeof profileUser.friendsCount === "number";
   const canVisitorSeeFollowers = typeof profileUser.followersCount === "number";
   const canVisitorSeeFollowing = typeof profileUser.followingCount === "number";
 
@@ -226,17 +228,17 @@ export const Profile = () => {
     {
       label: "Friends",
       value: friendsCount,
-      visible: true,
+      visible: isOwner || canVisitorSeeFriends,
     },
     {
       label: "Following",
       value: followingCount,
-      visible: creatorActive && (isOwner || canVisitorSeeFollowing),
+      visible: isOwner ? creatorActive : canVisitorSeeFollowing,
     },
     {
       label: "Followers",
       value: followersCount,
-      visible: creatorActive && (isOwner || canVisitorSeeFollowers),
+      visible: isOwner ? creatorActive : canVisitorSeeFollowers,
     },
   ].filter((item) => item.visible);
 
@@ -262,7 +264,7 @@ export const Profile = () => {
     {
       label: "Creator",
       value: creatorActive ? "On" : "Off",
-      caption: profileUser.creator ? "Saved on account" : "Preview mode",
+      caption: ownerCreatorEnabled ? "Saved on account" : "Preview mode",
       editField: "",
     },
   ];
@@ -300,13 +302,7 @@ export const Profile = () => {
     },
   ];
 
-  const statusPillLabel = isOwner
-    ? creatorActive
-      ? "Creator mode"
-      : "Personal profile"
-    : creatorActive
-      ? "Creator profile"
-      : "Public profile";
+  const statusPillLabel = creatorActive ? "Creator mode" : "Personal profile";
 
   const renderOwnerEditButton = (focusField, label) => {
     if (!focusField) {
@@ -411,7 +407,9 @@ export const Profile = () => {
               <div className={styles.userInfo}>
                 <div className={styles.identityRow}>
                   <h1 className={styles.name}>{profileUser.username}</h1>
-                  <span className={styles.statusPill}>{statusPillLabel}</span>
+                  {isOwner ? (
+                    <span className={styles.statusPill}>{statusPillLabel}</span>
+                  ) : null}
                 </div>
 
                 <div className={styles.headerMetaRow}>
