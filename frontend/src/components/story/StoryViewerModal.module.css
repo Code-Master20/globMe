@@ -126,6 +126,10 @@
   margin-top: 0.85rem;
 }
 
+.storyBackgroundAudio {
+  display: none;
+}
+
 .navButton {
   position: absolute;
   top: 50%;

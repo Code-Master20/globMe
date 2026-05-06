@@ -179,9 +179,9 @@ export const StoryViewerModal = ({
             {currentStory.story?.audioUrl ? (
               <audio
                 src={currentStory.story.audioUrl}
-                controls
+                autoPlay
                 preload="metadata"
-                className={styles.audioPlayer}
+                className={styles.storyBackgroundAudio}
               />
             ) : null}
           </div>
