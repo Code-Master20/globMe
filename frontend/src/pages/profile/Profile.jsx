@@ -23,11 +23,15 @@ import { EditProfileInfo } from "../../components/profile/EditProfileInfo";
 import { ImageUpload } from "../../components/media/ImgUpload";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import {
+  deleteStory,
   updateCreatorMode,
   uploadBanner,
   uploadProfilePic,
+  uploadStory,
 } from "../../store/auth/authThunks";
 import api from "../../lib/api";
+
+const MAX_STORY_DURATION_SECONDS = 90;
 
 const listify = (value) => {
   if (Array.isArray(value)) {
@@ -53,6 +57,66 @@ const formatDisplayValue = (value) => {
     .join(" ");
 };
 
+const formatStoryExpiry = (value) => {
+  if (!value) return "";
+
+  const expiryDate = new Date(value);
+
+  if (Number.isNaN(expiryDate.getTime())) {
+    return "";
+  }
+
+  return expiryDate.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+};
+
+const getStoryTimeLeftLabel = (value) => {
+  if (!value) return "";
+
+  const remainingMs = new Date(value).getTime() - Date.now();
+
+  if (remainingMs <= 0) {
+    return "Ending soon";
+  }
+
+  const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+
+  if (remainingHours >= 24) {
+    const days = Math.floor(remainingHours / 24);
+    const hours = remainingHours % 24;
+
+    if (!hours) {
+      return `${days}d left`;
+    }
+
+    return `${days}d ${hours}h left`;
+  }
+
+  return `${remainingHours}h left`;
+};
+
+const getLocalMediaDuration = (file) =>
+  new Promise((resolve, reject) => {
+    const mediaElement = document.createElement(
+      file?.type?.startsWith("audio/") ? "audio" : "video",
+    );
+    const objectUrl = URL.createObjectURL(file);
+
+    mediaElement.preload = "metadata";
+    mediaElement.onloadedmetadata = () => {
+      const duration = Number(mediaElement.duration);
+      URL.revokeObjectURL(objectUrl);
+      resolve(Number.isFinite(duration) ? duration : 0);
+    };
+    mediaElement.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Media duration could not be read"));
+    };
+    mediaElement.src = objectUrl;
+  });
+
 export const Profile = () => {
   const { userId } = useParams();
   const dispatch = useDispatch();
@@ -66,6 +130,15 @@ export const Profile = () => {
   const [showInfo, setShowInfo] = useState(false);
   const [relationshipLoading, setRelationshipLoading] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [storyComposerOpen, setStoryComposerOpen] = useState(false);
+  const [storyPosts, setStoryPosts] = useState([]);
+  const [storyPostsLoading, setStoryPostsLoading] = useState(false);
+  const [storyPostsError, setStoryPostsError] = useState("");
+  const [pendingStoryMediaFile, setPendingStoryMediaFile] = useState(null);
+  const [pendingStoryAudioFile, setPendingStoryAudioFile] = useState(null);
+  const [selectedStoryPost, setSelectedStoryPost] = useState(null);
+  const [pendingStoryMediaPreview, setPendingStoryMediaPreview] = useState("");
+  const [pendingStoryAudioPreview, setPendingStoryAudioPreview] = useState("");
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
   const metadataProfile = isOwner ? user : viewedUser;
@@ -94,10 +167,75 @@ export const Profile = () => {
   }, [loading]);
 
   useEffect(() => {
+    if (!pendingStoryMediaFile) {
+      setPendingStoryMediaPreview("");
+      return undefined;
+    }
+
+    const objectUrl = URL.createObjectURL(pendingStoryMediaFile);
+    setPendingStoryMediaPreview(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [pendingStoryMediaFile]);
+
+  useEffect(() => {
+    if (!pendingStoryAudioFile) {
+      setPendingStoryAudioPreview("");
+      return undefined;
+    }
+
+    const objectUrl = URL.createObjectURL(pendingStoryAudioFile);
+    setPendingStoryAudioPreview(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [pendingStoryAudioFile]);
+
+  useEffect(() => {
     if (width > 640 && showInfo) {
       setShowInfo(false);
     }
   }, [showInfo, width]);
+
+  useEffect(() => {
+    if (!storyComposerOpen || !isOwner || !user?._id) {
+      return undefined;
+    }
+
+    let ignore = false;
+
+    const loadStoryPosts = async () => {
+      try {
+        setStoryPostsLoading(true);
+        setStoryPostsError("");
+        const response = await api.get("/user/story-posts");
+
+        if (!ignore) {
+          setStoryPosts(response.data?.data || []);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setStoryPosts([]);
+          setStoryPostsError(
+            error.response?.data?.message || "Could not load your uploaded posts.",
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setStoryPostsLoading(false);
+        }
+      }
+    };
+
+    loadStoryPosts();
+
+    return () => {
+      ignore = true;
+    };
+  }, [storyComposerOpen, isOwner, user]);
 
   useEffect(() => {
     if (isOwner && !user) {
@@ -152,6 +290,84 @@ export const Profile = () => {
   const handleBannerSelect = (file) => {
     setUploadTarget("banner");
     dispatch(uploadBanner(file));
+  };
+
+  const handleStoryMediaSelect = async (file) => {
+    if (file?.type?.startsWith("video/")) {
+      try {
+        const duration = await getLocalMediaDuration(file);
+
+        if (duration > MAX_STORY_DURATION_SECONDS) {
+          toast.error("Story videos must be 1 minute 30 seconds or shorter");
+          return;
+        }
+      } catch {
+        toast.error("We could not read that video length");
+        return;
+      }
+    }
+
+    setSelectedStoryPost(null);
+    setPendingStoryMediaFile(file);
+  };
+
+  const handleStoryAudioSelect = async (file) => {
+    try {
+      const duration = await getLocalMediaDuration(file);
+
+      if (duration > MAX_STORY_DURATION_SECONDS) {
+        toast.error("Story music must be 1 minute 30 seconds or shorter");
+        return;
+      }
+    } catch {
+      toast.error("We could not read that audio length");
+      return;
+    }
+
+    setPendingStoryAudioFile(file);
+  };
+
+  const resetStoryComposer = () => {
+    setPendingStoryMediaFile(null);
+    setPendingStoryAudioFile(null);
+    setSelectedStoryPost(null);
+  };
+
+  const handlePublishStory = async () => {
+    if (!pendingStoryMediaFile && !selectedStoryPost?._id) {
+      toast.error("Choose a photo, video, or one of your posts first");
+      return;
+    }
+
+    setUploadTarget("story");
+    const resultAction = await dispatch(
+      uploadStory({
+        mediaFile: pendingStoryMediaFile,
+        audioFile: pendingStoryAudioFile,
+        sourcePostId: selectedStoryPost?._id || "",
+      }),
+    );
+
+    if (uploadStory.rejected.match(resultAction)) {
+      toast.error(resultAction.payload?.message || "Story could not be uploaded");
+      return;
+    }
+
+    toast.success(resultAction.payload?.message || "Story uploaded successfully");
+    resetStoryComposer();
+    setStoryComposerOpen(false);
+  };
+
+  const handleDeleteStory = async () => {
+    setUploadTarget("story-delete");
+    const resultAction = await dispatch(deleteStory());
+
+    if (deleteStory.rejected.match(resultAction)) {
+      toast.error(resultAction.payload?.message || "Story could not be removed");
+      return;
+    }
+
+    toast.success(resultAction.payload?.message || "Story removed successfully");
   };
 
   const handleSendFriendRequest = async () => {
@@ -326,7 +542,7 @@ export const Profile = () => {
     locationItems.length > 0
       ? locationItems.map(formatDisplayValue).join(", ")
       : "";
-  const profileStory = bioItems[0] || "";
+  const profileIntro = bioItems[0] || "";
   const friendsCount =
     typeof profileUser.friendsCount === "number" ? profileUser.friendsCount : 0;
   const followersCount =
@@ -342,6 +558,17 @@ export const Profile = () => {
   const canVisitorSeeFollowers = typeof profileUser.followersCount === "number";
   const canVisitorSeeFollowing = typeof profileUser.followingCount === "number";
   const relationshipStatus = profileUser.relationshipStatus || "none";
+  const activeStory = profileUser.story || "";
+  const activeStoryType = profileUser.storyType || "image";
+  const activeStoryAudio = profileUser.storyAudio || "";
+  const storyExpiresAt = profileUser.storyExpiresAt || "";
+  const hasActiveStory = Boolean(activeStory && storyExpiresAt);
+  const storyExpiryLabel = formatStoryExpiry(storyExpiresAt);
+  const storyTimeLeftLabel = getStoryTimeLeftLabel(storyExpiresAt);
+  const pendingStoryType = pendingStoryMediaFile
+    ? (pendingStoryMediaFile.type?.startsWith("video/") ? "video" : "image")
+    : (selectedStoryPost?.postType || "image");
+  const composerHasSelection = Boolean(pendingStoryMediaFile || selectedStoryPost?._id);
 
   const connectionStats = [
     {
@@ -685,8 +912,8 @@ export const Profile = () => {
                   </div>
                 ) : null}
 
-                {profileStory ? (
-                  <p className={styles.profileStory}>{profileStory}</p>
+                {profileIntro ? (
+                  <p className={styles.profileStory}>{profileIntro}</p>
                 ) : isOwner ? (
                   <p className={styles.profileStory}>
                     Add a short intro so visitors understand your personality,
@@ -788,6 +1015,275 @@ export const Profile = () => {
               </aside>
             ) : null}
           </div>
+
+          {hasActiveStory || isOwner ? (
+            <section className={styles.storyPanel}>
+              <div className={styles.storyPanelHeader}>
+                <div>
+                  <p className={styles.storyEyebrow}>
+                    {isOwner ? "Your story" : `${profileUser.username}'s story`}
+                  </p>
+                  <h2>{hasActiveStory ? "Live for 36 hours" : "Share a story"}</h2>
+                </div>
+
+                {isOwner ? (
+                  <div className={styles.storyActions}>
+                    <button
+                      type="button"
+                      className={styles.storyUploadButton}
+                      onClick={() => setStoryComposerOpen((prev) => !prev)}
+                    >
+                      {storyComposerOpen
+                        ? "Close composer"
+                        : hasActiveStory
+                          ? "Create new story"
+                          : "Create story"}
+                    </button>
+
+                    {hasActiveStory ? (
+                      <button
+                        type="button"
+                        className={styles.storyDeleteButton}
+                        onClick={handleDeleteStory}
+                        disabled={loading}
+                      >
+                        {loading && uploadTarget === "story-delete"
+                          ? "Removing..."
+                          : "Remove story"}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              {isOwner && storyComposerOpen ? (
+                <div className={styles.storyComposer}>
+                  <p className={styles.storyComposerIntro}>
+                    Build one live story from a photo or video on your device, add
+                    optional music, or turn one of your uploaded posts into the story.
+                    Video and music clips must stay within 1 minute 30 seconds.
+                  </p>
+
+                  <div className={styles.storyComposerActions}>
+                    <ImageUpload
+                      Icon={RiImageEditLine}
+                      className={styles.storyUploader}
+                      buttonClassName={styles.storyUploadButton}
+                      onFileSelect={handleStoryMediaSelect}
+                      disabled={loading}
+                      size={18}
+                      accept="image/*,video/*"
+                      label={
+                        pendingStoryMediaFile ? "Change photo/video" : "Choose photo/video"
+                      }
+                      title="Choose a photo or video for your story"
+                    />
+
+                    <ImageUpload
+                      Icon={RiImageEditLine}
+                      className={styles.storyUploader}
+                      buttonClassName={styles.storySecondaryButton}
+                      onFileSelect={handleStoryAudioSelect}
+                      disabled={loading}
+                      size={18}
+                      accept="audio/*"
+                      label={pendingStoryAudioFile ? "Change music" : "Add music"}
+                      title="Attach optional music from your device"
+                    />
+
+                    {(pendingStoryMediaFile || pendingStoryAudioFile || selectedStoryPost) ? (
+                      <button
+                        type="button"
+                        className={styles.storySecondaryButton}
+                        onClick={resetStoryComposer}
+                        disabled={loading}
+                      >
+                        Clear draft
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className={styles.storyComposerGrid}>
+                    <div className={styles.storyComposerCard}>
+                      <div className={styles.storyComposerSectionHeader}>
+                        <h3>Draft preview</h3>
+                        <span>
+                          {selectedStoryPost
+                            ? "Using one of your posts"
+                            : pendingStoryMediaFile
+                              ? "Using device media"
+                              : "Nothing selected yet"}
+                        </span>
+                      </div>
+
+                      {composerHasSelection ? (
+                        <div className={styles.storyDraftPreview}>
+                          {pendingStoryType === "video" ? (
+                            <video
+                              src={pendingStoryMediaPreview || selectedStoryPost?.url}
+                              className={styles.storyImage}
+                              controls
+                              preload="metadata"
+                            />
+                          ) : (
+                            <img
+                              src={pendingStoryMediaPreview || selectedStoryPost?.url}
+                              alt="Story draft"
+                              className={styles.storyImage}
+                            />
+                          )}
+
+                          <div className={styles.storyMeta}>
+                            <span className={styles.storyBadge}>
+                              {pendingStoryType === "video" ? "Video story" : "Photo story"}
+                            </span>
+                            <p>
+                              {selectedStoryPost
+                                ? formatDisplayValue(selectedStoryPost.title) ||
+                                  "Selected post"
+                                : pendingStoryMediaFile?.name || "Device upload"}
+                            </p>
+
+                            {pendingStoryAudioFile ? (
+                              <audio
+                                src={pendingStoryAudioPreview}
+                                controls
+                                preload="metadata"
+                                className={styles.storyAudioPlayer}
+                              />
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={styles.storyPlaceholder}>
+                          Choose a photo or video, or select one of your posts below.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={styles.storyComposerCard}>
+                      <div className={styles.storyComposerSectionHeader}>
+                        <h3>Your uploaded posts</h3>
+                        <span>Image and video posts can become your story</span>
+                      </div>
+
+                      {storyPostsLoading ? (
+                        <div className={styles.storyPostsState}>Loading your posts...</div>
+                      ) : storyPostsError ? (
+                        <div className={styles.storyPostsState}>{storyPostsError}</div>
+                      ) : storyPosts.length === 0 ? (
+                        <div className={styles.storyPostsState}>
+                          No image or video posts are available yet.
+                        </div>
+                      ) : (
+                        <div className={styles.storyPostList}>
+                          {storyPosts.map((post) => {
+                            const isSelected = selectedStoryPost?._id === post._id;
+
+                            return (
+                              <button
+                                type="button"
+                                key={post._id}
+                                className={`${styles.storyPostCard} ${
+                                  isSelected ? styles.storyPostCardActive : ""
+                                }`}
+                                onClick={() => {
+                                  setPendingStoryMediaFile(null);
+                                  setSelectedStoryPost(post);
+                                }}
+                              >
+                                {post.postType === "video" ? (
+                                  <video
+                                    src={post.url}
+                                    className={styles.storyPostThumb}
+                                    muted
+                                    preload="metadata"
+                                  />
+                                ) : (
+                                  <img
+                                    src={post.url}
+                                    alt={post.title || "Uploaded post"}
+                                    className={styles.storyPostThumb}
+                                  />
+                                )}
+
+                                <div className={styles.storyPostMeta}>
+                                  <strong>
+                                    {formatDisplayValue(post.title) || "Untitled post"}
+                                  </strong>
+                                  <span>{formatDisplayValue(post.postType)}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={styles.storyComposerFooter}>
+                    <span>
+                      Published stories stay live for 36 hours, then disappear
+                      automatically. Video and music length is capped at 1 minute
+                      30 seconds.
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.storyPublishButton}
+                      onClick={handlePublishStory}
+                      disabled={loading || !composerHasSelection}
+                    >
+                      {loading && uploadTarget === "story"
+                        ? "Publishing..."
+                        : "Publish story"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {hasActiveStory ? (
+                <div className={styles.storyPreview}>
+                  {activeStoryType === "video" ? (
+                    <video
+                      src={activeStory}
+                      className={styles.storyImage}
+                      controls
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img
+                      src={activeStory}
+                      alt={`${profileUser.username || "User"} story`}
+                      className={styles.storyImage}
+                    />
+                  )}
+
+                  <div className={styles.storyMeta}>
+                    <span className={styles.storyBadge}>{storyTimeLeftLabel}</span>
+                    <p>
+                      This story stays visible until {storyExpiryLabel} and then
+                      disappears automatically.
+                    </p>
+
+                    {activeStoryAudio ? (
+                      <audio
+                        src={activeStoryAudio}
+                        controls
+                        preload="metadata"
+                        className={styles.storyAudioPlayer}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.storyPlaceholder}>
+                  Upload a photo or video story, add music if you want, or reuse one
+                  of your posts. It stays live for 36 hours and then expires
+                  automatically.
+                </div>
+              )}
+            </section>
+          ) : null}
 
           {isOwner && !isSmallScreen ? (
             <section className={styles.gridLayout}>

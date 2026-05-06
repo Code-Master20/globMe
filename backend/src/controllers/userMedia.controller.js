@@ -1,9 +1,14 @@
 const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary.utils");
 const User = require("../models/auth/user.model");
+const Post = require("../models/post.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
+
+const STORY_LIFETIME_MS = 36 * 60 * 60 * 1000;
+const MAX_STORY_DURATION_SECONDS = 90;
+const STORY_ALLOWED_POST_TYPES = ["image", "video"];
 
 const normalizeListInput = (value, pattern = /\r?\n|,/) => {
   if (Array.isArray(value)) {
@@ -20,6 +25,68 @@ const normalizeListInput = (value, pattern = /\r?\n|,/) => {
     .split(pattern)
     .map((item) => item.trim())
     .filter(Boolean);
+};
+
+const uploadBufferToCloudinary = (file, options) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(options, (error, result) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(result);
+    });
+
+    stream.end(file.buffer);
+  });
+
+const uploadRemoteAssetToCloudinary = (url, options) =>
+  cloudinary.uploader.upload(url, options);
+
+const destroyCloudinaryAsset = async (publicId, resourceType = "image") => {
+  if (!publicId) {
+    return;
+  }
+
+  try {
+    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+  } catch (error) {
+    console.error("Cloudinary deletion failed:", error);
+  }
+};
+
+const getStoryMediaTypeFromFile = (file) =>
+  file?.mimetype?.startsWith("video/") ? "video" : "image";
+
+const getUploadDurationSeconds = (uploadResult) => {
+  const duration = Number(uploadResult?.duration);
+  return Number.isFinite(duration) ? duration : 0;
+};
+
+const getStoryDurationError = ({ storyType, mediaUploadResult, audioUploadResult }) => {
+  if (
+    storyType === "video" &&
+    getUploadDurationSeconds(mediaUploadResult) > MAX_STORY_DURATION_SECONDS
+  ) {
+    return "Story videos must be 1 minute 30 seconds or shorter";
+  }
+
+  if (getUploadDurationSeconds(audioUploadResult) > MAX_STORY_DURATION_SECONDS) {
+    return "Story music must be 1 minute 30 seconds or shorter";
+  }
+
+  return "";
+};
+
+const resetStoryFields = (user) => {
+  user.story = null;
+  user.storyType = null;
+  user.storyCloudinaryId = null;
+  user.storyAudio = null;
+  user.storyAudioCloudinaryId = null;
+  user.storySourcePost = null;
+  user.storyExpiresAt = null;
 };
 
 /* =========================
@@ -146,6 +213,149 @@ const uploadBanner = async (req, res) => {
   }
 };
 
+/* =========================
+   UPLOAD STORY
+========================= */
+const uploadStory = async (req, res) => {
+  try {
+    const mediaFile = req.files?.media?.[0] || null;
+    const audioFile = req.files?.audio?.[0] || null;
+    const sourcePostId = `${req.body?.sourcePostId ?? ""}`.trim();
+
+    if (!mediaFile && !sourcePostId) {
+      return new ErrorHandler(
+        400,
+        "Choose a photo or video, or pick one of your posts",
+      ).send(res);
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    let mediaUploadResult = null;
+    let audioUploadResult = null;
+    let storyType = "image";
+
+    try {
+      if (sourcePostId) {
+        if (!mongoose.isValidObjectId(sourcePostId)) {
+          return new ErrorHandler(400, "Invalid post selected for story").send(res);
+        }
+
+        const sourcePost = await Post.findOne({
+          _id: sourcePostId,
+          user: req.user.id,
+        }).select("url postType");
+
+        if (!sourcePost) {
+          return new ErrorHandler(404, "Selected post was not found").send(res);
+        }
+
+        if (!STORY_ALLOWED_POST_TYPES.includes(sourcePost.postType)) {
+          return new ErrorHandler(
+            400,
+            "Only image and video posts can be used as stories",
+          ).send(res);
+        }
+
+        storyType = sourcePost.postType;
+        mediaUploadResult = await uploadRemoteAssetToCloudinary(sourcePost.url, {
+          folder: "seekFi/story/media",
+          resource_type: "auto",
+        });
+        user.storySourcePost = sourcePost._id;
+      } else {
+        storyType = getStoryMediaTypeFromFile(mediaFile);
+        mediaUploadResult = await uploadBufferToCloudinary(mediaFile, {
+          folder: "seekFi/story/media",
+          resource_type: "auto",
+        });
+        user.storySourcePost = null;
+      }
+
+      if (audioFile) {
+        audioUploadResult = await uploadBufferToCloudinary(audioFile, {
+          folder: "seekFi/story/audio",
+          resource_type: "video",
+        });
+      }
+    } catch (uploadError) {
+      if (mediaUploadResult?.public_id) {
+        await destroyCloudinaryAsset(
+          mediaUploadResult.public_id,
+          storyType === "video" ? "video" : "image",
+        );
+      }
+
+      if (audioUploadResult?.public_id) {
+        await destroyCloudinaryAsset(audioUploadResult.public_id, "video");
+      }
+
+      return new ErrorHandler(500, "Cloudinary upload failed")
+        .log("cloudinary error", uploadError)
+        .send(res);
+    }
+
+    const previousStoryCloudinaryId = user.storyCloudinaryId;
+    const previousStoryAudioCloudinaryId = user.storyAudioCloudinaryId;
+    const previousStoryType = user.storyType;
+    const durationError = getStoryDurationError({
+      storyType,
+      mediaUploadResult,
+      audioUploadResult,
+    });
+
+    if (durationError) {
+      await destroyCloudinaryAsset(
+        mediaUploadResult?.public_id,
+        storyType === "video" ? "video" : "image",
+      );
+      await destroyCloudinaryAsset(audioUploadResult?.public_id, "video");
+
+      return new ErrorHandler(400, durationError).send(res);
+    }
+
+    try {
+      user.story = mediaUploadResult.secure_url;
+      user.storyType = storyType;
+      user.storyCloudinaryId = mediaUploadResult.public_id;
+      user.storyAudio = audioUploadResult?.secure_url || null;
+      user.storyAudioCloudinaryId = audioUploadResult?.public_id || null;
+      user.storyExpiresAt = new Date(Date.now() + STORY_LIFETIME_MS);
+
+      await user.save();
+
+      await destroyCloudinaryAsset(
+        previousStoryCloudinaryId,
+        previousStoryType === "video" ? "video" : "image",
+      );
+      await destroyCloudinaryAsset(previousStoryAudioCloudinaryId, "video");
+
+      return new SuccessHandler(
+        200,
+        "Story uploaded successfully",
+        toPublicUser(user, { viewerId: user._id }),
+      ).send(res);
+    } catch (dbError) {
+      await destroyCloudinaryAsset(
+        mediaUploadResult?.public_id,
+        storyType === "video" ? "video" : "image",
+      );
+      await destroyCloudinaryAsset(audioUploadResult?.public_id, "video");
+
+      return new ErrorHandler(500, "Database update failed")
+        .log("database error", dbError)
+        .send(res);
+    }
+  } catch (error) {
+    return new ErrorHandler(500, "Server Error")
+      .log("unexpected error", error)
+      .send(res);
+  }
+};
+
 const deleteAvatar = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -217,6 +427,58 @@ const deleteBanner = async (req, res) => {
       success: false,
       message: "Delete failed",
     });
+  }
+};
+
+const deleteStory = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    if (!user.story && !user.storyCloudinaryId) {
+      return new ErrorHandler(400, "No story to delete").send(res);
+    }
+
+    await destroyCloudinaryAsset(
+      user.storyCloudinaryId,
+      user.storyType === "video" ? "video" : "image",
+    );
+    await destroyCloudinaryAsset(user.storyAudioCloudinaryId, "video");
+
+    resetStoryFields(user);
+
+    await user.save();
+
+    return new SuccessHandler(
+      200,
+      "Story removed successfully",
+      toPublicUser(user, { viewerId: user._id }),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Story could not be deleted")
+      .log("story delete error", error)
+      .send(res);
+  }
+};
+
+const getStoryEligiblePosts = async (req, res) => {
+  try {
+    const posts = await Post.find({
+      user: req.user.id,
+      postType: { $in: STORY_ALLOWED_POST_TYPES },
+    })
+      .select("title description url postType createdAt")
+      .sort({ createdAt: -1 })
+      .limit(24);
+
+    return new SuccessHandler(200, "Eligible story posts", posts).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Story posts could not be loaded")
+      .log("story posts error", error)
+      .send(res);
   }
 };
 
@@ -384,8 +646,11 @@ const getProfileView = async (req, res) => {
 module.exports = {
   uploadAvatar,
   uploadBanner,
+  uploadStory,
   deleteAvatar,
   deleteBanner,
+  deleteStory,
+  getStoryEligiblePosts,
   updateProfileDetails,
   updateCreatorMode,
   getProfileView,

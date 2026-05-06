@@ -10,6 +10,8 @@ import {
   otpVerifiedAndResetPassword,
   uploadProfilePic,
   uploadBanner,
+  uploadStory,
+  deleteStory,
   updateProfileDetails,
   updateCreatorMode,
 } from "./authThunks";
@@ -241,6 +243,36 @@ const authSlice = createSlice({
         state.successMessage = action.payload.message;
       })
       .addCase(uploadBanner.rejected, (state, action) => {
+        state.loading = false;
+        state.errorMessage = action.payload?.message;
+      })
+
+      // ====================== UPLOAD STORY ======================
+      .addCase(uploadStory.pending, (state) => {
+        state.loading = true;
+        state.errorMessage = null;
+      })
+      .addCase(uploadStory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.data;
+        state.successMessage = action.payload.message;
+      })
+      .addCase(uploadStory.rejected, (state, action) => {
+        state.loading = false;
+        state.errorMessage = action.payload?.message;
+      })
+
+      // ====================== DELETE STORY ======================
+      .addCase(deleteStory.pending, (state) => {
+        state.loading = true;
+        state.errorMessage = null;
+      })
+      .addCase(deleteStory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.data;
+        state.successMessage = action.payload.message;
+      })
+      .addCase(deleteStory.rejected, (state, action) => {
         state.loading = false;
         state.errorMessage = action.payload?.message;
       })

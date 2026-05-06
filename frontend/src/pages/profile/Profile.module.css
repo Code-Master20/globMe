@@ -719,6 +719,300 @@
   gap: 1.2rem;
 }
 
+.storyPanel {
+  margin-top: 1.5rem;
+  padding: 1.3rem;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(219, 234, 254, 0.82) 0%, rgba(255, 255, 255, 0.96) 46%, rgba(240, 253, 244, 0.96) 100%);
+  border: 1px solid rgba(191, 219, 254, 0.9);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+}
+
+.storyPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.storyEyebrow {
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.storyPanelHeader h2 {
+  margin-top: 0.2rem;
+  color: #172033;
+  font-size: 1.1rem;
+}
+
+.storyActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.storyUploadButton,
+.storyDeleteButton,
+.storySecondaryButton,
+.storyPublishButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 44px;
+  padding: 0.8rem 1rem;
+  border-radius: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    opacity 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.storyUploadButton {
+  border: none;
+  background: #172033;
+  color: #f8fafc;
+}
+
+.storyUploadButton:hover,
+.storyDeleteButton:hover {
+  transform: translateY(-1px);
+}
+
+.storyUploadButton:disabled,
+.storyDeleteButton:disabled,
+.storySecondaryButton:disabled,
+.storyPublishButton:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.storyDeleteButton {
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.storySecondaryButton {
+  border: 1px solid #cbd5e1;
+  background: rgba(255, 255, 255, 0.84);
+  color: #334155;
+}
+
+.storyPublishButton {
+  border: none;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%);
+  color: #f8fafc;
+}
+
+.storyComposer {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(226, 232, 240, 0.96);
+}
+
+.storyComposerIntro {
+  color: #475569;
+  line-height: 1.65;
+}
+
+.storyComposerActions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.storyComposerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.storyComposerCard {
+  min-width: 0;
+  padding: 1rem;
+  border-radius: 20px;
+  background: rgba(248, 250, 252, 0.88);
+  border: 1px solid rgba(203, 213, 225, 0.86);
+}
+
+.storyComposerSectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.storyComposerSectionHeader h3 {
+  color: #172033;
+  font-size: 0.98rem;
+}
+
+.storyComposerSectionHeader span {
+  color: #64748b;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.storyDraftPreview {
+  display: grid;
+  grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.storyAudioPlayer {
+  width: 100%;
+  max-width: 320px;
+}
+
+.storyPostList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.storyPostCard {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 18px;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.storyPostCard:hover {
+  transform: translateY(-1px);
+  border-color: #93c5fd;
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+}
+
+.storyPostCardActive {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.storyPostThumb {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  display: block;
+  border-radius: 14px;
+  object-fit: cover;
+  background: #dbe4ef;
+}
+
+.storyPostMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  margin-top: 0.55rem;
+}
+
+.storyPostMeta strong {
+  color: #172033;
+  font-size: 0.88rem;
+}
+
+.storyPostMeta span {
+  color: #64748b;
+  font-size: 0.76rem;
+}
+
+.storyPostsState {
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.storyComposerFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(203, 213, 225, 0.72);
+}
+
+.storyComposerFooter span {
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.storyPreview {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.storyImage {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  display: block;
+  object-fit: cover;
+  border-radius: 20px;
+  background: #dbe4ef;
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.12);
+}
+
+.storyMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.storyBadge {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  min-height: 34px;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(23, 32, 51, 0.08);
+  color: #172033;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.storyMeta p,
+.storyPlaceholder {
+  color: #475569;
+  line-height: 1.65;
+}
+
+.storyPlaceholder {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+}
+
 .panel {
   padding: 1.3rem;
   border-radius: 22px;
@@ -852,7 +1146,10 @@
 @media (max-width: 940px) {
   .profileHeader,
   .gridLayout,
-  .detailsGrid {
+  .detailsGrid,
+  .storyPreview,
+  .storyComposerGrid,
+  .storyDraftPreview {
     grid-template-columns: 1fr;
   }
 
@@ -1034,5 +1331,35 @@
   .statusRow {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .storyPanel {
+    margin-top: 1.2rem;
+    padding: 1rem;
+  }
+
+  .storyPanelHeader {
+    flex-direction: column;
+  }
+
+  .storyActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .storyUploadButton,
+  .storyDeleteButton,
+  .storySecondaryButton,
+  .storyPublishButton {
+    width: 100%;
+  }
+
+  .storyComposerFooter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .storyPostList {
+    grid-template-columns: 1fr;
   }
 }

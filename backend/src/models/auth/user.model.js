@@ -73,8 +73,30 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    storyType: {
+      type: String,
+      enum: ["image", "video"],
+      default: null,
+    },
     storyCloudinaryId: {
       type: String,
+    },
+    storyAudio: {
+      type: String,
+      default: null,
+    },
+    storyAudioCloudinaryId: {
+      type: String,
+      default: null,
+    },
+    storySourcePost: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Post",
+      default: null,
+    },
+    storyExpiresAt: {
+      type: Date,
+      default: null,
     },
     email: {
       type: String,

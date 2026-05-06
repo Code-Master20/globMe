@@ -25,6 +25,25 @@ const ownerVisibleFields = [
   "profileVisibility",
 ];
 
+const getActiveStoryPayload = (userObject) => {
+  if (!userObject?.story || !userObject?.storyExpiresAt) {
+    return null;
+  }
+
+  const expiresAt = new Date(userObject.storyExpiresAt);
+
+  if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+    return null;
+  }
+
+  return {
+    story: userObject.story,
+    storyType: userObject.storyType || "image",
+    storyAudio: userObject.storyAudio || null,
+    storyExpiresAt: expiresAt.toISOString(),
+  };
+};
+
 const pickAllowedFields = (source, allowedFields) =>
   allowedFields.reduce((accumulator, field) => {
     if (source[field] !== undefined) {
@@ -51,12 +70,21 @@ const toPublicUser = (userDoc, options = {}) => {
   const followingCount = Array.isArray(userObject.following)
     ? userObject.following.length
     : 0;
+  const activeStory = getActiveStoryPayload(userObject);
 
   if (isOwner) {
     const ownerUser = pickAllowedFields(userObject, ownerVisibleFields);
     ownerUser.friendsCount = friendsCount;
     ownerUser.followersCount = followersCount;
     ownerUser.followingCount = followingCount;
+
+    if (activeStory) {
+      ownerUser.story = activeStory.story;
+      ownerUser.storyType = activeStory.storyType;
+      ownerUser.storyAudio = activeStory.storyAudio;
+      ownerUser.storyExpiresAt = activeStory.storyExpiresAt;
+    }
+
     return ownerUser;
   }
 
@@ -81,6 +109,13 @@ const toPublicUser = (userDoc, options = {}) => {
     if (visibility.followingCount === true) {
       publicUser.followingCount = followingCount;
     }
+  }
+
+  if (activeStory) {
+    publicUser.story = activeStory.story;
+    publicUser.storyType = activeStory.storyType;
+    publicUser.storyAudio = activeStory.storyAudio;
+    publicUser.storyExpiresAt = activeStory.storyExpiresAt;
   }
 
   return publicUser;

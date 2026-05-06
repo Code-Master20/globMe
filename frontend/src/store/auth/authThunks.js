@@ -283,6 +283,57 @@ export const uploadBanner = createAsyncThunk(
   },
 );
 
+export const uploadStory = createAsyncThunk(
+  "auth/uploadStory",
+  async (storyPayload, thunkAPI) => {
+    try {
+      const formData = new FormData();
+
+      if (storyPayload?.mediaFile) {
+        formData.append("media", storyPayload.mediaFile);
+      }
+
+      if (storyPayload?.audioFile) {
+        formData.append("audio", storyPayload.audioFile);
+      }
+
+      if (storyPayload?.sourcePostId) {
+        formData.append("sourcePostId", storyPayload.sourcePostId);
+      }
+
+      const response = await api.post("/user/upload-story", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue({
+        status: error.response?.status,
+        message: error.response?.data?.message || "Story upload failed",
+        success: false,
+      });
+    }
+  },
+);
+
+export const deleteStory = createAsyncThunk(
+  "auth/deleteStory",
+  async (_, thunkAPI) => {
+    try {
+      const response = await api.delete("/user/delete-story");
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue({
+        status: error.response?.status,
+        message: error.response?.data?.message || "Story removal failed",
+        success: false,
+      });
+    }
+  },
+);
+
 export const updateProfileDetails = createAsyncThunk(
   "auth/updateProfileDetails",
   async (profileDetails, thunkAPI) => {
