@@ -22,6 +22,21 @@
   color: #9a3f17;
 }
 
+.iconCompact {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+  box-shadow: none;
+  border: 1px solid #e2e8f0;
+}
+
+.iconCompact:hover {
+  background: #eef2f7;
+  color: #1f2937;
+}
+
 .modal {
   position: fixed;
   inset: 0;

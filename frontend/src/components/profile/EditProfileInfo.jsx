@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { updateProfileDetails } from "../../store/auth/authThunks";
@@ -81,12 +81,36 @@ const buildDetectedLocation = (address = {}, displayName = "") => {
   return `${displayName ?? ""}`.trim();
 };
 
-export const EditProfileInfo = ({ Icon, className }) => {
+export const EditProfileInfo = ({
+  Icon,
+  className,
+  initialFocusField = "",
+  compact = false,
+  buttonLabel = "Edit profile",
+  iconSize = 20,
+}) => {
   const dispatch = useDispatch();
   const { user, formLoading } = useSelector((state) => state.auth);
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState(buildFormState(user));
   const [isLocating, setIsLocating] = useState(false);
+  const fieldRefs = useRef({});
+
+  useEffect(() => {
+    if (!isOpen || !initialFocusField) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const targetField = fieldRefs.current[initialFocusField];
+
+      if (targetField && typeof targetField.focus === "function") {
+        targetField.focus();
+      }
+    }, 40);
+
+    return () => window.clearTimeout(timer);
+  }, [initialFocusField, isOpen]);
 
   const handleToggle = () => {
     setIsOpen((prev) => {
@@ -242,11 +266,11 @@ export const EditProfileInfo = ({ Icon, className }) => {
       <button
         type="button"
         onClick={handleToggle}
-        className={`${styles.icon} ${className}`}
-        aria-label="Edit profile information"
-        title="Edit profile"
+        className={`${styles.icon} ${compact ? styles.iconCompact : ""} ${className || ""}`}
+        aria-label={buttonLabel}
+        title={buttonLabel}
       >
-        <Icon size={20} />
+        <Icon size={iconSize} />
       </button>
 
       <div
@@ -280,6 +304,9 @@ export const EditProfileInfo = ({ Icon, className }) => {
                   type="text"
                   id="username"
                   name="username"
+                  ref={(node) => {
+                    fieldRefs.current.username = node;
+                  }}
                   value={formData.username}
                   onChange={handleChange}
                 />
@@ -291,6 +318,9 @@ export const EditProfileInfo = ({ Icon, className }) => {
                   type="text"
                   id="profession"
                   name="profession"
+                  ref={(node) => {
+                    fieldRefs.current.profession = node;
+                  }}
                   value={formData.profession}
                   onChange={handleChange}
                 />
@@ -302,6 +332,9 @@ export const EditProfileInfo = ({ Icon, className }) => {
                   id="bio"
                   name="bio"
                   rows="5"
+                  ref={(node) => {
+                    fieldRefs.current.bio = node;
+                  }}
                   value={formData.bio}
                   onChange={handleChange}
                 />
@@ -323,6 +356,9 @@ export const EditProfileInfo = ({ Icon, className }) => {
                   type="text"
                   id="location"
                   name="location"
+                  ref={(node) => {
+                    fieldRefs.current.location = node;
+                  }}
                   value={formData.location}
                   onChange={handleChange}
                   placeholder="Type your location"
@@ -347,6 +383,13 @@ export const EditProfileInfo = ({ Icon, className }) => {
                         <span className={styles.skillIndex}>{index + 1}</span>
                         <input
                           type="text"
+                          ref={
+                            index === 0
+                              ? (node) => {
+                                  fieldRefs.current.talent = node;
+                                }
+                              : undefined
+                          }
                           value={talent}
                           onChange={(event) =>
                             handleTalentChange(index, event.target.value)
@@ -371,6 +414,9 @@ export const EditProfileInfo = ({ Icon, className }) => {
                 <select
                   id="status"
                   name="status"
+                  ref={(node) => {
+                    fieldRefs.current.status = node;
+                  }}
                   value={formData.status}
                   onChange={handleChange}
                 >
@@ -387,6 +433,9 @@ export const EditProfileInfo = ({ Icon, className }) => {
                 <select
                   id="gender"
                   name="gender"
+                  ref={(node) => {
+                    fieldRefs.current.gender = node;
+                  }}
                   value={formData.gender}
                   onChange={handleChange}
                 >
@@ -403,6 +452,9 @@ export const EditProfileInfo = ({ Icon, className }) => {
                   type="date"
                   id="dob"
                   name="dob"
+                  ref={(node) => {
+                    fieldRefs.current.dob = node;
+                  }}
                   value={formData.dob}
                   onChange={handleChange}
                 />

@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { FaUserEdit } from "react-icons/fa";
 import { RiImageCircleAiFill, RiImageEditLine } from "react-icons/ri";
 import {
+  MdClose,
   MdEditLocationAlt,
   MdMailOutline,
   MdOutlineAutoAwesome,
@@ -56,6 +57,7 @@ export const Profile = () => {
   const [viewedUser, setViewedUser] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [showInfo, setShowInfo] = useState(false);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
 
@@ -70,6 +72,12 @@ export const Profile = () => {
       setUploadTarget(null);
     }
   }, [loading]);
+
+  useEffect(() => {
+    if (width > 640 && showInfo) {
+      setShowInfo(false);
+    }
+  }, [showInfo, width]);
 
   useEffect(() => {
     if (!user) {
@@ -162,6 +170,7 @@ export const Profile = () => {
   }
 
   const profileSize = width < 768 ? 120 : 160;
+  const isSmallScreen = width <= 640;
   const creatorActive = isOwner
     ? Boolean(profileUser.creator) || isCreatorMode
     : Boolean(profileUser.creator);
@@ -236,21 +245,25 @@ export const Profile = () => {
       label: "Completion",
       value: `${profileCompletion}%`,
       caption: "Profile filled",
+      editField: "",
     },
     {
       label: "Bio",
       value: bioItems.length || "--",
       caption: "About lines",
+      editField: "bio",
     },
     {
       label: "Talents/Skills",
       value: talentItems.length || "--",
       caption: "Listed skills",
+      editField: "talent",
     },
     {
       label: "Creator",
       value: creatorActive ? "On" : "Off",
       caption: profileUser.creator ? "Saved on account" : "Preview mode",
+      editField: "",
     },
   ];
 
@@ -294,6 +307,23 @@ export const Profile = () => {
     : creatorActive
       ? "Creator profile"
       : "Public profile";
+
+  const renderOwnerEditButton = (focusField, label) => {
+    if (!focusField) {
+      return null;
+    }
+
+    return (
+      <EditProfileInfo
+        Icon={FaUserEdit}
+        className={styles.cardEditButton}
+        initialFocusField={focusField}
+        compact
+        iconSize={14}
+        buttonLabel={label}
+      />
+    );
+  };
 
   return (
     <main className={styles.mainContainer}>
@@ -437,10 +467,26 @@ export const Profile = () => {
 
                 {isOwner ? (
                   <div className={styles.actionsRow}>
-                    <EditProfileInfo
-                      Icon={FaUserEdit}
-                      className={styles.editProfileBtn}
-                    />
+                    <div className={styles.ownerTools}>
+                      <EditProfileInfo
+                        Icon={FaUserEdit}
+                        className={styles.editProfileBtn}
+                      />
+
+                      {isSmallScreen ? (
+                        <button
+                          type="button"
+                          className={styles.infoToggleBtn}
+                          onClick={() => setShowInfo((prev) => !prev)}
+                          aria-expanded={showInfo}
+                        >
+                          info
+                          <span className={styles.infoToggleIndicator}>
+                            {showInfo ? "-" : "+"}
+                          </span>
+                        </button>
+                      ) : null}
+                    </div>
 
                     <button
                       className={styles.creatorBtn}
@@ -463,7 +509,7 @@ export const Profile = () => {
               </div>
             </div>
 
-            {isOwner ? (
+            {isOwner && !isSmallScreen ? (
               <aside className={styles.summaryColumn}>
                 {profileCompletion < 100 ? (
                   <div className={styles.completionCard}>
@@ -498,7 +544,14 @@ export const Profile = () => {
 
                 <ul className={styles.stats}>
                   {summaryStats.map((stat) => (
-                    <li key={stat.label}>
+                    <li
+                      key={stat.label}
+                      className={stat.editField ? styles.editableInfoCard : ""}
+                    >
+                      {renderOwnerEditButton(
+                        stat.editField,
+                        `Edit ${stat.label}`,
+                      )}
                       <span>{stat.label}</span>
                       <strong>{stat.value}</strong>
                       <small>{stat.caption}</small>
@@ -509,12 +562,15 @@ export const Profile = () => {
             ) : null}
           </div>
 
-          {isOwner ? (
+          {isOwner && !isSmallScreen ? (
             <section className={styles.gridLayout}>
               <article className={styles.panel}>
                 <div className={styles.panelHeader}>
                   <h2>About</h2>
-                  <span>{bioItems.length || 0} lines</span>
+                  <div className={styles.panelHeaderMeta}>
+                    <span>{bioItems.length || 0} lines</span>
+                    {renderOwnerEditButton("bio", "Edit About")}
+                  </div>
                 </div>
 
                 {bioItems.length > 0 ? (
@@ -533,7 +589,10 @@ export const Profile = () => {
               <article className={styles.panel}>
                 <div className={styles.panelHeader}>
                   <h2>Details</h2>
-                  <span>Account info</span>
+                  <div className={styles.panelHeaderMeta}>
+                    <span>Account info</span>
+                    {renderOwnerEditButton("profession", "Edit Details")}
+                  </div>
                 </div>
 
                 <div className={styles.detailsGrid}>
@@ -552,7 +611,10 @@ export const Profile = () => {
               <article className={styles.panel}>
                 <div className={styles.panelHeader}>
                   <h2>Talents/Skills</h2>
-                  <span>{talentItems.length || 0} listed</span>
+                  <div className={styles.panelHeaderMeta}>
+                    <span>{talentItems.length || 0} listed</span>
+                    {renderOwnerEditButton("talent", "Edit Talents and Skills")}
+                  </div>
                 </div>
 
                 {talentItems.length > 0 ? (
@@ -601,6 +663,189 @@ export const Profile = () => {
             </section>
           ) : null}
         </div>
+
+        {isOwner && isSmallScreen ? (
+          <div
+            className={`${styles.infoModal} ${showInfo ? styles.infoModalOpen : ""}`}
+            onClick={() => setShowInfo(false)}
+          >
+            <div
+              className={styles.infoSheet}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className={styles.infoSheetHeader}>
+                <div>
+                  <p>Profile info</p>
+                  <h2>Quick details</h2>
+                </div>
+                <button
+                  type="button"
+                  className={styles.infoSheetClose}
+                  onClick={() => setShowInfo(false)}
+                  aria-label="Close profile info"
+                >
+                  <MdClose size={20} />
+                </button>
+              </div>
+
+              <div className={styles.infoSheetBody}>
+                {profileCompletion < 100 ? (
+                  <div className={styles.completionCard}>
+                    <div className={styles.panelHeader}>
+                      <h2>Profile strength</h2>
+                      <span>{profileCompletion}% complete</span>
+                    </div>
+
+                    <div className={styles.progressTrack} aria-hidden="true">
+                      <span
+                        className={styles.progressFill}
+                        style={{
+                          width: `${profileCompletion}%`,
+                          flexBasis: `${profileCompletion}%`,
+                        }}
+                      />
+                      <span
+                        className={styles.progressRest}
+                        style={{
+                          width: `${profileCompletionRemainder}%`,
+                          flexBasis: `${profileCompletionRemainder}%`,
+                        }}
+                      />
+                    </div>
+
+                    <p className={styles.completionCopy}>
+                      Add more details, talents, and profile media to make the
+                      page feel richer and easier to trust.
+                    </p>
+                  </div>
+                ) : null}
+
+                <ul className={styles.stats}>
+                  {summaryStats.map((stat) => (
+                    <li
+                      key={stat.label}
+                      className={stat.editField ? styles.editableInfoCard : ""}
+                    >
+                      {renderOwnerEditButton(
+                        stat.editField,
+                        `Edit ${stat.label}`,
+                      )}
+                      <span>{stat.label}</span>
+                      <strong>{stat.value}</strong>
+                      <small>{stat.caption}</small>
+                    </li>
+                  ))}
+                </ul>
+
+                <section className={styles.gridLayout}>
+                  <article className={styles.panel}>
+                    <div className={styles.panelHeader}>
+                      <h2>About</h2>
+                      <div className={styles.panelHeaderMeta}>
+                        <span>{bioItems.length || 0} lines</span>
+                        {renderOwnerEditButton("bio", "Edit About")}
+                      </div>
+                    </div>
+
+                    {bioItems.length > 0 ? (
+                      <div className={styles.bioSection}>
+                        {bioItems.map((line, index) => (
+                          <p key={`${line}-${index}`}>{line}</p>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={styles.placeholderBox}>
+                        Add a bio so people can understand what you are about.
+                      </div>
+                    )}
+                  </article>
+
+                  <article className={styles.panel}>
+                    <div className={styles.panelHeader}>
+                      <h2>Details</h2>
+                      <div className={styles.panelHeaderMeta}>
+                        <span>Account info</span>
+                        {renderOwnerEditButton("profession", "Edit Details")}
+                      </div>
+                    </div>
+
+                    <div className={styles.detailsGrid}>
+                      {detailRows.map((detail) => (
+                        <div className={styles.detailCard} key={detail.label}>
+                          <span className={styles.detailIcon}>{detail.icon}</span>
+                          <div>
+                            <small>{detail.label}</small>
+                            <p>{detail.value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+
+                  <article className={styles.panel}>
+                    <div className={styles.panelHeader}>
+                      <h2>Talents/Skills</h2>
+                      <div className={styles.panelHeaderMeta}>
+                        <span>{talentItems.length || 0} listed</span>
+                        {renderOwnerEditButton(
+                          "talent",
+                          "Edit Talents and Skills",
+                        )}
+                      </div>
+                    </div>
+
+                    {talentItems.length > 0 ? (
+                      <div className={styles.tagGroup}>
+                        {talentItems.map((talent) => (
+                          <span key={talent} className={styles.tag}>
+                            <MdOutlineAutoAwesome />
+                            {formatDisplayValue(talent)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={styles.placeholderBox}>
+                        Highlight your strengths here so your profile feels alive.
+                      </div>
+                    )}
+                  </article>
+
+                  <article className={styles.panel}>
+                    <div className={styles.panelHeader}>
+                      <h2>Profile status</h2>
+                      <span>Quick overview</span>
+                    </div>
+
+                    <div className={styles.statusStack}>
+                      <div className={styles.statusRow}>
+                        <span>Avatar</span>
+                        <strong>
+                          {profileUser.avatar ? "Uploaded" : "Missing"}
+                        </strong>
+                      </div>
+                      <div className={styles.statusRow}>
+                        <span>Banner</span>
+                        <strong>
+                          {profileUser.banner ? "Uploaded" : "Missing"}
+                        </strong>
+                      </div>
+                      <div className={styles.statusRow}>
+                        <span>Location</span>
+                        <strong>
+                          {locationItems.length > 0 ? "Added" : "Missing"}
+                        </strong>
+                      </div>
+                      <div className={styles.statusRow}>
+                        <span>Creator mode</span>
+                        <strong>{creatorActive ? "Active" : "Inactive"}</strong>
+                      </div>
+                    </div>
+                  </article>
+                </section>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
     </main>
   );
