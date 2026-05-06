@@ -14,6 +14,7 @@ import {
   MdOutlineWorkOutline,
   MdOutlineWc,
 } from "react-icons/md";
+import { toast } from "react-toastify";
 import styles from "./Profile.module.css";
 import noBanner from "../../assets/noBanner.png";
 import noProfile from "../../assets/noProfile.png";
@@ -58,6 +59,7 @@ export const Profile = () => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [showInfo, setShowInfo] = useState(false);
+  const [relationshipLoading, setRelationshipLoading] = useState(false);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
 
@@ -132,6 +134,62 @@ export const Profile = () => {
   const handleBannerSelect = (file) => {
     setUploadTarget("banner");
     dispatch(uploadBanner(file));
+  };
+
+  const handleSendFriendRequest = async () => {
+    if (!profileUser?._id || isOwner) {
+      return;
+    }
+
+    try {
+      setRelationshipLoading(true);
+      const response = await api.post(`/network/friend-requests/${profileUser._id}`);
+
+      setViewedUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              relationshipStatus:
+                response.data?.data?.relationshipStatus || "pending_sent",
+            }
+          : prev,
+      );
+
+      toast.success(response.data?.message || "Friend request sent");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not send request");
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
+  const handleAcceptFriendRequest = async () => {
+    if (!profileUser?._id || isOwner) {
+      return;
+    }
+
+    try {
+      setRelationshipLoading(true);
+      const response = await api.post(
+        `/network/friend-requests/${profileUser._id}/accept`,
+      );
+
+      setViewedUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              relationshipStatus:
+                response.data?.data?.relationshipStatus || "friends",
+            }
+          : prev,
+      );
+
+      toast.success(response.data?.message || "Friend request accepted");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not accept request");
+    } finally {
+      setRelationshipLoading(false);
+    }
   };
 
   if (!user) {
@@ -223,6 +281,7 @@ export const Profile = () => {
   const canVisitorSeeFriends = typeof profileUser.friendsCount === "number";
   const canVisitorSeeFollowers = typeof profileUser.followersCount === "number";
   const canVisitorSeeFollowing = typeof profileUser.followingCount === "number";
+  const relationshipStatus = profileUser.relationshipStatus || "none";
 
   const connectionStats = [
     {
@@ -318,6 +377,59 @@ export const Profile = () => {
         iconSize={14}
         buttonLabel={label}
       />
+    );
+  };
+
+  const renderVisitorRelationshipAction = () => {
+    if (isOwner) {
+      return null;
+    }
+
+    if (relationshipStatus === "friends") {
+      return (
+        <div className={styles.visitorRelationshipRow}>
+          <span className={`${styles.relationshipChip} ${styles.relationshipFriends}`}>
+            Friends
+          </span>
+        </div>
+      );
+    }
+
+    if (relationshipStatus === "pending_sent") {
+      return (
+        <div className={styles.visitorRelationshipRow}>
+          <span className={styles.relationshipChip}>Request sent</span>
+        </div>
+      );
+    }
+
+    if (relationshipStatus === "pending_received") {
+      return (
+        <div className={styles.visitorRelationshipRow}>
+          <span className={styles.relationshipChip}>Sent you a request</span>
+          <button
+            type="button"
+            className={styles.friendActionBtn}
+            onClick={handleAcceptFriendRequest}
+            disabled={relationshipLoading}
+          >
+            {relationshipLoading ? "Accepting..." : "Accept request"}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.visitorRelationshipRow}>
+        <button
+          type="button"
+          className={styles.friendActionBtn}
+          onClick={handleSendFriendRequest}
+          disabled={relationshipLoading}
+        >
+          {relationshipLoading ? "Sending..." : "Add friend"}
+        </button>
+      </div>
     );
   };
 
@@ -500,9 +612,12 @@ export const Profile = () => {
                     </button>
                   </div>
                 ) : (
-                  <div className={styles.viewerNote}>
-                    Only information this member chose to share is visible here.
-                  </div>
+                  <>
+                    {renderVisitorRelationshipAction()}
+                    <div className={styles.viewerNote}>
+                      Only information this member chose to share is visible here.
+                    </div>
+                  </>
                 )}
               </div>
             </div>

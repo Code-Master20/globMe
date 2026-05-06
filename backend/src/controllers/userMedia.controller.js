@@ -299,15 +299,47 @@ const getProfileView = async (req, res) => {
     }
 
     const user = await User.findById(userId);
+    const viewer = await User.findById(viewerId).select(
+      "friends friendRequestsSent friendRequestsReceived",
+    );
 
     if (!user) {
       return new ErrorHandler(404, "Profile not found").send(res);
     }
 
+    let relationshipStatus = null;
+
+    if (viewer && `${viewer._id}` !== `${user._id}`) {
+      const normalizedTargetId = `${user._id}`;
+      const friends = viewer.friends || [];
+      const friendRequestsSent = viewer.friendRequestsSent || [];
+      const friendRequestsReceived = viewer.friendRequestsReceived || [];
+
+      if (friends.some((id) => `${id}` === normalizedTargetId)) {
+        relationshipStatus = "friends";
+      } else if (
+        friendRequestsSent.some((id) => `${id}` === normalizedTargetId)
+      ) {
+        relationshipStatus = "pending_sent";
+      } else if (
+        friendRequestsReceived.some((id) => `${id}` === normalizedTargetId)
+      ) {
+        relationshipStatus = "pending_received";
+      } else {
+        relationshipStatus = "none";
+      }
+    }
+
+    const publicUser = toPublicUser(user, { viewerId });
+
+    if (relationshipStatus) {
+      publicUser.relationshipStatus = relationshipStatus;
+    }
+
     return new SuccessHandler(
       200,
       "Profile loaded successfully",
-      toPublicUser(user, { viewerId }),
+      publicUser,
     ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Profile could not be loaded")
