@@ -18,12 +18,13 @@ import { PostFeed } from "../pages/feeds/post/PostFeed.jsx";
 import { VideoFeed } from "../pages/feeds/video/VideoFeed.jsx";
 import { NotificationCenter } from "../pages/network/notifications/NotificationCenter.jsx";
 import { PeopleHub } from "../pages/network/people/PeopleHub.jsx";
+import { PublicPostDetail } from "../pages/posts/PublicPostDetail.jsx";
 import { Profile } from "../pages/profile/Profile.jsx";
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
     <Route path="/" element={<Root />}>
-      <Route index element={<Navigate to="/login" replace />} />
+      <Route index element={<HomeFeed />} />
       <Route
         path="login"
         element={
@@ -66,36 +67,21 @@ export const router = createBrowserRouter(
       />
       <Route
         path="home-feed"
-        element={
-          <PrivateRoute>
-            <HomeFeed />
-          </PrivateRoute>
-        }
+        element={<HomeFeed />}
       />
       <Route
         path="video-feed"
-        element={
-          <PrivateRoute>
-            <VideoFeed />
-          </PrivateRoute>
-        }
+        element={<VideoFeed />}
       />
       <Route
         path="photo-feed"
-        element={
-          <PrivateRoute>
-            <PhotoFeed />
-          </PrivateRoute>
-        }
+        element={<PhotoFeed />}
       />
       <Route
         path="post-feed"
-        element={
-          <PrivateRoute>
-            <PostFeed />
-          </PrivateRoute>
-        }
+        element={<PostFeed />}
       />
+      <Route path="posts/:postId" element={<PublicPostDetail />} />
       <Route
         path="people"
         element={
@@ -122,11 +108,7 @@ export const router = createBrowserRouter(
       />
       <Route
         path="profile/:userId"
-        element={
-          <PrivateRoute>
-            <Profile />
-          </PrivateRoute>
-        }
+        element={<Profile />}
       />
     </Route>,
   ),

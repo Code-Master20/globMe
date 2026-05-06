@@ -10,9 +10,16 @@ import {
 } from "../../store/auth/authThunks";
 import { toast } from "react-toastify";
 import { InvalidInputTracker } from "../../components/auth/InvalidInputTracker";
+import { usePageMetadata } from "../../hooks/usePageMetadata";
 import globMe from "../../assets/globme.png";
 
 export const OtpVerification = () => {
+  usePageMetadata({
+    title: "OTP verification",
+    description: "Verify your globMe one-time code securely.",
+    robots: "noindex, nofollow",
+  });
+
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { errorMessage } = useSelector((state) => state.auth);

@@ -1,0 +1,92 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.6rem;
+  background: rgba(15, 23, 42, 0.38);
+  backdrop-filter: blur(8px);
+}
+
+.dialog {
+  width: min(42rem, 100%);
+  padding: 2rem;
+  border-radius: 2.4rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 2.4rem 5rem rgba(15, 23, 42, 0.18);
+  text-align: center;
+}
+
+.kicker {
+  color: #2563eb;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dialog h2 {
+  margin-top: 0.8rem;
+  color: #172033;
+  font-size: clamp(2.1rem, 5vw, 2.8rem);
+  line-height: 1.15;
+}
+
+.description {
+  margin-top: 1rem;
+  color: #475569;
+  font-size: 1.45rem;
+  line-height: 1.6;
+}
+
+.actions {
+  display: flex;
+  gap: 0.9rem;
+  margin-top: 1.6rem;
+}
+
+.primaryBtn,
+.secondaryBtn,
+.closeBtn {
+  min-height: 4.6rem;
+  border: none;
+  border-radius: 1.4rem;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  flex: 1;
+}
+
+.primaryBtn {
+  background: #172033;
+  color: #ffffff;
+}
+
+.secondaryBtn {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.closeBtn {
+  width: 100%;
+  margin-top: 0.9rem;
+  background: transparent;
+  color: #64748b;
+}
+
+@media (max-width: 640px) {
+  .dialog {
+    padding: 1.7rem;
+    border-radius: 2rem;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}

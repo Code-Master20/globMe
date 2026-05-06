@@ -6,15 +6,19 @@
   </url>
 
   <url>
-    <loc>https://globme.vercel.app/login</loc>
+    <loc>https://globme.vercel.app/home-feed</loc>
   </url>
 
   <url>
-    <loc>https://globme.vercel.app/signup</loc>
+    <loc>https://globme.vercel.app/photo-feed</loc>
   </url>
 
   <url>
-    <loc>https://globme.vercel.app/reset-password</loc>
+    <loc>https://globme.vercel.app/video-feed</loc>
+  </url>
+
+  <url>
+    <loc>https://globme.vercel.app/post-feed</loc>
   </url>
 
 </urlset>

@@ -5,6 +5,7 @@ const connectDB = require("./src/config/database.util");
 const cookieParser = require("cookie-parser");
 const authRouter = require("./src/routes/auth/auth.router");
 const networkRouter = require("./src/routes/network.router");
+const publicRouter = require("./src/routes/public.router");
 const userMediaRoute = require("./src/routes/userMedia.router");
 const cors = require("cors");
 const app = express();
@@ -26,6 +27,7 @@ app.use(express.urlencoded({ extended: true }));
 
 //all routes
 app.use("/api/auth", authRouter);
+app.use("/api/public", publicRouter);
 app.use("/api/network", networkRouter);
 // app.use("/api/media", uploadRoute);
 // app.use("/api/post", postRoute);

@@ -18,8 +18,10 @@ import { toast } from "react-toastify";
 import styles from "./Profile.module.css";
 import noBanner from "../../assets/noBanner.png";
 import noProfile from "../../assets/noProfile.png";
+import { AuthAccessPrompt } from "../../components/auth/AuthAccessPrompt";
 import { EditProfileInfo } from "../../components/profile/EditProfileInfo";
 import { ImageUpload } from "../../components/media/ImgUpload";
+import { usePageMetadata } from "../../hooks/usePageMetadata";
 import {
   updateCreatorMode,
   uploadBanner,
@@ -63,8 +65,21 @@ export const Profile = () => {
   const [profileError, setProfileError] = useState("");
   const [showInfo, setShowInfo] = useState(false);
   const [relationshipLoading, setRelationshipLoading] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
+  const metadataProfile = isOwner ? user : viewedUser;
+
+  usePageMetadata({
+    title: metadataProfile?.username
+      ? `${formatDisplayValue(metadataProfile.username)} profile`
+      : "Public profile",
+    description:
+      listify(metadataProfile?.bio)[0] ||
+      formatDisplayValue(metadataProfile?.profession) ||
+      "Browse public member profiles on globMe before creating an account.",
+    robots: isOwner ? "noindex, nofollow" : "index, follow",
+  });
 
   useEffect(() => {
     const handleResize = () => setWidth(window.innerWidth);
@@ -85,7 +100,7 @@ export const Profile = () => {
   }, [showInfo, width]);
 
   useEffect(() => {
-    if (!user) {
+    if (isOwner && !user) {
       setViewedUser(null);
       return;
     }
@@ -144,6 +159,11 @@ export const Profile = () => {
       return;
     }
 
+    if (!user) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
     try {
       setRelationshipLoading(true);
       const response = await api.post(`/network/friend-requests/${profileUser._id}`);
@@ -168,6 +188,11 @@ export const Profile = () => {
 
   const handleAcceptFriendRequest = async () => {
     if (!profileUser?._id || isOwner) {
+      return;
+    }
+
+    if (!user) {
+      setShowAuthPrompt(true);
       return;
     }
 
@@ -200,6 +225,11 @@ export const Profile = () => {
       return;
     }
 
+    if (!user) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
     try {
       setRelationshipLoading(true);
       const response = await api.post(
@@ -224,12 +254,12 @@ export const Profile = () => {
     }
   };
 
-  if (!user) {
+  if (isOwner && !user) {
     return (
       <main className={styles.mainContainer}>
         <section className={styles.emptyState}>
-          <h1>Your profile is not ready yet.</h1>
-          <p>Refresh your session or sign in again to load your account data.</p>
+          <h1>Log in to open your profile.</h1>
+          <p>Your own profile tools stay private until your account session is active.</p>
         </section>
       </main>
     );
@@ -434,6 +464,23 @@ export const Profile = () => {
       return null;
     }
 
+    if (!user) {
+      return (
+        <div className={styles.visitorRelationshipRow}>
+          <button
+            type="button"
+            className={styles.friendActionBtn}
+            onClick={() => setShowAuthPrompt(true)}
+          >
+            Add friend
+          </button>
+          <span className={styles.relationshipChip}>
+            Log in or create an account to connect
+          </span>
+        </div>
+      );
+    }
+
     if (relationshipStatus === "friends") {
       return (
         <div className={styles.visitorRelationshipRow}>
@@ -491,8 +538,9 @@ export const Profile = () => {
   };
 
   return (
-    <main className={styles.mainContainer}>
-      <section className={styles.contentContainer}>
+    <>
+      <main className={styles.mainContainer}>
+        <section className={styles.contentContainer}>
         <div className={styles.bannerWrapper}>
           <img
             src={profileUser.banner || noBanner}
@@ -1025,7 +1073,15 @@ export const Profile = () => {
             </div>
           </div>
         ) : null}
-      </section>
-    </main>
+        </section>
+      </main>
+
+      <AuthAccessPrompt
+        open={showAuthPrompt}
+        onClose={() => setShowAuthPrompt(false)}
+        title="Log in to interact with this profile"
+        description="Public visitors can browse profiles, but adding friends and responding to requests needs an account so the relationship can be saved."
+      />
+    </>
   );
 };

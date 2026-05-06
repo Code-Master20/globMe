@@ -330,9 +330,11 @@ const getProfileView = async (req, res) => {
     }
 
     const user = await User.findById(userId);
-    const viewer = await User.findById(viewerId).select(
-      "friends friendRequestsSent friendRequestsReceived",
-    );
+    const viewer = viewerId
+      ? await User.findById(viewerId).select(
+          "friends friendRequestsSent friendRequestsReceived",
+        )
+      : null;
 
     if (!user) {
       return new ErrorHandler(404, "Profile not found").send(res);

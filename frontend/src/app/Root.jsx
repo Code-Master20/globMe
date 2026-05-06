@@ -1,15 +1,31 @@
 import "./Root.css";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { HeaderOne } from "../components/layout/Header/HeaderOne";
 import { HeaderTwo } from "../components/layout/Header/HeaderTwo";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { checkMe } from "../store/auth/authThunks";
 import { fetchNotifications } from "../store/notifications/notificationsThunks";
+import { PublicSiteHeader } from "../components/layout/Header/PublicSiteHeader";
+
+const shouldShowGuestHeader = (pathname) => {
+  if (
+    pathname === "/" ||
+    pathname === "/home-feed" ||
+    pathname === "/photo-feed" ||
+    pathname === "/video-feed" ||
+    pathname === "/post-feed"
+  ) {
+    return true;
+  }
+
+  return /^\/profile\/[^/]+$/.test(pathname);
+};
 
 export const Root = () => {
   const dispatch = useDispatch();
   const { checkingAuth, isAuthenticated } = useSelector((state) => state.auth);
+  const location = useLocation();
 
   useEffect(() => {
     dispatch(checkMe());
@@ -26,14 +42,6 @@ export const Root = () => {
     }
   }, [dispatch, isAuthenticated]);
 
-  if (checkingAuth) {
-    return (
-      <div className="first-loading-content">
-        <h1>checking if you are an existing user...</h1>
-      </div>
-    );
-  }
-
   return (
     <div className="root-container">
       {isAuthenticated && (
@@ -42,6 +50,11 @@ export const Root = () => {
           <HeaderTwo />
         </>
       )}
+      {!isAuthenticated &&
+      (!checkingAuth || shouldShowGuestHeader(location.pathname)) &&
+      shouldShowGuestHeader(location.pathname) ? (
+        <PublicSiteHeader />
+      ) : null}
       <Outlet />
     </div>
   );

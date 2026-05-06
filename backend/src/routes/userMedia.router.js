@@ -4,6 +4,7 @@ const router = require("express").Router();
 const multer = require("multer");
 const bannerAvatarUpload = require("../middleware/uploads/multer.banner.avatar.middleware");
 const isMeMiddleware = require("../middleware/auth/isMe.middleware");
+const optionalAuthMiddleware = require("../middleware/auth/optionalAuth.middleware");
 const ErrorHandler = require("../utils/errorHandler.util");
 const {
   uploadAvatar,
@@ -45,7 +46,7 @@ router.post(
 
 router.patch("/profile", isMeMiddleware, updateProfileDetails);
 router.patch("/profile/creator", isMeMiddleware, updateCreatorMode);
-router.get("/profile/:userId", isMeMiddleware, getProfileView);
+router.get("/profile/:userId", optionalAuthMiddleware, getProfileView);
 
 router.delete("/delete-avatar", isMeMiddleware, deleteAvatar);
 router.delete("/delete-banner", isMeMiddleware, deleteBanner);

@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logInOtpReceived } from "../../store/auth/authThunks";
 import { InvalidInputTracker } from "../../components/auth/InvalidInputTracker";
+import { usePageMetadata } from "../../hooks/usePageMetadata";
 import { toast } from "react-toastify";
 import { MdOutlineRemoveRedEye } from "react-icons/md";
 import { FaRegEyeSlash } from "react-icons/fa6";
@@ -30,6 +31,13 @@ const parseBlockedCountdown = (message) => {
 };
 
 export const LogIn = () => {
+  usePageMetadata({
+    title: "Log in",
+    description:
+      "Log in to globMe to react, connect with people, and manage your profile.",
+    robots: "noindex, nofollow",
+  });
+
   const { errorMessage } = useSelector((state) => state.auth);
 
   const storedUser = JSON.parse(localStorage.getItem("user")) || null;

@@ -5,12 +5,20 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { signUpOtpReceived } from "../../store/auth/authThunks";
 import { InvalidInputTracker } from "../../components/auth/InvalidInputTracker";
+import { usePageMetadata } from "../../hooks/usePageMetadata";
 import { toast } from "react-toastify";
 import { MdOutlineRemoveRedEye } from "react-icons/md";
 import { FaRegEyeSlash } from "react-icons/fa6";
 import globMe from "../../assets/globme.png";
 
 export const SignUp = () => {
+  usePageMetadata({
+    title: "Create account",
+    description:
+      "Create a globMe account to start connecting, reacting, and publishing.",
+    robots: "noindex, nofollow",
+  });
+
   localStorage.removeItem("timeRemains");
   const navigate = useNavigate();
   const { errorMessage } = useSelector((state) => state.auth);
