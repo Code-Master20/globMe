@@ -570,6 +570,27 @@ export const Profile = () => {
                       </div>
                     ))}
                   </div>
+
+                  {isOwner && isSmallScreen ? (
+                    <div className={styles.mobileOwnerTools}>
+                      <EditProfileInfo
+                        Icon={FaUserEdit}
+                        className={styles.editProfileBtn}
+                      />
+
+                      <button
+                        type="button"
+                        className={styles.infoToggleBtn}
+                        onClick={() => setShowInfo((prev) => !prev)}
+                        aria-expanded={showInfo}
+                      >
+                        info
+                        <span className={styles.infoToggleIndicator}>
+                          {showInfo ? "-" : "+"}
+                        </span>
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -634,26 +655,14 @@ export const Profile = () => {
 
                 {isOwner ? (
                   <div className={styles.actionsRow}>
-                    <div className={styles.ownerTools}>
-                      <EditProfileInfo
-                        Icon={FaUserEdit}
-                        className={styles.editProfileBtn}
-                      />
-
-                      {isSmallScreen ? (
-                        <button
-                          type="button"
-                          className={styles.infoToggleBtn}
-                          onClick={() => setShowInfo((prev) => !prev)}
-                          aria-expanded={showInfo}
-                        >
-                          info
-                          <span className={styles.infoToggleIndicator}>
-                            {showInfo ? "-" : "+"}
-                          </span>
-                        </button>
-                      ) : null}
-                    </div>
+                    {!isSmallScreen ? (
+                      <div className={styles.ownerTools}>
+                        <EditProfileInfo
+                          Icon={FaUserEdit}
+                          className={styles.editProfileBtn}
+                        />
+                      </div>
+                    ) : null}
 
                     <button
                       className={styles.creatorBtn}

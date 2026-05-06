@@ -456,6 +456,10 @@
   flex-wrap: wrap;
 }
 
+.mobileOwnerTools {
+  display: none;
+}
+
 .editProfileBtn {
   display: inline-flex;
 }
@@ -936,10 +940,20 @@
     display: flex;
     grid-column: 2;
     grid-row: 1;
-    justify-content: flex-end;
-    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-end;
     min-width: 0;
     padding-top: 0.55rem;
+  }
+
+  .mobileOwnerTools {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    width: 100%;
+    margin-top: 0.75rem;
   }
 
   .userInfo {
@@ -1006,6 +1020,11 @@
 
   .ownerTools {
     width: auto;
+  }
+
+  .mobileOwnerTools .infoToggleBtn {
+    min-height: 4.2rem;
+    padding: 0.75rem 1rem;
   }
 
   .creatorBtn {
