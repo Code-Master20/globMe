@@ -40,6 +40,8 @@ const getActiveStoryPayload = (userObject) => {
     story: userObject.story,
     storyType: userObject.storyType || "image",
     storyAudio: userObject.storyAudio || null,
+    storyLikeCount:
+      typeof userObject.storyLikeCount === "number" ? userObject.storyLikeCount : 0,
     storyExpiresAt: expiresAt.toISOString(),
   };
 };
@@ -82,6 +84,7 @@ const toPublicUser = (userDoc, options = {}) => {
       ownerUser.story = activeStory.story;
       ownerUser.storyType = activeStory.storyType;
       ownerUser.storyAudio = activeStory.storyAudio;
+      ownerUser.storyLikeCount = activeStory.storyLikeCount;
       ownerUser.storyExpiresAt = activeStory.storyExpiresAt;
     }
 
@@ -115,6 +118,7 @@ const toPublicUser = (userDoc, options = {}) => {
     publicUser.story = activeStory.story;
     publicUser.storyType = activeStory.storyType;
     publicUser.storyAudio = activeStory.storyAudio;
+    publicUser.storyLikeCount = activeStory.storyLikeCount;
     publicUser.storyExpiresAt = activeStory.storyExpiresAt;
   }
 

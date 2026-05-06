@@ -13,6 +13,7 @@ export const HeaderTwo = () => {
   const { unreadCount } = useSelector((state) => state.notifications);
   const getNavClassName = ({ isActive }) =>
     isActive ? styles.iconActived : "";
+  const hasActiveStory = Boolean(user?.story && user?.storyExpiresAt);
 
   return (
     <header className={styles["header-container"]}>
@@ -46,6 +47,8 @@ export const HeaderTwo = () => {
           to="/profile"
           className={({ isActive }) =>
             `${styles.profileLink} ${
+              hasActiveStory ? styles.profileLinkStory : ""
+            } ${
               isActive ? styles.profileLinkActive : ""
             }`.trim()
           }

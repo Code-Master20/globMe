@@ -156,6 +156,20 @@
   flex-shrink: 0;
 }
 
+.profileAvatarButton {
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+}
+
+.profileAvatarButtonStory {
+  padding: 4px;
+  background: linear-gradient(135deg, #fb923c 0%, #ef4444 52%, #ec4899 100%);
+  box-shadow: 0 16px 28px rgba(239, 68, 68, 0.18);
+  cursor: pointer;
+}
+
 .mobileConnectionStatsWrap {
   display: none;
 }

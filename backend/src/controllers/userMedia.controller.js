@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary.utils");
 const User = require("../models/auth/user.model");
 const Post = require("../models/post.model");
+const StoryLike = require("../models/storyLike.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
@@ -86,7 +87,20 @@ const resetStoryFields = (user) => {
   user.storyAudio = null;
   user.storyAudioCloudinaryId = null;
   user.storySourcePost = null;
+  user.storyLikeCount = 0;
   user.storyExpiresAt = null;
+};
+
+const clearStoryLikes = async (userId) => {
+  if (!userId) {
+    return;
+  }
+
+  try {
+    await StoryLike.deleteMany({ storyOwner: userId });
+  } catch (error) {
+    console.error("Story likes cleanup failed:", error);
+  }
 };
 
 /* =========================
@@ -318,11 +332,13 @@ const uploadStory = async (req, res) => {
     }
 
     try {
+      await clearStoryLikes(user._id);
       user.story = mediaUploadResult.secure_url;
       user.storyType = storyType;
       user.storyCloudinaryId = mediaUploadResult.public_id;
       user.storyAudio = audioUploadResult?.secure_url || null;
       user.storyAudioCloudinaryId = audioUploadResult?.public_id || null;
+      user.storyLikeCount = 0;
       user.storyExpiresAt = new Date(Date.now() + STORY_LIFETIME_MS);
 
       await user.save();
@@ -447,6 +463,7 @@ const deleteStory = async (req, res) => {
       user.storyType === "video" ? "video" : "image",
     );
     await destroyCloudinaryAsset(user.storyAudioCloudinaryId, "video");
+    await clearStoryLikes(user._id);
 
     resetStoryFields(user);
 

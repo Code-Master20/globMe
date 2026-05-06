@@ -46,6 +46,11 @@
   min-height: 2.8rem;
 }
 
+.profileLinkStory {
+  padding: 3px;
+  background: linear-gradient(135deg, #fb923c 0%, #ef4444 52%, #ec4899 100%);
+}
+
 .profileAvatar {
   display: block;
   height: 2.8rem;

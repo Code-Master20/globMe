@@ -22,6 +22,7 @@ import { AuthAccessPrompt } from "../../components/auth/AuthAccessPrompt";
 import { EditProfileInfo } from "../../components/profile/EditProfileInfo";
 import { ImageUpload } from "../../components/media/ImgUpload";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
+import { StoryViewerModal } from "../../components/story/StoryViewerModal";
 import {
   deleteStory,
   updateCreatorMode,
@@ -139,6 +140,9 @@ export const Profile = () => {
   const [selectedStoryPost, setSelectedStoryPost] = useState(null);
   const [pendingStoryMediaPreview, setPendingStoryMediaPreview] = useState("");
   const [pendingStoryAudioPreview, setPendingStoryAudioPreview] = useState("");
+  const [storyViewerOpen, setStoryViewerOpen] = useState(false);
+  const [storyViewerStories, setStoryViewerStories] = useState([]);
+  const [storyViewerLoading, setStoryViewerLoading] = useState(false);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
   const metadataProfile = isOwner ? user : viewedUser;
@@ -368,6 +372,23 @@ export const Profile = () => {
     }
 
     toast.success(resultAction.payload?.message || "Story removed successfully");
+  };
+
+  const handleOpenProfileStory = async () => {
+    if (!profileUser?._id || !hasActiveStory) {
+      return;
+    }
+
+    try {
+      setStoryViewerLoading(true);
+      const response = await api.get(`/public/stories/${profileUser._id}`);
+      setStoryViewerStories([response.data?.data].filter(Boolean));
+      setStoryViewerOpen(true);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Story could not be opened");
+    } finally {
+      setStoryViewerLoading(false);
+    }
   };
 
   const handleSendFriendRequest = async () => {
@@ -804,13 +825,27 @@ export const Profile = () => {
           >
             <div className={styles.profileLeft}>
               <article className={styles.profilePicContainer}>
-                <img
-                  src={profileUser.avatar || noProfile}
-                  alt={`${profileUser.username || "User"} profile`}
-                  height={profileSize}
-                  width={profileSize}
-                  className={styles.profilePic}
-                />
+                <button
+                  type="button"
+                  className={`${styles.profileAvatarButton} ${
+                    hasActiveStory ? styles.profileAvatarButtonStory : ""
+                  }`}
+                  onClick={handleOpenProfileStory}
+                  disabled={!hasActiveStory || storyViewerLoading}
+                  aria-label={
+                    hasActiveStory
+                      ? `Open ${profileUser.username || "user"} story`
+                      : "Profile photo"
+                  }
+                >
+                  <img
+                    src={profileUser.avatar || noProfile}
+                    alt={`${profileUser.username || "User"} profile`}
+                    height={profileSize}
+                    width={profileSize}
+                    className={styles.profilePic}
+                  />
+                </button>
 
                 {creatorActive ? (
                   <strong className={styles.creatorBadge}>creator</strong>
@@ -1039,6 +1074,17 @@ export const Profile = () => {
                           ? "Create new story"
                           : "Create story"}
                     </button>
+
+                    {hasActiveStory ? (
+                      <button
+                        type="button"
+                        className={styles.storySecondaryButton}
+                        onClick={handleOpenProfileStory}
+                        disabled={storyViewerLoading}
+                      >
+                        {storyViewerLoading ? "Opening..." : "View story"}
+                      </button>
+                    ) : null}
 
                     {hasActiveStory ? (
                       <button
@@ -1577,6 +1623,44 @@ export const Profile = () => {
         onClose={() => setShowAuthPrompt(false)}
         title="Log in to interact with this profile"
         description="Public visitors can browse profiles, but adding friends and responding to requests needs an account so the relationship can be saved."
+      />
+
+      <StoryViewerModal
+        open={storyViewerOpen}
+        stories={storyViewerStories}
+        initialIndex={0}
+        onClose={() => setStoryViewerOpen(false)}
+        isAuthenticated={Boolean(user)}
+        currentUserId={user?._id || ""}
+        onRequireAuth={(message) => {
+          if (message) {
+            toast.info(message);
+          }
+
+          if (!user) {
+            setShowAuthPrompt(true);
+          }
+        }}
+        onStoriesChange={(nextStories) => {
+          setStoryViewerStories(nextStories);
+
+          const nextStory = nextStories[0]?.story;
+
+          if (!nextStory || !isOwner) {
+            return;
+          }
+
+          setViewedUser((prev) => {
+            if (!prev) {
+              return prev;
+            }
+
+            return {
+              ...prev,
+              storyLikeCount: nextStory.likeCount,
+            };
+          });
+        }}
       />
     </>
   );

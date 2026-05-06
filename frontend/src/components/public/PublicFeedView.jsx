@@ -8,6 +8,7 @@ import api from "../../lib/api";
 import { AuthAccessPrompt } from "../auth/AuthAccessPrompt";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import noProfile from "../../assets/noProfile.png";
+import { StoryTray } from "../story/StoryTray";
 import styles from "./PublicFeedView.module.css";
 
 const formatDisplayValue = (value) => {
@@ -105,6 +106,8 @@ export const PublicFeedView = ({
           <h1>{title}</h1>
           <span>{description}</span>
         </section>
+
+        <StoryTray onRequireAuth={() => setShowAuthPrompt(true)} />
 
         {loading ? (
           <section className={styles.placeholder}>Loading public posts...</section>

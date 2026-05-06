@@ -94,6 +94,10 @@ const userSchema = new mongoose.Schema(
       ref: "Post",
       default: null,
     },
+    storyLikeCount: {
+      type: Number,
+      default: 0,
+    },
     storyExpiresAt: {
       type: Date,
       default: null,
