@@ -20,7 +20,11 @@ import noBanner from "../../assets/noBanner.png";
 import noProfile from "../../assets/noProfile.png";
 import { EditProfileInfo } from "../../components/profile/EditProfileInfo";
 import { ImageUpload } from "../../components/media/ImgUpload";
-import { uploadBanner, uploadProfilePic } from "../../store/auth/authThunks";
+import {
+  updateCreatorMode,
+  uploadBanner,
+  uploadProfilePic,
+} from "../../store/auth/authThunks";
 import api from "../../lib/api";
 
 const listify = (value) => {
@@ -53,7 +57,6 @@ export const Profile = () => {
   const { user, loading } = useSelector((state) => state.auth);
 
   const [width, setWidth] = useState(window.innerWidth);
-  const [isCreatorMode, setIsCreatorMode] = useState(false);
   const [uploadTarget, setUploadTarget] = useState(null);
   const [viewedUser, setViewedUser] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -230,9 +233,7 @@ export const Profile = () => {
   const profileSize = width < 768 ? 120 : 160;
   const isSmallScreen = width <= 640;
   const ownerCreatorEnabled = Boolean(profileUser.creator);
-  const creatorActive = isOwner
-    ? ownerCreatorEnabled || isCreatorMode
-    : false;
+  const creatorActive = isOwner ? ownerCreatorEnabled : false;
   const bioItems = listify(profileUser.bio);
   const locationItems = listify(profileUser.location);
   const talentItems = listify(profileUser.talent);
@@ -323,7 +324,7 @@ export const Profile = () => {
     {
       label: "Creator",
       value: creatorActive ? "On" : "Off",
-      caption: ownerCreatorEnabled ? "Saved on account" : "Preview mode",
+      caption: ownerCreatorEnabled ? "Saved on account" : "Disabled",
       editField: "",
     },
   ];
@@ -377,6 +378,25 @@ export const Profile = () => {
         iconSize={14}
         buttonLabel={label}
       />
+    );
+  };
+
+  const handleCreatorModeToggle = async () => {
+    const nextCreatorValue = !ownerCreatorEnabled;
+    const resultAction = await dispatch(updateCreatorMode(nextCreatorValue));
+
+    if (updateCreatorMode.fulfilled.match(resultAction)) {
+      toast.success(
+        resultAction.payload?.message ||
+          (nextCreatorValue
+            ? "Creator mode enabled"
+            : "Creator mode disabled"),
+      );
+      return;
+    }
+
+    toast.error(
+      resultAction.payload?.message || "Creator mode could not be updated",
     );
   };
 
@@ -600,12 +620,12 @@ export const Profile = () => {
 
                     <button
                       className={styles.creatorBtn}
-                      onClick={() => setIsCreatorMode((prev) => !prev)}
+                      onClick={handleCreatorModeToggle}
                       disabled={loading}
                     >
                       {creatorActive
                         ? "creator mode on"
-                        : "enable creator preview"}
+                        : "enable creator mode"}
                       <span className={styles.creatorIndicator}>
                         {creatorActive ? "on" : "off"}
                       </span>

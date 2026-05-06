@@ -289,6 +289,37 @@ const updateProfileDetails = async (req, res) => {
   }
 };
 
+const updateCreatorMode = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    const { creator } = req.body;
+
+    if (typeof creator !== "boolean") {
+      return new ErrorHandler(400, "Creator mode must be true or false").send(
+        res,
+      );
+    }
+
+    user.creator = creator;
+    await user.save();
+
+    return new SuccessHandler(
+      200,
+      creator ? "Creator mode enabled" : "Creator mode disabled",
+      toPublicUser(user, { viewerId: user._id }),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Creator mode could not be updated")
+      .log("creator mode update error", error)
+      .send(res);
+  }
+};
+
 const getProfileView = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -354,5 +385,6 @@ module.exports = {
   deleteAvatar,
   deleteBanner,
   updateProfileDetails,
+  updateCreatorMode,
   getProfileView,
 };

@@ -298,3 +298,19 @@ export const updateProfileDetails = createAsyncThunk(
     }
   },
 );
+
+export const updateCreatorMode = createAsyncThunk(
+  "auth/updateCreatorMode",
+  async (creator, thunkAPI) => {
+    try {
+      const response = await api.patch("/user/profile/creator", { creator });
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue({
+        status: error.response?.status,
+        message: error.response?.data?.message || "Creator mode update failed",
+        success: false,
+      });
+    }
+  },
+);

@@ -11,6 +11,7 @@ const {
   deleteAvatar,
   deleteBanner,
   updateProfileDetails,
+  updateCreatorMode,
   getProfileView,
 } = require("../controllers/userMedia.controller");
 
@@ -43,6 +44,7 @@ router.post(
 );
 
 router.patch("/profile", isMeMiddleware, updateProfileDetails);
+router.patch("/profile/creator", isMeMiddleware, updateCreatorMode);
 router.get("/profile/:userId", isMeMiddleware, getProfileView);
 
 router.delete("/delete-avatar", isMeMiddleware, deleteAvatar);

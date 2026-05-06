@@ -11,6 +11,7 @@ import {
   uploadProfilePic,
   uploadBanner,
   updateProfileDetails,
+  updateCreatorMode,
 } from "./authThunks";
 
 //=============================== setting constants to localstorage for values' persistent =========================
@@ -256,6 +257,21 @@ const authSlice = createSlice({
       })
       .addCase(updateProfileDetails.rejected, (state, action) => {
         state.formLoading = false;
+        state.errorMessage = action.payload?.message;
+      })
+
+      // ====================== UPDATE CREATOR MODE ======================
+      .addCase(updateCreatorMode.pending, (state) => {
+        state.loading = true;
+        state.errorMessage = null;
+      })
+      .addCase(updateCreatorMode.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.data;
+        state.successMessage = action.payload.message;
+      })
+      .addCase(updateCreatorMode.rejected, (state, action) => {
+        state.loading = false;
         state.errorMessage = action.payload?.message;
       });
   },
