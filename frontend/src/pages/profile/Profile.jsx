@@ -935,6 +935,18 @@ export const Profile = () => {
 
                       <button
                         type="button"
+                        className={styles.creatorBtn}
+                        onClick={handleCreatorModeToggle}
+                        disabled={loading}
+                      >
+                        creator
+                        <span className={styles.creatorIndicator}>
+                          {creatorActive ? "✓" : "x"}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
                         className={styles.infoToggleBtn}
                         onClick={() => setShowInfo((prev) => !prev)}
                         aria-expanded={showInfo}
@@ -1011,26 +1023,27 @@ export const Profile = () => {
                 {isOwner ? (
                   <div className={styles.actionsRow}>
                     {!isSmallScreen ? (
-                      <div className={styles.ownerTools}>
-                        <EditProfileInfo
-                          Icon={FaUserEdit}
-                          className={styles.editProfileBtn}
-                        />
-                      </div>
-                    ) : null}
+                      <>
+                        <div className={styles.ownerTools}>
+                          <EditProfileInfo
+                            Icon={FaUserEdit}
+                            className={styles.editProfileBtn}
+                          />
+                        </div>
 
-                    <button
-                      className={styles.creatorBtn}
-                      onClick={handleCreatorModeToggle}
-                      disabled={loading}
-                    >
-                      {creatorActive
-                        ? "creator mode on"
-                        : "enable creator mode"}
-                      <span className={styles.creatorIndicator}>
-                        {creatorActive ? "on" : "off"}
-                      </span>
-                    </button>
+                        <button
+                          type="button"
+                          className={styles.creatorBtn}
+                          onClick={handleCreatorModeToggle}
+                          disabled={loading}
+                        >
+                          creator
+                          <span className={styles.creatorIndicator}>
+                            {creatorActive ? "✓" : "x"}
+                          </span>
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 ) : (
                   <>

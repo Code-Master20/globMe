@@ -1259,9 +1259,10 @@
   }
 
   .mobileOwnerTools {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 0.65rem;
     width: 100%;
     margin-top: 0.75rem;
@@ -1335,11 +1336,26 @@
 
   .mobileOwnerTools .infoToggleBtn {
     min-height: 4.2rem;
+    height: 4.2rem;
     padding: 0.75rem 1rem;
   }
 
-  .creatorBtn {
+  .actionsRow .creatorBtn {
     width: 100%;
+  }
+
+  .mobileOwnerTools .editProfileBtn {
+    width: 4.2rem;
+    height: 4.2rem;
+    min-height: 4.2rem;
+    border-radius: 16px;
+  }
+
+  .mobileOwnerTools .creatorBtn {
+    width: auto;
+    max-width: 100%;
+    min-height: 4.2rem;
+    height: 4.2rem;
   }
 
   .statusRow {
