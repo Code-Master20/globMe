@@ -3,7 +3,6 @@ import { PublicFeedView } from "../../../components/public/PublicFeedView";
 export const PhotoFeed = () => {
   return (
     <PublicFeedView
-      eyebrow="Photo discovery"
       title="Public image posts from the community"
       description="Browse photo-first posts shared publicly by globMe members. Open profiles freely, then log in when you want to interact."
       filterType="image"

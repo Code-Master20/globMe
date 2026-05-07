@@ -3,7 +3,6 @@ import { PublicFeedView } from "../../../components/public/PublicFeedView";
 export const PostFeed = () => {
   return (
     <PublicFeedView
-      eyebrow="Community posts"
       title="Explore public posts across globMe"
       description="This page gives visitors a browseable stream of public posts and profile links while keeping actions behind account access."
       filterType="all"

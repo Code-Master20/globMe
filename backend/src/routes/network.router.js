@@ -7,6 +7,9 @@ const {
   getNotifications,
   deleteNotification,
   markNotificationsRead,
+  unfriendUser,
+  unfollowUser,
+  removeFollower,
   sendFriendRequest,
   acceptFriendRequest,
   rejectFriendRequest,
@@ -17,6 +20,9 @@ router.get("/hub", isMeMiddleware, getOwnerNetworkHub);
 router.get("/friend-requests/received", isMeMiddleware, getReceivedFriendRequests);
 router.get("/notifications", isMeMiddleware, getNotifications);
 router.delete("/notifications/:notificationId", isMeMiddleware, deleteNotification);
+router.delete("/friends/:targetUserId", isMeMiddleware, unfriendUser);
+router.delete("/following/:targetUserId", isMeMiddleware, unfollowUser);
+router.delete("/followers/:targetUserId", isMeMiddleware, removeFollower);
 router.post(
   "/friend-requests/:targetUserId",
   isMeMiddleware,

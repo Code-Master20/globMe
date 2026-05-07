@@ -3,7 +3,6 @@ import { PublicFeedView } from "../../../components/public/PublicFeedView";
 export const VideoFeed = () => {
   return (
     <PublicFeedView
-      eyebrow="Video discovery"
       title="Public video posts on globMe"
       description="Visitors can open this route and browse public video content whenever creators publish it, while interaction stays gated behind auth."
       filterType="video"

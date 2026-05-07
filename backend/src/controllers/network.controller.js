@@ -268,6 +268,123 @@ const markNotificationsRead = async (req, res) => {
   }
 };
 
+const unfriendUser = async (req, res) => {
+  try {
+    const { targetUserId } = req.params;
+
+    if (!mongoose.isValidObjectId(targetUserId)) {
+      return new ErrorHandler(400, "Invalid target user id").send(res);
+    }
+
+    const owner = await User.findById(req.user._id);
+    const target = await User.findById(targetUserId);
+
+    if (!owner) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    if (!target) {
+      return new ErrorHandler(404, "Target user not found").send(res);
+    }
+
+    if (`${owner._id}` === `${target._id}`) {
+      return new ErrorHandler(400, "You cannot unfriend yourself").send(res);
+    }
+
+    owner.friends = removeRelationshipIfPresent(owner.friends, target._id);
+    target.friends = removeRelationshipIfPresent(target.friends, owner._id);
+
+    await Promise.all([owner.save(), target.save()]);
+
+    return new SuccessHandler(200, "Friend removed", {
+      targetUserId: target._id,
+      relationshipStatus: "none",
+    }).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Friend could not be removed")
+      .log("unfriend error", error)
+      .send(res);
+  }
+};
+
+const unfollowUser = async (req, res) => {
+  try {
+    const { targetUserId } = req.params;
+
+    if (!mongoose.isValidObjectId(targetUserId)) {
+      return new ErrorHandler(400, "Invalid target user id").send(res);
+    }
+
+    const owner = await User.findById(req.user._id);
+    const target = await User.findById(targetUserId);
+
+    if (!owner) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    if (!target) {
+      return new ErrorHandler(404, "Target user not found").send(res);
+    }
+
+    if (`${owner._id}` === `${target._id}`) {
+      return new ErrorHandler(400, "You cannot unfollow yourself").send(res);
+    }
+
+    owner.following = removeRelationshipIfPresent(owner.following, target._id);
+    target.followers = removeRelationshipIfPresent(target.followers, owner._id);
+
+    await Promise.all([owner.save(), target.save()]);
+
+    return new SuccessHandler(200, "Following removed", {
+      targetUserId: target._id,
+    }).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Following could not be removed")
+      .log("unfollow error", error)
+      .send(res);
+  }
+};
+
+const removeFollower = async (req, res) => {
+  try {
+    const { targetUserId } = req.params;
+
+    if (!mongoose.isValidObjectId(targetUserId)) {
+      return new ErrorHandler(400, "Invalid target user id").send(res);
+    }
+
+    const owner = await User.findById(req.user._id);
+    const target = await User.findById(targetUserId);
+
+    if (!owner) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    if (!target) {
+      return new ErrorHandler(404, "Target user not found").send(res);
+    }
+
+    if (`${owner._id}` === `${target._id}`) {
+      return new ErrorHandler(400, "You cannot remove yourself as a follower").send(
+        res,
+      );
+    }
+
+    owner.followers = removeRelationshipIfPresent(owner.followers, target._id);
+    target.following = removeRelationshipIfPresent(target.following, owner._id);
+
+    await Promise.all([owner.save(), target.save()]);
+
+    return new SuccessHandler(200, "Follower removed", {
+      targetUserId: target._id,
+    }).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Follower could not be removed")
+      .log("remove follower error", error)
+      .send(res);
+  }
+};
+
 const sendFriendRequest = async (req, res) => {
   try {
     const { targetUserId } = req.params;
@@ -509,6 +626,9 @@ module.exports = {
   getNotifications,
   deleteNotification,
   markNotificationsRead,
+  unfriendUser,
+  unfollowUser,
+  removeFollower,
   sendFriendRequest,
   acceptFriendRequest,
   rejectFriendRequest,

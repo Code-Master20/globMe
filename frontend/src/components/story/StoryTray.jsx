@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { useSelector } from "react-redux";
 import api from "../../lib/api";
-import noProfile from "../../assets/noProfile.png";
 import { StoryViewerModal } from "./StoryViewerModal";
 import styles from "./StoryTray.module.css";
+
+const STORY_CARD_PREVIEW_SECONDS = 3;
 
 export const StoryTray = ({ onRequireAuth }) => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
@@ -24,7 +25,7 @@ export const StoryTray = ({ onRequireAuth }) => {
         if (!ignore) {
           setStories(response.data?.data || []);
         }
-      } catch (error) {
+      } catch {
         if (!ignore) {
           setStories([]);
         }
@@ -46,13 +47,31 @@ export const StoryTray = ({ onRequireAuth }) => {
     return null;
   }
 
+  const handleVideoPreviewTimeUpdate = (event) => {
+    const videoElement = event.currentTarget;
+
+    if (videoElement.currentTime >= STORY_CARD_PREVIEW_SECONDS) {
+      videoElement.currentTime = 0;
+
+      const nextPlay = videoElement.play();
+
+      if (nextPlay?.catch) {
+        nextPlay.catch(() => {});
+      }
+    }
+  };
+
   return (
     <>
       <section className={styles.tray}>
         <div className={styles.trayHeader}>
           <div>
             <p>Stories</p>
-            <h2>Live updates from people on globMe</h2>
+            <h2>
+              {isAuthenticated
+                ? "Live status/stories from your friends"
+                : "Live updates from people on globMe"}
+            </h2>
           </div>
           <span>{loading ? "Loading..." : `${stories.length} live`}</span>
         </div>
@@ -72,12 +91,25 @@ export const StoryTray = ({ onRequireAuth }) => {
                     setViewerOpen(true);
                   }}
                 >
-                  <div className={styles.storyAvatarRing}>
-                    <img
-                      src={item.user?.avatar || noProfile}
-                      alt={item.user?.username || "Story owner"}
-                      className={styles.storyAvatar}
-                    />
+                  <div className={styles.storyPreviewFrame}>
+                    {item.story?.mediaType === "video" ? (
+                      <video
+                        key={item.story?.mediaUrl}
+                        src={item.story?.mediaUrl}
+                        className={styles.storyPreviewMedia}
+                        autoPlay
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onTimeUpdate={handleVideoPreviewTimeUpdate}
+                      />
+                    ) : (
+                      <img
+                        src={item.story?.mediaUrl}
+                        alt={`${item.user?.username || "globMe member"} story`}
+                        className={styles.storyPreviewMedia}
+                      />
+                    )}
                   </div>
                   <strong>{item.user?.username || "globMe member"}</strong>
                   <span>{item.story?.likeCount || 0} likes</span>

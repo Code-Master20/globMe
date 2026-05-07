@@ -60,6 +60,9 @@ export const PeopleHub = () => {
   const [loading, setLoading] = useState(true);
   const [acceptingId, setAcceptingId] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
+  const [mutatingId, setMutatingId] = useState(null);
+  const [searchText, setSearchText] = useState("");
+  const [sortOrder, setSortOrder] = useState("newest");
 
   const loadNetworkHub = async ({ silent = false } = {}) => {
     try {
@@ -172,27 +175,72 @@ export const PeopleHub = () => {
     }
   };
 
+  const handleRemoveConnection = async ({
+    personId,
+    endpoint,
+    successMessage,
+    errorMessage,
+  }) => {
+    try {
+      setMutatingId(personId);
+      const response = await api.delete(endpoint);
+
+      await loadNetworkHub({ silent: true });
+      toast.success(response.data?.message || successMessage);
+    } catch (error) {
+      toast.error(error.response?.data?.message || errorMessage);
+    } finally {
+      setMutatingId(null);
+    }
+  };
+
   let visibleUsers = networkHub.friends;
   let emptyCopy = emptyStateCopy.friends;
-  let sectionEyebrow = "Mutuals and accepted connections";
 
   if (activeMainTab === "following") {
     visibleUsers = networkHub.following;
     emptyCopy = emptyStateCopy.following;
-    sectionEyebrow = "People you follow through creator mode";
   }
 
   if (activeMainTab === "followers") {
     visibleUsers = networkHub.followers;
     emptyCopy = emptyStateCopy.followers;
-    sectionEyebrow = "People following your creator profile";
   }
 
   if (activeMainTab === "requests") {
     visibleUsers = networkHub.requests[activeRequestTab] || [];
     emptyCopy = emptyStateCopy[activeRequestTab];
-    sectionEyebrow = "Pending and rejected request history";
   }
+
+  const normalizedSearchText = searchText.trim().toLowerCase();
+  const filteredUsers = visibleUsers
+    .filter((person) => {
+      if (!normalizedSearchText) {
+        return true;
+      }
+
+      const searchableText = [
+        person.username,
+        person.email,
+        person.profession,
+        ...(Array.isArray(person.location) ? person.location : []),
+        ...(Array.isArray(person.bio) ? person.bio : []),
+        ...(Array.isArray(person.talent) ? person.talent : []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(normalizedSearchText);
+    })
+    .sort((firstPerson, secondPerson) => {
+      const firstDate = new Date(firstPerson.createdAt || 0).getTime();
+      const secondDate = new Date(secondPerson.createdAt || 0).getTime();
+
+      return sortOrder === "oldest"
+        ? firstDate - secondDate
+        : secondDate - firstDate;
+    });
 
   const renderCardActions = (person) => {
     const isReceivedRequest = activeMainTab === "requests" && activeRequestTab === "received";
@@ -201,6 +249,9 @@ export const PeopleHub = () => {
       activeMainTab === "requests" && activeRequestTab === "rejectedByMe";
     const isRejectedMe =
       activeMainTab === "requests" && activeRequestTab === "rejectedMe";
+    const isFriendsTab = activeMainTab === "friends";
+    const isFollowingTab = activeMainTab === "following";
+    const isFollowersTab = activeMainTab === "followers";
 
     return (
       <div className={styles.cardActions}>
@@ -244,6 +295,60 @@ export const PeopleHub = () => {
             </button>
           </>
         ) : null}
+
+        {isFriendsTab ? (
+          <button
+            type="button"
+            className={styles.removeBtn}
+            onClick={() =>
+              handleRemoveConnection({
+                personId: person._id,
+                endpoint: `/network/friends/${person._id}`,
+                successMessage: "Friend removed",
+                errorMessage: "Could not remove friend",
+              })
+            }
+            disabled={mutatingId === person._id}
+          >
+            {mutatingId === person._id ? "Removing..." : "Unfriend"}
+          </button>
+        ) : null}
+
+        {isFollowingTab ? (
+          <button
+            type="button"
+            className={styles.removeBtn}
+            onClick={() =>
+              handleRemoveConnection({
+                personId: person._id,
+                endpoint: `/network/following/${person._id}`,
+                successMessage: "Following removed",
+                errorMessage: "Could not unfollow user",
+              })
+            }
+            disabled={mutatingId === person._id}
+          >
+            {mutatingId === person._id ? "Removing..." : "Unfollow"}
+          </button>
+        ) : null}
+
+        {isFollowersTab ? (
+          <button
+            type="button"
+            className={styles.removeBtn}
+            onClick={() =>
+              handleRemoveConnection({
+                personId: person._id,
+                endpoint: `/network/followers/${person._id}`,
+                successMessage: "Follower removed",
+                errorMessage: "Could not remove follower",
+              })
+            }
+            disabled={mutatingId === person._id}
+          >
+            {mutatingId === person._id ? "Removing..." : "Remove follower"}
+          </button>
+        ) : null}
       </div>
     );
   };
@@ -253,11 +358,7 @@ export const PeopleHub = () => {
       <section className={styles.content}>
         <header className={styles.pageHeader}>
           <div>
-            <p>People</p>
             <h1>Your network</h1>
-            <span className={styles.pageCopy}>
-              Switch between friends, creator follows, and request activity.
-            </span>
           </div>
 
           <button
@@ -318,24 +419,51 @@ export const PeopleHub = () => {
         </section>
 
         <section className={styles.listHeader}>
-          <div>
-            <p>{sectionEyebrow}</p>
+          <div className={styles.sectionTitleGroup}>
             <h2>
               {activeMainTab === "requests"
                 ? requestTabs.find((tab) => tab.key === activeRequestTab)?.label
                 : mainTabs.find((tab) => tab.key === activeMainTab)?.label}
             </h2>
+            <span className={styles.peopleCountBadge}>
+              {filteredUsers.length} {filteredUsers.length === 1 ? "person" : "persons"}
+            </span>
           </div>
-          <strong>{visibleUsers.length} people</strong>
+          <div className={styles.listControls}>
+            <label className={styles.searchField}>
+              <span>Search</span>
+              <input
+                type="search"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Search people"
+              />
+            </label>
+
+            <label className={styles.sortField}>
+              <span>Order</span>
+              <select
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value)}
+              >
+                <option value="newest">New to old</option>
+                <option value="oldest">Old to new</option>
+              </select>
+            </label>
+          </div>
         </section>
 
         {loading ? (
           <section className={styles.placeholder}>Loading your network...</section>
         ) : visibleUsers.length === 0 ? (
           <section className={styles.placeholder}>{emptyCopy}</section>
+        ) : filteredUsers.length === 0 ? (
+          <section className={styles.placeholder}>
+            No persons match that search.
+          </section>
         ) : (
           <section className={styles.requestList}>
-            {visibleUsers.map((person) => {
+            {filteredUsers.map((person) => {
               const location = getLocationLabel(person.location);
               const bio =
                 Array.isArray(person.bio) && person.bio.length > 0 ? person.bio[0] : "";

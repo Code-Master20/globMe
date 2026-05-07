@@ -34,10 +34,10 @@ const getDescriptionText = (post) => {
 };
 
 export const PublicFeedView = ({
-  eyebrow,
   title,
   description,
   filterType = "all",
+  showStoryTray = false,
   emptyHeading,
   emptyCopy,
   seoTitle,
@@ -101,13 +101,9 @@ export const PublicFeedView = ({
   return (
     <>
       <main className={styles.page}>
-        <section className={styles.hero}>
-          <p>{eyebrow}</p>
-          <h1>{title}</h1>
-          <span>{description}</span>
-        </section>
-
-        <StoryTray onRequireAuth={() => setShowAuthPrompt(true)} />
+        {showStoryTray ? (
+          <StoryTray onRequireAuth={() => setShowAuthPrompt(true)} />
+        ) : null}
 
         {loading ? (
           <section className={styles.placeholder}>Loading public posts...</section>
