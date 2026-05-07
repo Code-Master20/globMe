@@ -102,6 +102,52 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    storyActiveHistoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+    storyHistory: [
+      {
+        mediaUrl: {
+          type: String,
+          default: null,
+        },
+        mediaType: {
+          type: String,
+          enum: ["image", "video"],
+          default: "image",
+        },
+        audioUrl: {
+          type: String,
+          default: null,
+        },
+        mediaCloudinaryId: {
+          type: String,
+          default: null,
+        },
+        audioCloudinaryId: {
+          type: String,
+          default: null,
+        },
+        sourcePost: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Post",
+          default: null,
+        },
+        likeCount: {
+          type: Number,
+          default: 0,
+        },
+        expiresAt: {
+          type: Date,
+          default: null,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     email: {
       type: String,
       required: true,

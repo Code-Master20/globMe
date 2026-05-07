@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { FaUserEdit } from "react-icons/fa";
 import { RiImageCircleAiFill, RiImageEditLine } from "react-icons/ri";
 import {
@@ -24,7 +24,6 @@ import { ImageUpload } from "../../components/media/ImgUpload";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import { StoryViewerModal } from "../../components/story/StoryViewerModal";
 import {
-  deleteStory,
   updateCreatorMode,
   uploadBanner,
   uploadProfilePic,
@@ -121,6 +120,7 @@ const getLocalMediaDuration = (file) =>
 export const Profile = () => {
   const { userId } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user, loading } = useSelector((state) => state.auth);
 
@@ -145,6 +145,7 @@ export const Profile = () => {
   const [storyViewerStories, setStoryViewerStories] = useState([]);
   const [storyViewerLoading, setStoryViewerLoading] = useState(false);
   const [autoOpenedStoryKey, setAutoOpenedStoryKey] = useState("");
+  const pendingStoryAudioRef = useRef(null);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
   const metadataProfile = isOwner ? user : viewedUser;
@@ -154,6 +155,19 @@ export const Profile = () => {
   const activeStoryAudio = profileUser?.storyAudio || "";
   const storyExpiresAt = profileUser?.storyExpiresAt || "";
   const hasActiveStory = Boolean(activeStory && storyExpiresAt);
+  const ownerStoryHistory =
+    isOwner && Array.isArray(profileUser?.storyHistory)
+      ? profileUser.storyHistory.filter((item) => item?.mediaUrl)
+      : [];
+  const activeOwnerStoryEntry =
+    ownerStoryHistory.find((item) => item?.isActive) ||
+    ownerStoryHistory.find(
+      (item) =>
+        item?.isLive &&
+        item?.mediaUrl === activeStory &&
+        (item?.audioUrl || "") === activeStoryAudio,
+    ) ||
+    null;
 
   usePageMetadata({
     title: metadataProfile?.username
@@ -205,6 +219,24 @@ export const Profile = () => {
       URL.revokeObjectURL(objectUrl);
     };
   }, [pendingStoryAudioFile]);
+
+  useEffect(() => {
+    if (!pendingStoryAudioPreview || !pendingStoryAudioRef.current) {
+      return undefined;
+    }
+
+    const audioElement = pendingStoryAudioRef.current;
+    const playPromise = audioElement.play();
+
+    if (playPromise?.catch) {
+      playPromise.catch(() => {});
+    }
+
+    return () => {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+    };
+  }, [pendingStoryAudioPreview]);
 
   useEffect(() => {
     if (width > 640 && showInfo) {
@@ -370,18 +402,6 @@ export const Profile = () => {
     setStoryComposerOpen(false);
   };
 
-  const handleDeleteStory = async () => {
-    setUploadTarget("story-delete");
-    const resultAction = await dispatch(deleteStory());
-
-    if (deleteStory.rejected.match(resultAction)) {
-      toast.error(resultAction.payload?.message || "Story could not be removed");
-      return;
-    }
-
-    toast.success(resultAction.payload?.message || "Story removed successfully");
-  };
-
   const handleOpenProfileStory = async () => {
     if (!profileUser?._id || !hasActiveStory) {
       return;
@@ -397,6 +417,20 @@ export const Profile = () => {
     } finally {
       setStoryViewerLoading(false);
     }
+  };
+
+  const handleOpenOwnerStoryDetail = (storyEntryId) => {
+    if (!storyEntryId) {
+      if (hasActiveStory) {
+        navigate("/profile/stories/live");
+        return;
+      }
+
+      handleOpenProfileStory();
+      return;
+    }
+
+    navigate(`/profile/stories/${storyEntryId}`);
   };
 
   useEffect(() => {
@@ -1021,6 +1055,22 @@ export const Profile = () => {
                 ) : null}
 
                 {isOwner ? (
+                  <div className={styles.profileStoryActionRow}>
+                    <button
+                      type="button"
+                      className={styles.storyUploadButton}
+                      onClick={() => setStoryComposerOpen((prev) => !prev)}
+                    >
+                      {storyComposerOpen
+                        ? "Close composer"
+                        : hasActiveStory
+                          ? "Create new story"
+                          : "Create story"}
+                    </button>
+                  </div>
+                ) : null}
+
+                {isOwner ? (
                   <div className={styles.actionsRow}>
                     {!isSmallScreen ? (
                       <>
@@ -1118,46 +1168,6 @@ export const Profile = () => {
                   </p>
                   <h2>{hasActiveStory ? "Live for 36 hours" : "Share a story"}</h2>
                 </div>
-
-                {isOwner ? (
-                  <div className={styles.storyActions}>
-                    <button
-                      type="button"
-                      className={styles.storyUploadButton}
-                      onClick={() => setStoryComposerOpen((prev) => !prev)}
-                    >
-                      {storyComposerOpen
-                        ? "Close composer"
-                        : hasActiveStory
-                          ? "Create new story"
-                          : "Create story"}
-                    </button>
-
-                    {hasActiveStory ? (
-                      <button
-                        type="button"
-                        className={styles.storySecondaryButton}
-                        onClick={handleOpenProfileStory}
-                        disabled={storyViewerLoading}
-                      >
-                        {storyViewerLoading ? "Opening..." : "View story"}
-                      </button>
-                    ) : null}
-
-                    {hasActiveStory ? (
-                      <button
-                        type="button"
-                        className={styles.storyDeleteButton}
-                        onClick={handleDeleteStory}
-                        disabled={loading}
-                      >
-                        {loading && uploadTarget === "story-delete"
-                          ? "Removing..."
-                          : "Remove story"}
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
               </div>
 
               {isOwner && storyComposerOpen ? (
@@ -1250,8 +1260,11 @@ export const Profile = () => {
 
                             {pendingStoryAudioFile ? (
                               <audio
+                                key={pendingStoryAudioPreview}
+                                ref={pendingStoryAudioRef}
                                 src={pendingStoryAudioPreview}
-                                controls
+                                autoPlay
+                                loop
                                 preload="metadata"
                                 className={styles.storyAudioPlayer}
                               />
@@ -1346,11 +1359,15 @@ export const Profile = () => {
               ) : null}
 
               {hasActiveStory ? (
-                <div className={styles.storyPreview}>
+                <button
+                  type="button"
+                  className={styles.storyPreview}
+                  onClick={() => handleOpenOwnerStoryDetail(activeOwnerStoryEntry?._id)}
+                >
                   {activeStoryType === "video" ? (
                     <video
                       src={activeStory}
-                      className={styles.storyImage}
+                      className={styles.storyPreviewMedia}
                       controls
                       preload="metadata"
                     />
@@ -1358,7 +1375,7 @@ export const Profile = () => {
                     <img
                       src={activeStory}
                       alt={`${profileUser.username || "User"} story`}
-                      className={styles.storyImage}
+                      className={styles.storyPreviewMedia}
                     />
                   )}
 
@@ -1369,16 +1386,8 @@ export const Profile = () => {
                       disappears automatically.
                     </p>
 
-                    {activeStoryAudio ? (
-                      <audio
-                        src={activeStoryAudio}
-                        controls
-                        preload="metadata"
-                        className={styles.storyAudioPlayer}
-                      />
-                    ) : null}
                   </div>
-                </div>
+                </button>
               ) : (
                 <div className={styles.storyPlaceholder}>
                   Upload a photo or video story, add music if you want, or reuse one
@@ -1386,6 +1395,91 @@ export const Profile = () => {
                   automatically.
                 </div>
               )}
+
+              {isOwner && ownerStoryHistory.length > 0 ? (
+                <div className={styles.storyHistorySection}>
+                  <div className={styles.storyHistoryHeader}>
+                    <h3>Recent stories</h3>
+                    <span>
+                      {ownerStoryHistory.length}{" "}
+                      {ownerStoryHistory.length === 1 ? "story" : "stories"}
+                    </span>
+                  </div>
+
+                  <div className={styles.storyHistoryRail}>
+                    {ownerStoryHistory.map((item, index) => {
+                      const createdLabel = item.createdAt
+                        ? formatStoryExpiry(item.createdAt)
+                        : "";
+                      const expiryLabel = item.expiresAt
+                        ? formatStoryExpiry(item.expiresAt)
+                        : "";
+                      const cardLabel = item.isLive
+                        ? getStoryTimeLeftLabel(item.expiresAt) || "Live now"
+                        : createdLabel
+                          ? `Shared ${createdLabel}`
+                          : "Recent story";
+
+                      return (
+                        <button
+                          type="button"
+                          key={`${item.mediaUrl}-${item.createdAt || index}`}
+                          className={styles.storyHistoryCard}
+                          onClick={() => handleOpenOwnerStoryDetail(item._id)}
+                        >
+                          {item.mediaType === "video" ? (
+                            <video
+                              src={item.mediaUrl}
+                              className={styles.storyHistoryThumb}
+                              muted
+                              autoPlay
+                              loop
+                              playsInline
+                              preload="metadata"
+                            />
+                          ) : (
+                            <img
+                              src={item.mediaUrl}
+                              alt={`Recent story ${index + 1}`}
+                              className={styles.storyHistoryThumb}
+                            />
+                          )}
+
+                          <div className={styles.storyHistoryMeta}>
+                            <div className={styles.storyHistoryMetaTop}>
+                              <span
+                                className={`${styles.storyHistoryPill} ${
+                                  item.isLive
+                                    ? styles.storyHistoryPillLive
+                                    : styles.storyHistoryPillRecent
+                                }`}
+                              >
+                                {item.isLive ? "Live" : "Recent"}
+                              </span>
+                              <span className={styles.storyHistoryType}>
+                                {item.mediaType === "video" ? "Video" : "Photo"}
+                              </span>
+                            </div>
+
+                            <strong>{cardLabel}</strong>
+                            <p>
+                              {item.isLive && expiryLabel
+                                ? `Ends ${expiryLabel}`
+                                : createdLabel
+                                  ? `Shared ${createdLabel}`
+                                  : "Shared recently"}
+                            </p>
+                            <small>
+                              {item.likeCount || 0} likes
+                              {item.audioUrl ? " • music" : ""}
+                            </small>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </section>
           ) : null}
 

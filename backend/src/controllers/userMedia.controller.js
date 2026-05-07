@@ -11,6 +11,7 @@ const toPublicUser = require("../utils/auth/publicUser.util");
 const STORY_LIFETIME_MS = 36 * 60 * 60 * 1000;
 const MAX_STORY_DURATION_SECONDS = 90;
 const STORY_ALLOWED_POST_TYPES = ["image", "video"];
+const STORY_HISTORY_LIMIT = 12;
 
 const normalizeListInput = (value, pattern = /\r?\n|,/) => {
   if (Array.isArray(value)) {
@@ -90,6 +91,61 @@ const resetStoryFields = (user) => {
   user.storySourcePost = null;
   user.storyLikeCount = 0;
   user.storyExpiresAt = null;
+  user.storyActiveHistoryId = null;
+};
+
+const appendStoryHistoryEntry = (user, storyData) => {
+  const historyEntry = {
+    _id: new mongoose.Types.ObjectId(),
+    mediaUrl: storyData.mediaUrl,
+    mediaType: storyData.mediaType || "image",
+    audioUrl: storyData.audioUrl || null,
+    mediaCloudinaryId: storyData.mediaCloudinaryId || null,
+    audioCloudinaryId: storyData.audioCloudinaryId || null,
+    sourcePost: storyData.sourcePost || null,
+    likeCount: typeof storyData.likeCount === "number" ? storyData.likeCount : 0,
+    expiresAt: storyData.expiresAt || null,
+    createdAt: new Date(),
+  };
+  const existingHistory = Array.isArray(user.storyHistory) ? user.storyHistory : [];
+  const nextHistory = [historyEntry, ...existingHistory].filter((item) => item?.mediaUrl);
+  const trimmedEntries = nextHistory.slice(STORY_HISTORY_LIMIT);
+
+  user.storyHistory = nextHistory.slice(0, STORY_HISTORY_LIMIT);
+
+  return {
+    historyEntry,
+    trimmedEntries,
+  };
+};
+
+const destroyStoryHistoryEntryAssets = async (entry) => {
+  if (!entry) {
+    return;
+  }
+
+  await destroyCloudinaryAsset(
+    entry.mediaCloudinaryId,
+    entry.mediaType === "video" ? "video" : "image",
+  );
+  await destroyCloudinaryAsset(entry.audioCloudinaryId, "video");
+};
+
+const removeStoryHistoryEntryById = (user, storyHistoryId) => {
+  if (!Array.isArray(user.storyHistory)) {
+    return null;
+  }
+
+  const targetId = `${storyHistoryId}`;
+  const existingEntry =
+    user.storyHistory.find((item) => `${item?._id}` === targetId) || null;
+
+  if (!existingEntry) {
+    return null;
+  }
+
+  user.storyHistory = user.storyHistory.filter((item) => `${item?._id}` !== targetId);
+  return existingEntry;
 };
 
 const clearStoryLikes = async (userId) => {
@@ -336,9 +392,6 @@ const uploadStory = async (req, res) => {
         .send(res);
     }
 
-    const previousStoryCloudinaryId = user.storyCloudinaryId;
-    const previousStoryAudioCloudinaryId = user.storyAudioCloudinaryId;
-    const previousStoryType = user.storyType;
     const durationError = getStoryDurationError({
       storyType,
       mediaUploadResult,
@@ -364,14 +417,21 @@ const uploadStory = async (req, res) => {
       user.storyAudioCloudinaryId = audioUploadResult?.public_id || null;
       user.storyLikeCount = 0;
       user.storyExpiresAt = new Date(Date.now() + STORY_LIFETIME_MS);
+      const { historyEntry, trimmedEntries } = appendStoryHistoryEntry(user, {
+        mediaUrl: mediaUploadResult.secure_url,
+        mediaType: storyType,
+        audioUrl: audioUploadResult?.secure_url || null,
+        mediaCloudinaryId: mediaUploadResult.public_id,
+        audioCloudinaryId: audioUploadResult?.public_id || null,
+        sourcePost: user.storySourcePost || null,
+        likeCount: 0,
+        expiresAt: user.storyExpiresAt,
+      });
+      user.storyActiveHistoryId = historyEntry._id;
 
       await user.save();
 
-      await destroyCloudinaryAsset(
-        previousStoryCloudinaryId,
-        previousStoryType === "video" ? "video" : "image",
-      );
-      await destroyCloudinaryAsset(previousStoryAudioCloudinaryId, "video");
+      await Promise.all(trimmedEntries.map((entry) => destroyStoryHistoryEntryAssets(entry)));
 
       try {
         await notifyFriendsAboutStory(user);
@@ -488,11 +548,21 @@ const deleteStory = async (req, res) => {
       return new ErrorHandler(400, "No story to delete").send(res);
     }
 
-    await destroyCloudinaryAsset(
-      user.storyCloudinaryId,
-      user.storyType === "video" ? "video" : "image",
-    );
-    await destroyCloudinaryAsset(user.storyAudioCloudinaryId, "video");
+    const activeHistoryId = user.storyActiveHistoryId;
+    const removedEntry = activeHistoryId
+      ? removeStoryHistoryEntryById(user, activeHistoryId)
+      : null;
+
+    if (removedEntry) {
+      await destroyStoryHistoryEntryAssets(removedEntry);
+    } else {
+      await destroyCloudinaryAsset(
+        user.storyCloudinaryId,
+        user.storyType === "video" ? "video" : "image",
+      );
+      await destroyCloudinaryAsset(user.storyAudioCloudinaryId, "video");
+    }
+
     await clearStoryLikes(user._id);
 
     resetStoryFields(user);
@@ -507,6 +577,50 @@ const deleteStory = async (req, res) => {
   } catch (error) {
     return new ErrorHandler(500, "Story could not be deleted")
       .log("story delete error", error)
+      .send(res);
+  }
+};
+
+const deleteStoryHistoryEntry = async (req, res) => {
+  try {
+    const { storyHistoryId } = req.params;
+
+    if (!mongoose.isValidObjectId(storyHistoryId)) {
+      return new ErrorHandler(400, "Invalid story selected").send(res);
+    }
+
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    const removedEntry = removeStoryHistoryEntryById(user, storyHistoryId);
+
+    if (!removedEntry) {
+      return new ErrorHandler(404, "Story was not found").send(res);
+    }
+
+    const isActiveStory = user.storyActiveHistoryId
+      ? `${user.storyActiveHistoryId}` === `${storyHistoryId}`
+      : false;
+
+    if (isActiveStory) {
+      await clearStoryLikes(user._id);
+      resetStoryFields(user);
+    }
+
+    await destroyStoryHistoryEntryAssets(removedEntry);
+    await user.save();
+
+    return new SuccessHandler(
+      200,
+      "Story removed successfully",
+      toPublicUser(user, { viewerId: user._id }),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Story could not be deleted")
+      .log("story history delete error", error)
       .send(res);
   }
 };
@@ -701,4 +815,5 @@ module.exports = {
   updateProfileDetails,
   updateCreatorMode,
   getProfileView,
+  deleteStoryHistoryEntry,
 };

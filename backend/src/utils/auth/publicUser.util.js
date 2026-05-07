@@ -46,6 +46,49 @@ const getActiveStoryPayload = (userObject) => {
   };
 };
 
+const getStoryHistoryPayload = (userObject, activeHistoryId = null) => {
+  if (!Array.isArray(userObject?.storyHistory)) {
+    return [];
+  }
+
+  return userObject.storyHistory
+    .filter((item) => item?.mediaUrl)
+    .map((item) => {
+      const createdAt = item?.createdAt ? new Date(item.createdAt) : null;
+      const expiresAt = item?.expiresAt ? new Date(item.expiresAt) : null;
+
+      return {
+        _id: item?._id ? `${item._id}` : "",
+        mediaUrl: item.mediaUrl,
+        mediaType: item.mediaType || "image",
+        audioUrl: item.audioUrl || null,
+        likeCount: typeof item.likeCount === "number" ? item.likeCount : 0,
+        createdAt:
+          createdAt && !Number.isNaN(createdAt.getTime())
+            ? createdAt.toISOString()
+            : null,
+        expiresAt:
+          expiresAt && !Number.isNaN(expiresAt.getTime())
+            ? expiresAt.toISOString()
+            : null,
+        isLive:
+          expiresAt && !Number.isNaN(expiresAt.getTime())
+            ? expiresAt.getTime() > Date.now()
+            : false,
+        isActive:
+          activeHistoryId && item?._id
+            ? `${item._id}` === `${activeHistoryId}`
+            : false,
+      };
+    })
+    .sort((left, right) => {
+      const leftTime = left.createdAt ? new Date(left.createdAt).getTime() : 0;
+      const rightTime = right.createdAt ? new Date(right.createdAt).getTime() : 0;
+      return rightTime - leftTime;
+    })
+    .slice(0, 12);
+};
+
 const pickAllowedFields = (source, allowedFields) =>
   allowedFields.reduce((accumulator, field) => {
     if (source[field] !== undefined) {
@@ -73,12 +116,17 @@ const toPublicUser = (userDoc, options = {}) => {
     ? userObject.following.length
     : 0;
   const activeStory = getActiveStoryPayload(userObject);
+  const storyHistory = getStoryHistoryPayload(
+    userObject,
+    userObject.storyActiveHistoryId,
+  );
 
   if (isOwner) {
     const ownerUser = pickAllowedFields(userObject, ownerVisibleFields);
     ownerUser.friendsCount = friendsCount;
     ownerUser.followersCount = followersCount;
     ownerUser.followingCount = followingCount;
+    ownerUser.storyHistory = storyHistory;
 
     if (activeStory) {
       ownerUser.story = activeStory.story;

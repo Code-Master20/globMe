@@ -20,6 +20,7 @@ import { NotificationCenter } from "../pages/network/notifications/NotificationC
 import { PeopleHub } from "../pages/network/people/PeopleHub.jsx";
 import { PublicPostDetail } from "../pages/posts/PublicPostDetail.jsx";
 import { Profile } from "../pages/profile/Profile.jsx";
+import { ProfileStoryDetail } from "../pages/profile/ProfileStoryDetail.jsx";
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -109,6 +110,14 @@ export const router = createBrowserRouter(
       <Route
         path="profile/:userId"
         element={<Profile />}
+      />
+      <Route
+        path="profile/stories/:storyEntryId"
+        element={
+          <PrivateRoute>
+            <ProfileStoryDetail />
+          </PrivateRoute>
+        }
       />
     </Route>,
   ),

@@ -12,6 +12,7 @@ import {
   uploadBanner,
   uploadStory,
   deleteStory,
+  deleteStoryHistory,
   updateProfileDetails,
   updateCreatorMode,
 } from "./authThunks";
@@ -273,6 +274,21 @@ const authSlice = createSlice({
         state.successMessage = action.payload.message;
       })
       .addCase(deleteStory.rejected, (state, action) => {
+        state.loading = false;
+        state.errorMessage = action.payload?.message;
+      })
+
+      // ====================== DELETE STORY HISTORY ======================
+      .addCase(deleteStoryHistory.pending, (state) => {
+        state.loading = true;
+        state.errorMessage = null;
+      })
+      .addCase(deleteStoryHistory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.data;
+        state.successMessage = action.payload.message;
+      })
+      .addCase(deleteStoryHistory.rejected, (state, action) => {
         state.loading = false;
         state.errorMessage = action.payload?.message;
       })

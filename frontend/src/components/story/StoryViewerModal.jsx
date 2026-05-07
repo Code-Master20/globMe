@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { MdChevronLeft, MdChevronRight, MdClose, MdOutlineFavoriteBorder } from "react-icons/md";
 import { IoHeart } from "react-icons/io5";
+import { toast } from "react-toastify";
 import api from "../../lib/api";
 import styles from "./StoryViewerModal.module.css";
 
@@ -41,6 +42,8 @@ export const StoryViewerModal = ({
 }) => {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [likeLoading, setLikeLoading] = useState(false);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -48,12 +51,17 @@ export const StoryViewerModal = ({
     }
   }, [initialIndex, open]);
 
+  useEffect(() => {
+    setCommentDraft("");
+  }, [activeIndex, open]);
+
   if (!open || !stories?.length) {
     return null;
   }
 
   const currentStory = stories[activeIndex];
   const isOwnStory = currentUserId && `${currentUserId}` === `${currentStory?.user?._id}`;
+  const canCommentOnStory = Boolean(currentStory?.story?.storyEntryId) && !isOwnStory;
 
   if (!currentStory) {
     return null;
@@ -92,6 +100,49 @@ export const StoryViewerModal = ({
       onRequireAuth?.(error.response?.data?.message || "Story like failed");
     } finally {
       setLikeLoading(false);
+    }
+  };
+
+  const handleCommentSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!currentStory?.user?._id || !currentStory?.story?.storyEntryId) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      onRequireAuth?.("Log in to comment on this story.");
+      return;
+    }
+
+    if (!commentDraft.trim()) {
+      toast.info("Write a comment first.");
+      return;
+    }
+
+    try {
+      setCommentSubmitting(true);
+      const response = await api.post(`/user/stories/${currentStory.user._id}/comments`, {
+        storyEntryId: currentStory.story.storyEntryId,
+        comment: commentDraft.trim(),
+      });
+
+      toast.success(
+        response.data?.message || "Private comment sent to the story owner",
+      );
+      setCommentDraft("");
+    } catch (error) {
+      const message =
+        error.response?.data?.message || "Story comment could not be added";
+
+      if (error.response?.status === 401) {
+        onRequireAuth?.(message);
+        return;
+      }
+
+      toast.error(message);
+    } finally {
+      setCommentSubmitting(false);
     }
   };
 
@@ -228,6 +279,31 @@ export const StoryViewerModal = ({
             </button>
           )}
         </div>
+
+        {canCommentOnStory ? (
+          <form className={styles.commentComposer} onSubmit={handleCommentSubmit}>
+            <div className={styles.commentComposerHeader}>
+              <strong>Private comment</strong>
+              <span>Only the story owner can read this.</span>
+            </div>
+
+            <textarea
+              value={commentDraft}
+              onChange={(event) => setCommentDraft(event.target.value)}
+              className={styles.commentInput}
+              placeholder="Write something supportive or helpful..."
+              maxLength={400}
+            />
+
+            <button
+              type="submit"
+              className={styles.commentSubmitButton}
+              disabled={commentSubmitting}
+            >
+              {commentSubmitting ? "Sending..." : "Send private comment"}
+            </button>
+          </form>
+        ) : null}
       </div>
     </div>
   );

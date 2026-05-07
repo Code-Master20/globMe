@@ -180,6 +180,57 @@
   font-weight: 700;
 }
 
+.commentComposer {
+  margin: 0 1.2rem 1.2rem;
+  padding: 1rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.commentComposerHeader strong,
+.commentComposerHeader span {
+  display: block;
+}
+
+.commentComposerHeader span {
+  margin-top: 0.2rem;
+  color: rgba(226, 232, 240, 0.74);
+  font-size: 0.86rem;
+}
+
+.commentInput {
+  width: 100%;
+  min-height: 110px;
+  margin-top: 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.64);
+  color: #f8fafc;
+  resize: vertical;
+}
+
+.commentSubmitButton {
+  margin-top: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #f97316 0%, #ef4444 100%);
+  color: #fff7ed;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.commentSubmitButton:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
 @media (max-width: 720px) {
   .overlay {
     padding: 0;
@@ -217,6 +268,14 @@
   }
 
   .likeButton {
+    width: 100%;
+  }
+
+  .commentComposer {
+    margin: 0 0.75rem 0.75rem;
+  }
+
+  .commentSubmitButton {
     width: 100%;
   }
 }

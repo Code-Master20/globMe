@@ -334,6 +334,22 @@ export const deleteStory = createAsyncThunk(
   },
 );
 
+export const deleteStoryHistory = createAsyncThunk(
+  "auth/deleteStoryHistory",
+  async (storyHistoryId, thunkAPI) => {
+    try {
+      const response = await api.delete(`/user/story-history/${storyHistoryId}`);
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue({
+        status: error.response?.status,
+        message: error.response?.data?.message || "Story removal failed",
+        success: false,
+      });
+    }
+  },
+);
+
 export const updateProfileDetails = createAsyncThunk(
   "auth/updateProfileDetails",
   async (profileDetails, thunkAPI) => {

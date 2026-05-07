@@ -6,7 +6,11 @@ const bannerAvatarUpload = require("../middleware/uploads/multer.banner.avatar.m
 const isMeMiddleware = require("../middleware/auth/isMe.middleware");
 const optionalAuthMiddleware = require("../middleware/auth/optionalAuth.middleware");
 const ErrorHandler = require("../utils/errorHandler.util");
-const { toggleStoryLike } = require("../controllers/story.controller");
+const {
+  toggleStoryLike,
+  addStoryComment,
+  getOwnerStoryComments,
+} = require("../controllers/story.controller");
 const {
   uploadAvatar,
   uploadBanner,
@@ -14,6 +18,7 @@ const {
   deleteAvatar,
   deleteBanner,
   deleteStory,
+  deleteStoryHistoryEntry,
   getStoryEligiblePosts,
   updateProfileDetails,
   updateCreatorMode,
@@ -121,6 +126,8 @@ router.post(
 
 router.get("/story-posts", isMeMiddleware, getStoryEligiblePosts);
 router.post("/stories/:userId/like", isMeMiddleware, toggleStoryLike);
+router.post("/stories/:userId/comments", isMeMiddleware, addStoryComment);
+router.get("/story-history/:storyHistoryId/comments", isMeMiddleware, getOwnerStoryComments);
 router.patch("/profile", isMeMiddleware, updateProfileDetails);
 router.patch("/profile/creator", isMeMiddleware, updateCreatorMode);
 router.get("/profile/:userId", optionalAuthMiddleware, getProfileView);
@@ -128,5 +135,6 @@ router.get("/profile/:userId", optionalAuthMiddleware, getProfileView);
 router.delete("/delete-avatar", isMeMiddleware, deleteAvatar);
 router.delete("/delete-banner", isMeMiddleware, deleteBanner);
 router.delete("/delete-story", isMeMiddleware, deleteStory);
+router.delete("/story-history/:storyHistoryId", isMeMiddleware, deleteStoryHistoryEntry);
 
 module.exports = router;
