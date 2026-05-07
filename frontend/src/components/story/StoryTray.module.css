@@ -77,6 +77,17 @@
   display: block;
   object-fit: cover;
   background: #e2e8f0;
+  pointer-events: none;
+}
+
+.storyPreviewMedia::-webkit-media-controls,
+.storyPreviewMedia::-webkit-media-controls-enclosure,
+.storyPreviewMedia::-webkit-media-controls-panel,
+.storyPreviewMedia::-webkit-media-controls-play-button,
+.storyPreviewMedia::-webkit-media-controls-start-playback-button,
+.storyPreviewMedia::-webkit-media-controls-overlay-play-button {
+  display: none !important;
+  -webkit-appearance: none;
 }
 
 .storyCard strong {

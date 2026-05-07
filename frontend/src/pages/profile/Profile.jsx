@@ -23,6 +23,7 @@ import { EditProfileInfo } from "../../components/profile/EditProfileInfo";
 import { ImageUpload } from "../../components/media/ImgUpload";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import { StoryViewerModal } from "../../components/story/StoryViewerModal";
+import { VideoThumbnail } from "../../components/story/VideoThumbnail";
 import {
   updateCreatorMode,
   uploadBanner,
@@ -97,6 +98,18 @@ const getStoryTimeLeftLabel = (value) => {
   return `${remainingHours}h left`;
 };
 
+const getStorySortTime = (storyEntry) => {
+  const candidateValue = storyEntry?.createdAt || storyEntry?.expiresAt || "";
+
+  if (!candidateValue) {
+    return 0;
+  }
+
+  const dateValue = new Date(candidateValue);
+
+  return Number.isNaN(dateValue.getTime()) ? 0 : dateValue.getTime();
+};
+
 const getLocalMediaDuration = (file) =>
   new Promise((resolve, reject) => {
     const mediaElement = document.createElement(
@@ -142,6 +155,7 @@ export const Profile = () => {
   const [pendingStoryMediaPreview, setPendingStoryMediaPreview] = useState("");
   const [pendingStoryAudioPreview, setPendingStoryAudioPreview] = useState("");
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
+  const [storyViewerInitialIndex, setStoryViewerInitialIndex] = useState(0);
   const [storyViewerStories, setStoryViewerStories] = useState([]);
   const [storyViewerLoading, setStoryViewerLoading] = useState(false);
   const [autoOpenedStoryKey, setAutoOpenedStoryKey] = useState("");
@@ -168,6 +182,60 @@ export const Profile = () => {
         (item?.audioUrl || "") === activeStoryAudio,
     ) ||
     null;
+  const ownerStoryCards = isOwner
+    ? [
+        ...(hasActiveStory && !activeOwnerStoryEntry
+          ? [
+              {
+                _id: "live",
+                mediaUrl: activeStory,
+                mediaType: activeStoryType,
+                audioUrl: activeStoryAudio || null,
+                likeCount:
+                  typeof profileUser?.storyLikeCount === "number"
+                    ? profileUser.storyLikeCount
+                    : 0,
+                createdAt: null,
+                expiresAt: storyExpiresAt,
+                isLive: true,
+                isActive: true,
+              },
+            ]
+          : []),
+        ...ownerStoryHistory,
+      ]
+        .filter((item) => item?.mediaUrl)
+        .sort((left, right) => {
+          if (left?.isActive && !right?.isActive) {
+            return -1;
+          }
+
+          if (!left?.isActive && right?.isActive) {
+            return 1;
+          }
+
+          return getStorySortTime(right) - getStorySortTime(left);
+        })
+    : [];
+  const ownerStoryViewerStories = isOwner
+    ? ownerStoryCards.map((item) => ({
+        user: {
+          _id: profileUser?._id || "",
+          username: profileUser?.username || "",
+          avatar: profileUser?.avatar || "",
+          profession: profileUser?.profession || "",
+        },
+        story: {
+          storyEntryId: item?._id ? `${item._id}` : "",
+          mediaUrl: item?.mediaUrl || "",
+          mediaType: item?.mediaType || "image",
+          audioUrl: item?.audioUrl || null,
+          likeCount: typeof item?.likeCount === "number" ? item.likeCount : 0,
+          likedByViewer: false,
+          expiresAt: item?.expiresAt || null,
+        },
+      }))
+    : [];
 
   usePageMetadata({
     title: metadataProfile?.username
@@ -410,6 +478,7 @@ export const Profile = () => {
     try {
       setStoryViewerLoading(true);
       const response = await api.get(`/public/stories/${profileUser._id}`);
+      setStoryViewerInitialIndex(0);
       setStoryViewerStories([response.data?.data].filter(Boolean));
       setStoryViewerOpen(true);
     } catch (error) {
@@ -420,17 +489,17 @@ export const Profile = () => {
   };
 
   const handleOpenOwnerStoryDetail = (storyEntryId) => {
-    if (!storyEntryId) {
-      if (hasActiveStory) {
-        navigate("/profile/stories/live");
-        return;
-      }
-
-      handleOpenProfileStory();
+    if (!ownerStoryViewerStories.length) {
       return;
     }
 
-    navigate(`/profile/stories/${storyEntryId}`);
+    const nextIndex = ownerStoryViewerStories.findIndex(
+      (item) => `${item?.story?.storyEntryId || ""}` === `${storyEntryId || ""}`,
+    );
+
+    setStoryViewerStories(ownerStoryViewerStories);
+    setStoryViewerInitialIndex(nextIndex >= 0 ? nextIndex : 0);
+    setStoryViewerOpen(true);
   };
 
   useEffect(() => {
@@ -457,6 +526,7 @@ export const Profile = () => {
       try {
         setStoryViewerLoading(true);
         const response = await api.get(`/public/stories/${profileUser._id}`);
+        setStoryViewerInitialIndex(0);
         setStoryViewerStories([response.data?.data].filter(Boolean));
         setStoryViewerOpen(true);
       } catch (error) {
@@ -1358,18 +1428,17 @@ export const Profile = () => {
                 </div>
               ) : null}
 
-              {hasActiveStory ? (
+              {!isOwner && hasActiveStory ? (
                 <button
                   type="button"
                   className={styles.storyPreview}
-                  onClick={() => handleOpenOwnerStoryDetail(activeOwnerStoryEntry?._id)}
+                  onClick={handleOpenProfileStory}
                 >
                   {activeStoryType === "video" ? (
-                    <video
+                    <VideoThumbnail
                       src={activeStory}
                       className={styles.storyPreviewMedia}
-                      controls
-                      preload="metadata"
+                      alt={`${profileUser.username || "User"} story video`}
                     />
                   ) : (
                     <img
@@ -1385,40 +1454,42 @@ export const Profile = () => {
                       This story stays visible until {storyExpiryLabel} and then
                       disappears automatically.
                     </p>
-
                   </div>
                 </button>
-              ) : (
+              ) : null}
+
+              {isOwner && ownerStoryCards.length === 0 ? (
                 <div className={styles.storyPlaceholder}>
                   Upload a photo or video story, add music if you want, or reuse one
                   of your posts. It stays live for 36 hours and then expires
                   automatically.
                 </div>
-              )}
+              ) : null}
 
-              {isOwner && ownerStoryHistory.length > 0 ? (
+              {isOwner && ownerStoryCards.length > 0 ? (
                 <div className={styles.storyHistorySection}>
                   <div className={styles.storyHistoryHeader}>
                     <h3>Recent stories</h3>
                     <span>
-                      {ownerStoryHistory.length}{" "}
-                      {ownerStoryHistory.length === 1 ? "story" : "stories"}
+                      {ownerStoryCards.length}{" "}
+                      {ownerStoryCards.length === 1 ? "story" : "stories"}
                     </span>
                   </div>
 
                   <div className={styles.storyHistoryRail}>
-                    {ownerStoryHistory.map((item, index) => {
+                    {ownerStoryCards.map((item, index) => {
+                      const isCurrentStory = Boolean(item.isActive);
                       const createdLabel = item.createdAt
                         ? formatStoryExpiry(item.createdAt)
                         : "";
                       const expiryLabel = item.expiresAt
                         ? formatStoryExpiry(item.expiresAt)
                         : "";
-                      const cardLabel = item.isLive
-                        ? getStoryTimeLeftLabel(item.expiresAt) || "Live now"
+                      const cardLabel = isCurrentStory
+                        ? "Recently added"
                         : createdLabel
                           ? `Shared ${createdLabel}`
-                          : "Recent story";
+                          : "Older story";
 
                       return (
                         <button
@@ -1427,34 +1498,32 @@ export const Profile = () => {
                           className={styles.storyHistoryCard}
                           onClick={() => handleOpenOwnerStoryDetail(item._id)}
                         >
-                          {item.mediaType === "video" ? (
-                            <video
-                              src={item.mediaUrl}
-                              className={styles.storyHistoryThumb}
-                              muted
-                              autoPlay
-                              loop
-                              playsInline
-                              preload="metadata"
-                            />
-                          ) : (
-                            <img
-                              src={item.mediaUrl}
-                              alt={`Recent story ${index + 1}`}
-                              className={styles.storyHistoryThumb}
-                            />
-                          )}
+                          <div className={styles.storyHistoryFrame}>
+                            {item.mediaType === "video" ? (
+                              <VideoThumbnail
+                                src={item.mediaUrl}
+                                className={styles.storyHistoryThumb}
+                                alt={`Recent story ${index + 1} video`}
+                              />
+                            ) : (
+                              <img
+                                src={item.mediaUrl}
+                                alt={`Recent story ${index + 1}`}
+                                className={styles.storyHistoryThumb}
+                              />
+                            )}
+                          </div>
 
                           <div className={styles.storyHistoryMeta}>
                             <div className={styles.storyHistoryMetaTop}>
                               <span
                                 className={`${styles.storyHistoryPill} ${
-                                  item.isLive
+                                  isCurrentStory
                                     ? styles.storyHistoryPillLive
                                     : styles.storyHistoryPillRecent
                                 }`}
                               >
-                                {item.isLive ? "Live" : "Recent"}
+                                {isCurrentStory ? "Recent" : "Older"}
                               </span>
                               <span className={styles.storyHistoryType}>
                                 {item.mediaType === "video" ? "Video" : "Photo"}
@@ -1463,11 +1532,11 @@ export const Profile = () => {
 
                             <strong>{cardLabel}</strong>
                             <p>
-                              {item.isLive && expiryLabel
+                              {isCurrentStory && expiryLabel
                                 ? `Ends ${expiryLabel}`
                                 : createdLabel
                                   ? `Shared ${createdLabel}`
-                                  : "Shared recently"}
+                                  : "Shared earlier"}
                             </p>
                             <small>
                               {item.likeCount || 0} likes
@@ -1780,7 +1849,7 @@ export const Profile = () => {
       <StoryViewerModal
         open={storyViewerOpen}
         stories={storyViewerStories}
-        initialIndex={0}
+        initialIndex={storyViewerInitialIndex}
         onClose={() => setStoryViewerOpen(false)}
         isAuthenticated={Boolean(user)}
         currentUserId={user?._id || ""}

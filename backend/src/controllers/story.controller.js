@@ -204,17 +204,28 @@ const addStoryComment = async (req, res) => {
       return new ErrorHandler(400, "You cannot comment on your own story here").send(res);
     }
 
-    const owner = await User.findById(userId).select(
-      "friends storyHistory storyActiveHistoryId story storyExpiresAt",
-    );
+    const [owner, viewer] = await Promise.all([
+      User.findById(userId).select(
+        "friends storyHistory storyActiveHistoryId story storyExpiresAt",
+      ),
+      User.findById(viewerId).select("friends"),
+    ]);
 
     if (!owner) {
       return new ErrorHandler(404, "Story owner not found").send(res);
     }
 
-    const isFriend = Array.isArray(owner.friends)
+    if (!viewer) {
+      return new ErrorHandler(404, "Viewer not found").send(res);
+    }
+
+    const ownerHasViewerAsFriend = Array.isArray(owner.friends)
       ? owner.friends.some((friendId) => `${friendId}` === `${viewerId}`)
       : false;
+    const viewerHasOwnerAsFriend = Array.isArray(viewer.friends)
+      ? viewer.friends.some((friendId) => `${friendId}` === `${userId}`)
+      : false;
+    const isFriend = ownerHasViewerAsFriend || viewerHasOwnerAsFriend;
 
     if (!isFriend) {
       return new ErrorHandler(403, "Only friends can comment on this story").send(res);

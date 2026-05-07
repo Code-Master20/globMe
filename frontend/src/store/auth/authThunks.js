@@ -307,7 +307,13 @@ export const uploadStory = createAsyncThunk(
         },
       });
 
-      return response.data;
+      const meResponse = await api.get("/auth/me");
+
+      return {
+        ...meResponse.data,
+        message:
+          response.data?.message || "Story uploaded successfully",
+      };
     } catch (error) {
       return thunkAPI.rejectWithValue({
         status: error.response?.status,
