@@ -33,12 +33,28 @@ export const Root = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      dispatch(fetchNotifications());
-      const timer = setInterval(() => {
+      const refreshNotifications = () => {
         dispatch(fetchNotifications());
-      }, 30000);
+      };
+      const handleVisibilityRefresh = () => {
+        if (document.visibilityState === "visible") {
+          refreshNotifications();
+        }
+      };
 
-      return () => clearInterval(timer);
+      refreshNotifications();
+      window.addEventListener("focus", refreshNotifications);
+      document.addEventListener("visibilitychange", handleVisibilityRefresh);
+
+      const timer = setInterval(() => {
+        refreshNotifications();
+      }, 15000);
+
+      return () => {
+        clearInterval(timer);
+        window.removeEventListener("focus", refreshNotifications);
+        document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+      };
     }
   }, [dispatch, isAuthenticated]);
 

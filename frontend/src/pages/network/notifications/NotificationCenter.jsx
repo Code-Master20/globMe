@@ -27,7 +27,11 @@ const getNotificationTarget = (notification) =>
   notification.link || (notification.actor?._id ? `/profile/${notification.actor._id}` : "");
 
 const getNotificationActionLabel = (notification) =>
-  notification.type === "story_added" && notification.link ? "View story" : "View profile";
+  notification.type === "story_added" && notification.link
+    ? "View story"
+    : notification.type === "story_comment" && notification.link
+      ? "Open messages"
+      : "View profile";
 
 export const NotificationCenter = () => {
   const navigate = useNavigate();

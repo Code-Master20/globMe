@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const User = require("../models/auth/user.model");
 const StoryLike = require("../models/storyLike.model");
 const StoryComment = require("../models/storyComment.model");
+const Notification = require("../models/notification.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
@@ -79,6 +80,30 @@ const getStoryHistoryEntry = (user, storyEntryId) => {
   }
 
   return user.storyHistory.find((item) => `${item?._id}` === `${storyEntryId}`) || null;
+};
+
+const hasRelationshipToUser = (list = [], targetId) =>
+  Array.isArray(list) && list.some((itemId) => `${itemId}` === `${targetId}`);
+
+const hasConfirmedFriendship = (owner, viewerId, viewer) => {
+  if (!owner || !viewer) {
+    return false;
+  }
+
+  const ownerHasViewerAsFriend = hasRelationshipToUser(owner.friends, viewerId);
+  const viewerHasOwnerAsFriend = hasRelationshipToUser(viewer.friends, owner._id);
+
+  if (!ownerHasViewerAsFriend || !viewerHasOwnerAsFriend) {
+    return false;
+  }
+
+  const hasPendingRequest =
+    hasRelationshipToUser(owner.friendRequestsSent, viewerId) ||
+    hasRelationshipToUser(owner.friendRequestsReceived, viewerId) ||
+    hasRelationshipToUser(viewer.friendRequestsSent, owner._id) ||
+    hasRelationshipToUser(viewer.friendRequestsReceived, owner._id);
+
+  return !hasPendingRequest;
 };
 
 const getPublicStoryByUserId = async (req, res) => {
@@ -206,9 +231,19 @@ const addStoryComment = async (req, res) => {
 
     const [owner, viewer] = await Promise.all([
       User.findById(userId).select(
-        "friends storyHistory storyActiveHistoryId story storyExpiresAt",
+        [
+          "friends",
+          "friendRequestsSent",
+          "friendRequestsReceived",
+          "storyHistory",
+          "storyActiveHistoryId",
+          "story",
+          "storyExpiresAt",
+        ].join(" "),
       ),
-      User.findById(viewerId).select("friends"),
+      User.findById(viewerId).select(
+        "friends friendRequestsSent friendRequestsReceived",
+      ),
     ]);
 
     if (!owner) {
@@ -219,16 +254,13 @@ const addStoryComment = async (req, res) => {
       return new ErrorHandler(404, "Viewer not found").send(res);
     }
 
-    const ownerHasViewerAsFriend = Array.isArray(owner.friends)
-      ? owner.friends.some((friendId) => `${friendId}` === `${viewerId}`)
-      : false;
-    const viewerHasOwnerAsFriend = Array.isArray(viewer.friends)
-      ? viewer.friends.some((friendId) => `${friendId}` === `${userId}`)
-      : false;
-    const isFriend = ownerHasViewerAsFriend || viewerHasOwnerAsFriend;
+    const isFriend = hasConfirmedFriendship(owner, viewerId, viewer);
 
     if (!isFriend) {
-      return new ErrorHandler(403, "Only friends can comment on this story").send(res);
+      return new ErrorHandler(
+        403,
+        "Only confirmed friends can comment on this story",
+      ).send(res);
     }
 
     const storyEntry = getStoryHistoryEntry(owner, storyEntryId);
@@ -255,7 +287,25 @@ const addStoryComment = async (req, res) => {
       "username avatar profession",
     );
 
-    return new SuccessHandler(201, "Story comment added", populatedComment).send(res);
+    try {
+      await Notification.create({
+        user: owner._id,
+        actor: viewerId,
+        type: "story_comment",
+        message: `${
+          populatedComment?.user?.username || "A friend"
+        } sent a private message on your story`,
+        link: `/profile/stories/${storyEntry._id}`,
+      });
+    } catch (notificationError) {
+      console.error("story comment notification error", notificationError);
+    }
+
+    return new SuccessHandler(
+      201,
+      "Private message sent to the story owner",
+      populatedComment,
+    ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Story comment could not be added")
       .log("story comment create error", error)

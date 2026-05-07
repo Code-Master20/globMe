@@ -231,6 +231,82 @@
   cursor: wait;
 }
 
+.ownerCommentsPanel {
+  margin: 0 1.2rem 1.2rem;
+  padding: 1rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ownerCommentsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ownerCommentsHeader strong,
+.ownerCommentsHeader span {
+  display: block;
+}
+
+.ownerCommentsHeader span {
+  color: rgba(226, 232, 240, 0.74);
+}
+
+.ownerCommentsState {
+  margin-top: 0.9rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.52);
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.ownerCommentsList {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.9rem;
+}
+
+.ownerCommentCard {
+  padding: 0.95rem;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.54);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ownerCommentHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.ownerCommentHeader strong,
+.ownerCommentHeader span {
+  display: block;
+}
+
+.ownerCommentHeader span {
+  margin-top: 0.18rem;
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 0.86rem;
+}
+
+.ownerCommentAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.ownerCommentBody {
+  margin-top: 0.8rem;
+  color: #f8fafc;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 720px) {
   .overlay {
     padding: 0;
@@ -273,6 +349,14 @@
 
   .commentComposer {
     margin: 0 0.75rem 0.75rem;
+  }
+
+  .ownerCommentsPanel {
+    margin: 0 0.75rem 0.75rem;
+  }
+
+  .ownerCommentsHeader {
+    flex-direction: column;
   }
 
   .commentSubmitButton {

@@ -3,6 +3,7 @@ import { MdChevronLeft, MdChevronRight, MdClose, MdOutlineFavoriteBorder } from 
 import { IoHeart } from "react-icons/io5";
 import { toast } from "react-toastify";
 import api from "../../lib/api";
+import noProfile from "../../assets/noProfile.png";
 import styles from "./StoryViewerModal.module.css";
 
 const formatDisplayValue = (value) => {
@@ -30,6 +31,21 @@ const formatExpiry = (value) => {
   });
 };
 
+const formatCommentTime = (value) => {
+  if (!value) return "Recently";
+
+  const dateValue = new Date(value);
+
+  if (Number.isNaN(dateValue.getTime())) {
+    return "Recently";
+  }
+
+  return dateValue.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+};
+
 export const StoryViewerModal = ({
   open,
   stories,
@@ -44,6 +60,9 @@ export const StoryViewerModal = ({
   const [likeLoading, setLikeLoading] = useState(false);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [ownerComments, setOwnerComments] = useState([]);
+  const [ownerCommentsLoading, setOwnerCommentsLoading] = useState(false);
+  const [ownerCommentsError, setOwnerCommentsError] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -55,15 +74,56 @@ export const StoryViewerModal = ({
     setCommentDraft("");
   }, [activeIndex, open]);
 
-  if (!open || !stories?.length) {
-    return null;
-  }
-
-  const currentStory = stories[activeIndex];
+  const currentStory = stories?.[activeIndex] || null;
   const isOwnStory = currentUserId && `${currentUserId}` === `${currentStory?.user?._id}`;
   const canCommentOnStory = Boolean(currentStory?.story?.storyEntryId) && !isOwnStory;
+  const ownerStoryEntryId = `${currentStory?.story?.storyEntryId || ""}`;
+  const canLoadOwnerComments =
+    isOwnStory && /^[a-f\d]{24}$/i.test(ownerStoryEntryId);
 
-  if (!currentStory) {
+  useEffect(() => {
+    if (!open || !canLoadOwnerComments) {
+      setOwnerComments([]);
+      setOwnerCommentsError("");
+      setOwnerCommentsLoading(false);
+      return undefined;
+    }
+
+    let ignore = false;
+
+    const loadOwnerComments = async () => {
+      try {
+        setOwnerCommentsLoading(true);
+        setOwnerCommentsError("");
+        const response = await api.get(
+          `/user/story-history/${ownerStoryEntryId}/comments`,
+        );
+
+        if (!ignore) {
+          setOwnerComments(response.data?.data || []);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setOwnerComments([]);
+          setOwnerCommentsError(
+            error.response?.data?.message || "Private messages could not be loaded",
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setOwnerCommentsLoading(false);
+        }
+      }
+    };
+
+    loadOwnerComments();
+
+    return () => {
+      ignore = true;
+    };
+  }, [canLoadOwnerComments, open, ownerStoryEntryId]);
+
+  if (!open || !stories?.length || !currentStory) {
     return null;
   }
 
@@ -128,7 +188,7 @@ export const StoryViewerModal = ({
       });
 
       toast.success(
-        response.data?.message || "Private comment sent to the story owner",
+        response.data?.message || "Private message sent to the story owner",
       );
       setCommentDraft("");
     } catch (error) {
@@ -303,6 +363,53 @@ export const StoryViewerModal = ({
               {commentSubmitting ? "Sending..." : "Send private comment"}
             </button>
           </form>
+        ) : null}
+
+        {isOwnStory ? (
+          <section className={styles.ownerCommentsPanel}>
+            <div className={styles.ownerCommentsHeader}>
+              <div>
+                <strong>Private messages</strong>
+                <span>Only you can read replies sent on this story.</span>
+              </div>
+              <span>
+                {ownerComments.length} {ownerComments.length === 1 ? "message" : "messages"}
+              </span>
+            </div>
+
+            {ownerCommentsLoading ? (
+              <div className={styles.ownerCommentsState}>Loading private messages...</div>
+            ) : ownerCommentsError ? (
+              <div className={styles.ownerCommentsState}>{ownerCommentsError}</div>
+            ) : !canLoadOwnerComments ? (
+              <div className={styles.ownerCommentsState}>
+                Private messages will appear here once this story is fully saved.
+              </div>
+            ) : ownerComments.length === 0 ? (
+              <div className={styles.ownerCommentsState}>
+                No private messages on this story yet.
+              </div>
+            ) : (
+              <div className={styles.ownerCommentsList}>
+                {ownerComments.map((item) => (
+                  <article key={item._id} className={styles.ownerCommentCard}>
+                    <div className={styles.ownerCommentHeader}>
+                      <img
+                        src={item.user?.avatar || noProfile}
+                        alt={item.user?.username || "Friend"}
+                        className={styles.ownerCommentAvatar}
+                      />
+                      <div>
+                        <strong>{item.user?.username || "globMe friend"}</strong>
+                        <span>{formatCommentTime(item.createdAt)}</span>
+                      </div>
+                    </div>
+                    <p className={styles.ownerCommentBody}>{item.comment}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         ) : null}
       </div>
     </div>
