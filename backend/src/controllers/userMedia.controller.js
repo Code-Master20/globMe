@@ -3,6 +3,7 @@ const cloudinary = require("../config/cloudinary.utils");
 const User = require("../models/auth/user.model");
 const Post = require("../models/post.model");
 const StoryLike = require("../models/storyLike.model");
+const Notification = require("../models/notification.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
@@ -101,6 +102,29 @@ const clearStoryLikes = async (userId) => {
   } catch (error) {
     console.error("Story likes cleanup failed:", error);
   }
+};
+
+const buildStoryNotificationLink = (userId) => `/profile/${userId}?story=1`;
+
+const notifyFriendsAboutStory = async (user) => {
+  const friendIds = Array.from(
+    new Set((user.friends || []).map((friendId) => `${friendId}`).filter(Boolean)),
+  );
+
+  if (!friendIds.length) {
+    return;
+  }
+
+  await Notification.insertMany(
+    friendIds.map((friendId) => ({
+      user: friendId,
+      actor: user._id,
+      type: "story_added",
+      message: `${user.username} added a new story`,
+      link: buildStoryNotificationLink(user._id),
+    })),
+    { ordered: false },
+  );
 };
 
 /* =========================
@@ -348,6 +372,12 @@ const uploadStory = async (req, res) => {
         previousStoryType === "video" ? "video" : "image",
       );
       await destroyCloudinaryAsset(previousStoryAudioCloudinaryId, "video");
+
+      try {
+        await notifyFriendsAboutStory(user);
+      } catch (notificationError) {
+        console.error("story notification error", notificationError);
+      }
 
       return new SuccessHandler(
         200,

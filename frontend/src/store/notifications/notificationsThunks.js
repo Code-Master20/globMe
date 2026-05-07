@@ -3,9 +3,11 @@ import api from "../../lib/api";
 
 export const fetchNotifications = createAsyncThunk(
   "notifications/fetchNotifications",
-  async (_, thunkAPI) => {
+  async (params = {}, thunkAPI) => {
     try {
-      const response = await api.get("/network/notifications");
+      const response = await api.get("/network/notifications", {
+        params,
+      });
       return response.data;
     } catch (error) {
       return thunkAPI.rejectWithValue({

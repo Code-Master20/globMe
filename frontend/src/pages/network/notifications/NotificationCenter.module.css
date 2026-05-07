@@ -25,6 +25,44 @@
   color: #172033;
 }
 
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.searchField,
+.sortField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.searchField span,
+.sortField span {
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.searchField input,
+.sortField select {
+  min-height: 46px;
+  border-radius: 14px;
+  border: 1px solid #d8e0ea;
+  background: #ffffff;
+  padding: 0.8rem 0.95rem;
+  color: #172033;
+  outline: none;
+}
+
+.searchField input:focus,
+.sortField select:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
+}
+
 .placeholder {
   min-height: 220px;
   border-radius: 20px;
@@ -93,6 +131,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 0.6rem;
 }
 
 .viewBtn {
@@ -143,6 +182,10 @@
 @media (max-width: 640px) {
   .page {
     padding: 0.75rem;
+  }
+
+  .toolbar {
+    grid-template-columns: 1fr;
   }
 
   .notificationCard {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { FaUserEdit } from "react-icons/fa";
 import { RiImageCircleAiFill, RiImageEditLine } from "react-icons/ri";
 import {
@@ -120,6 +120,7 @@ const getLocalMediaDuration = (file) =>
 
 export const Profile = () => {
   const { userId } = useParams();
+  const [searchParams] = useSearchParams();
   const dispatch = useDispatch();
   const { user, loading } = useSelector((state) => state.auth);
 
@@ -143,9 +144,16 @@ export const Profile = () => {
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
   const [storyViewerStories, setStoryViewerStories] = useState([]);
   const [storyViewerLoading, setStoryViewerLoading] = useState(false);
+  const [autoOpenedStoryKey, setAutoOpenedStoryKey] = useState("");
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
   const metadataProfile = isOwner ? user : viewedUser;
+  const profileUser = isOwner ? user : viewedUser;
+  const activeStory = profileUser?.story || "";
+  const activeStoryType = profileUser?.storyType || "image";
+  const activeStoryAudio = profileUser?.storyAudio || "";
+  const storyExpiresAt = profileUser?.storyExpiresAt || "";
+  const hasActiveStory = Boolean(activeStory && storyExpiresAt);
 
   usePageMetadata({
     title: metadataProfile?.username
@@ -391,6 +399,50 @@ export const Profile = () => {
     }
   };
 
+  useEffect(() => {
+    const shouldAutoOpenStory =
+      searchParams.get("story") === "1" || searchParams.get("story") === "true";
+    const storyKey = profileUser?._id && storyExpiresAt
+      ? `${profileUser._id}:${storyExpiresAt}`
+      : "";
+
+    if (
+      !shouldAutoOpenStory ||
+      !storyKey ||
+      !hasActiveStory ||
+      storyViewerOpen ||
+      storyViewerLoading ||
+      autoOpenedStoryKey === storyKey
+    ) {
+      return;
+    }
+
+    setAutoOpenedStoryKey(storyKey);
+
+    const openStoryFromLink = async () => {
+      try {
+        setStoryViewerLoading(true);
+        const response = await api.get(`/public/stories/${profileUser._id}`);
+        setStoryViewerStories([response.data?.data].filter(Boolean));
+        setStoryViewerOpen(true);
+      } catch (error) {
+        toast.error(error.response?.data?.message || "Story could not be opened");
+      } finally {
+        setStoryViewerLoading(false);
+      }
+    };
+
+    openStoryFromLink();
+  }, [
+    autoOpenedStoryKey,
+    hasActiveStory,
+    profileUser?._id,
+    searchParams,
+    storyExpiresAt,
+    storyViewerLoading,
+    storyViewerOpen,
+  ]);
+
   const handleSendFriendRequest = async () => {
     if (!profileUser?._id || isOwner) {
       return;
@@ -513,8 +565,6 @@ export const Profile = () => {
     );
   }
 
-  const profileUser = isOwner ? user : viewedUser;
-
   if (!profileUser) {
     return (
       <main className={styles.mainContainer}>
@@ -579,11 +629,6 @@ export const Profile = () => {
   const canVisitorSeeFollowers = typeof profileUser.followersCount === "number";
   const canVisitorSeeFollowing = typeof profileUser.followingCount === "number";
   const relationshipStatus = profileUser.relationshipStatus || "none";
-  const activeStory = profileUser.story || "";
-  const activeStoryType = profileUser.storyType || "image";
-  const activeStoryAudio = profileUser.storyAudio || "";
-  const storyExpiresAt = profileUser.storyExpiresAt || "";
-  const hasActiveStory = Boolean(activeStory && storyExpiresAt);
   const storyExpiryLabel = formatStoryExpiry(storyExpiresAt);
   const storyTimeLeftLabel = getStoryTimeLeftLabel(storyExpiresAt);
   const pendingStoryType = pendingStoryMediaFile

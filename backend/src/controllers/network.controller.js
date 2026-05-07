@@ -188,15 +188,21 @@ const getOwnerNetworkHub = async (req, res) => {
 
 const getNotifications = async (req, res) => {
   try {
+    const requestedLimit = Number.parseInt(`${req.query.limit ?? "30"}`, 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 1), 100)
+      : 30;
+
     const notifications = await Notification.find({ user: req.user._id })
       .populate("actor", "username avatar profession profileVisibility")
       .sort({ createdAt: -1 })
-      .limit(30);
+      .limit(limit);
 
     const normalizedNotifications = notifications.map((notification) => ({
       _id: notification._id,
       type: notification.type,
       message: notification.message,
+      link: notification.link || null,
       read: notification.read,
       createdAt: notification.createdAt,
       actor: notification.actor
