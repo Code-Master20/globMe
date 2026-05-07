@@ -1,12 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { toast } from "react-toastify";
 import noProfile from "../../../assets/noProfile.png";
 import {
+  deleteNotification,
   fetchNotifications,
   markNotificationsRead,
 } from "../../../store/notifications/notificationsThunks";
 import styles from "./NotificationCenter.module.css";
+
+const SWIPE_DELETE_THRESHOLD = 96;
+const SWIPE_MAX_OFFSET = 132;
 
 const formatDisplayValue = (value) => {
   if (!value) return "";
@@ -27,9 +32,22 @@ const getNotificationActionLabel = (notification) =>
 export const NotificationCenter = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { items, loading } = useSelector((state) => state.notifications);
+  const { items, loading, deletingId, errorMessage } = useSelector(
+    (state) => state.notifications,
+  );
   const [searchText, setSearchText] = useState("");
   const [sortOrder, setSortOrder] = useState("newest");
+  const [activeSwipe, setActiveSwipe] = useState({
+    notificationId: "",
+    offsetX: 0,
+  });
+  const swipeGestureRef = useRef({
+    notificationId: "",
+    startX: 0,
+    startY: 0,
+    offsetX: 0,
+    suppressClickFor: "",
+  });
 
   useEffect(() => {
     const hydrateNotifications = async () => {
@@ -39,6 +57,12 @@ export const NotificationCenter = () => {
 
     hydrateNotifications();
   }, [dispatch]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      toast.error(errorMessage);
+    }
+  }, [errorMessage]);
 
   const normalizedSearchText = searchText.trim().toLowerCase();
   const visibleItems = [...items]
@@ -65,6 +89,92 @@ export const NotificationCenter = () => {
 
       return sortOrder === "oldest" ? firstDate - secondDate : secondDate - firstDate;
     });
+
+  const handleDeleteNotification = async (notificationId) => {
+    setActiveSwipe((current) =>
+      current.notificationId === notificationId
+        ? { notificationId: "", offsetX: 0 }
+        : current,
+    );
+
+    const resultAction = await dispatch(deleteNotification(notificationId));
+
+    if (deleteNotification.fulfilled.match(resultAction)) {
+      toast.success(resultAction.payload?.message || "Notification removed");
+    }
+  };
+
+  const handleSwipeStart = (notificationId, touch) => {
+    swipeGestureRef.current = {
+      notificationId,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      offsetX: 0,
+      suppressClickFor: swipeGestureRef.current.suppressClickFor,
+    };
+
+    setActiveSwipe((current) =>
+      current.notificationId === notificationId ? current : { notificationId, offsetX: 0 },
+    );
+  };
+
+  const handleSwipeMove = (notificationId, touch) => {
+    if (swipeGestureRef.current.notificationId !== notificationId) {
+      return;
+    }
+
+    const deltaX = touch.clientX - swipeGestureRef.current.startX;
+    const deltaY = touch.clientY - swipeGestureRef.current.startY;
+
+    if (Math.abs(deltaX) <= Math.abs(deltaY)) {
+      return;
+    }
+
+    const nextOffsetX = Math.max(-SWIPE_MAX_OFFSET, Math.min(0, deltaX));
+    swipeGestureRef.current.offsetX = nextOffsetX;
+
+    if (Math.abs(nextOffsetX) > 10) {
+      swipeGestureRef.current.suppressClickFor = notificationId;
+    }
+
+    setActiveSwipe({ notificationId, offsetX: nextOffsetX });
+  };
+
+  const handleSwipeEnd = (notificationId) => {
+    if (swipeGestureRef.current.notificationId !== notificationId) {
+      return;
+    }
+
+    const offsetX = swipeGestureRef.current.offsetX;
+    swipeGestureRef.current.notificationId = "";
+    swipeGestureRef.current.offsetX = 0;
+
+    if (offsetX <= -SWIPE_DELETE_THRESHOLD) {
+      handleDeleteNotification(notificationId);
+      return;
+    }
+
+    setActiveSwipe((current) =>
+      current.notificationId === notificationId
+        ? { notificationId: "", offsetX: 0 }
+        : current,
+    );
+  };
+
+  const handleNotificationNavigation = (notification, event) => {
+    if (swipeGestureRef.current.suppressClickFor === notification._id) {
+      swipeGestureRef.current.suppressClickFor = "";
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const target = getNotificationTarget(notification);
+
+    if (target) {
+      navigate(target);
+    }
+  };
 
   return (
     <main className={styles.page}>
@@ -112,58 +222,76 @@ export const NotificationCenter = () => {
             {visibleItems.map((notification) => (
               <article
                 key={notification._id}
-                className={`${styles.notificationCard} ${
+                className={`${styles.notificationRow} ${
                   notification.read ? styles.readCard : styles.unreadCard
                 }`}
+                onTouchStart={(event) =>
+                  handleSwipeStart(notification._id, event.changedTouches[0])
+                }
+                onTouchMove={(event) =>
+                  handleSwipeMove(notification._id, event.changedTouches[0])
+                }
+                onTouchEnd={() => handleSwipeEnd(notification._id)}
+                onTouchCancel={() => handleSwipeEnd(notification._id)}
               >
                 <button
                   type="button"
-                  className={styles.notificationMain}
-                  onClick={() => {
-                    const target = getNotificationTarget(notification);
-
-                    if (target) {
-                      navigate(target);
-                    }
-                  }}
-                  disabled={!getNotificationTarget(notification)}
+                  className={styles.swipeDeleteAction}
+                  onClick={() => handleDeleteNotification(notification._id)}
+                  disabled={deletingId === notification._id}
+                  aria-label={`Delete notification from ${notification.actor?.username || "user"}`}
                 >
-                  <img
-                    src={notification.actor?.avatar || noProfile}
-                    alt={notification.actor?.username || "user"}
-                    className={styles.avatar}
-                  />
-                  <div className={styles.notificationBody}>
-                    <div className={styles.notificationTop}>
-                      <h2>{notification.message}</h2>
-                      <span>{new Date(notification.createdAt).toLocaleString()}</span>
-                    </div>
-                    {notification.actor?.profession ? (
-                      <p className={styles.actorMeta}>
-                        {formatDisplayValue(notification.actor.profession)}
-                      </p>
-                    ) : null}
-                    {notification.actor?.email ? (
-                      <p className={styles.actorMeta}>{notification.actor.email}</p>
-                    ) : null}
-                  </div>
+                  {deletingId === notification._id ? "Removing..." : "Delete"}
                 </button>
-                <div className={styles.notificationActions}>
+
+                <div
+                  className={styles.notificationCard}
+                  style={{
+                    transform:
+                      activeSwipe.notificationId === notification._id
+                        ? `translateX(${activeSwipe.offsetX}px)`
+                        : "translateX(0px)",
+                  }}
+                >
                   <button
                     type="button"
-                    className={styles.viewBtn}
-                    onClick={() => {
-                      const target = getNotificationTarget(notification);
-
-                      if (target) {
-                        navigate(target);
-                      }
-                    }}
+                    className={styles.notificationMain}
+                    onClick={(event) => handleNotificationNavigation(notification, event)}
                     disabled={!getNotificationTarget(notification)}
                   >
-                    {getNotificationActionLabel(notification)}
+                    <img
+                      src={notification.actor?.avatar || noProfile}
+                      alt={notification.actor?.username || "user"}
+                      className={styles.avatar}
+                    />
+                    <div className={styles.notificationBody}>
+                      <div className={styles.notificationTop}>
+                        <h2>{notification.message}</h2>
+                        <span>{new Date(notification.createdAt).toLocaleString()}</span>
+                      </div>
+                      {notification.actor?.profession ? (
+                        <p className={styles.actorMeta}>
+                          {formatDisplayValue(notification.actor.profession)}
+                        </p>
+                      ) : null}
+                      {notification.actor?.email ? (
+                        <p className={styles.actorMeta}>{notification.actor.email}</p>
+                      ) : null}
+                    </div>
                   </button>
+
+                  <div className={styles.notificationActions}>
+                    <button
+                      type="button"
+                      className={styles.viewBtn}
+                      onClick={(event) => handleNotificationNavigation(notification, event)}
+                      disabled={!getNotificationTarget(notification)}
+                    >
+                      {getNotificationActionLabel(notification)}
+                    </button>
+                  </div>
                 </div>
+                <span className={styles.swipeHint}>Swipe left to delete</span>
               </article>
             ))}
           </section>

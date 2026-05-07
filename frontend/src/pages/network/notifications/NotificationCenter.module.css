@@ -82,6 +82,12 @@
   gap: 0.9rem;
 }
 
+.notificationRow {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+}
+
 .notificationCard {
   display: flex;
   justify-content: space-between;
@@ -90,6 +96,28 @@
   border-radius: 20px;
   border: 1px solid #e2e8f0;
   background: #ffffff;
+  position: relative;
+  z-index: 1;
+  transition: transform 180ms ease;
+  will-change: transform;
+}
+
+.swipeDeleteAction {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 132px;
+  border: none;
+  border-radius: 0;
+  background: linear-gradient(180deg, #ef4444, #dc2626);
+  color: #ffffff;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.swipeDeleteAction:disabled {
+  cursor: default;
+  opacity: 0.8;
 }
 
 .notificationMain {
@@ -179,13 +207,25 @@
   line-height: 1.5;
 }
 
+.swipeHint {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.65rem;
+  z-index: 0;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
 @media (max-width: 640px) {
   .page {
     padding: 0.75rem;
   }
 
   .toolbar {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) 140px;
+    align-items: end;
   }
 
   .notificationCard {

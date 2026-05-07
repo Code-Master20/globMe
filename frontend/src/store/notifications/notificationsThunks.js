@@ -18,6 +18,22 @@ export const fetchNotifications = createAsyncThunk(
   },
 );
 
+export const deleteNotification = createAsyncThunk(
+  "notifications/deleteNotification",
+  async (notificationId, thunkAPI) => {
+    try {
+      const response = await api.delete(`/network/notifications/${notificationId}`);
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue({
+        status: error.response?.status,
+        message: error.response?.data?.message || "Could not remove notification",
+        notificationId,
+      });
+    }
+  },
+);
+
 export const markNotificationsRead = createAsyncThunk(
   "notifications/markNotificationsRead",
   async (_, thunkAPI) => {

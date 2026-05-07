@@ -5,6 +5,7 @@ const {
   getReceivedFriendRequests,
   getOwnerNetworkHub,
   getNotifications,
+  deleteNotification,
   markNotificationsRead,
   sendFriendRequest,
   acceptFriendRequest,
@@ -15,6 +16,7 @@ router.get("/search-users", isMeMiddleware, searchUsers);
 router.get("/hub", isMeMiddleware, getOwnerNetworkHub);
 router.get("/friend-requests/received", isMeMiddleware, getReceivedFriendRequests);
 router.get("/notifications", isMeMiddleware, getNotifications);
+router.delete("/notifications/:notificationId", isMeMiddleware, deleteNotification);
 router.post(
   "/friend-requests/:targetUserId",
   isMeMiddleware,

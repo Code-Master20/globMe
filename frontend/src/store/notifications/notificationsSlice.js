@@ -1,5 +1,6 @@
 import { createSlice } from "@reduxjs/toolkit";
 import {
+  deleteNotification,
   fetchNotifications,
   markNotificationsRead,
 } from "./notificationsThunks";
@@ -10,6 +11,7 @@ const notificationsSlice = createSlice({
     loading: false,
     items: [],
     unreadCount: 0,
+    deletingId: null,
     errorMessage: null,
   },
   reducers: {},
@@ -34,6 +36,22 @@ const notificationsSlice = createSlice({
           ...item,
           read: true,
         }));
+      })
+      .addCase(deleteNotification.pending, (state, action) => {
+        state.deletingId = action.meta.arg || null;
+        state.errorMessage = null;
+      })
+      .addCase(deleteNotification.fulfilled, (state, action) => {
+        const notificationId = action.payload?.data?.notificationId;
+        const unreadCountDelta = action.payload?.data?.unreadCountDelta || 0;
+
+        state.deletingId = null;
+        state.items = state.items.filter((item) => item._id !== `${notificationId}`);
+        state.unreadCount = Math.max(0, state.unreadCount + unreadCountDelta);
+      })
+      .addCase(deleteNotification.rejected, (state, action) => {
+        state.deletingId = null;
+        state.errorMessage = action.payload?.message || "Could not remove notification";
       });
   },
 });

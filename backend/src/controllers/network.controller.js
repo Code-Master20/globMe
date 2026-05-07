@@ -223,6 +223,34 @@ const getNotifications = async (req, res) => {
   }
 };
 
+const deleteNotification = async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+
+    if (!mongoose.isValidObjectId(notificationId)) {
+      return new ErrorHandler(400, "Invalid notification id").send(res);
+    }
+
+    const notification = await Notification.findOneAndDelete({
+      _id: notificationId,
+      user: req.user._id,
+    });
+
+    if (!notification) {
+      return new ErrorHandler(404, "Notification not found").send(res);
+    }
+
+    return new SuccessHandler(200, "Notification removed", {
+      notificationId: notification._id,
+      unreadCountDelta: notification.read ? 0 : -1,
+    }).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Notification could not be removed")
+      .log("notification delete error", error)
+      .send(res);
+  }
+};
+
 const markNotificationsRead = async (req, res) => {
   try {
     await Notification.updateMany(
@@ -479,6 +507,7 @@ module.exports = {
   getReceivedFriendRequests,
   getOwnerNetworkHub,
   getNotifications,
+  deleteNotification,
   markNotificationsRead,
   sendFriendRequest,
   acceptFriendRequest,
