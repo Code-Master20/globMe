@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 
 const defaultDescription =
-  "Explore globMe posts and profiles publicly, then sign in to connect, react, and join conversations.";
+  "globMe is a private social app and should not be indexed by search engines.";
+const defaultRobots =
+  "noindex, nofollow, noarchive, nosnippet, noimageindex";
 
 const ensureMetaTag = (selector, attributeName, attributeValue) => {
   let tag = document.querySelector(selector);
@@ -18,7 +20,7 @@ const ensureMetaTag = (selector, attributeName, attributeValue) => {
 export const usePageMetadata = ({
   title,
   description = defaultDescription,
-  robots,
+  robots = defaultRobots,
 }) => {
   useEffect(() => {
     const previousTitle = document.title;
@@ -86,7 +88,7 @@ export const usePageMetadata = ({
 
     let robotsTag = document.querySelector('meta[name="robots"]');
 
-    if (!robotsTag && robots) {
+    if (!robotsTag) {
       robotsTag = document.createElement("meta");
       robotsTag.setAttribute("name", "robots");
       document.head.appendChild(robotsTag);
@@ -94,8 +96,22 @@ export const usePageMetadata = ({
 
     const previousRobots = robotsTag?.getAttribute("content") || null;
 
-    if (robotsTag && robots) {
+    if (robotsTag) {
       robotsTag.setAttribute("content", robots);
+    }
+
+    let googlebotTag = document.querySelector('meta[name="googlebot"]');
+
+    if (!googlebotTag) {
+      googlebotTag = document.createElement("meta");
+      googlebotTag.setAttribute("name", "googlebot");
+      document.head.appendChild(googlebotTag);
+    }
+
+    const previousGooglebot = googlebotTag?.getAttribute("content") || null;
+
+    if (googlebotTag) {
+      googlebotTag.setAttribute("content", robots);
     }
 
     return () => {
@@ -154,6 +170,14 @@ export const usePageMetadata = ({
           robotsTag.setAttribute("content", previousRobots);
         } else {
           robotsTag.remove();
+        }
+      }
+
+      if (googlebotTag) {
+        if (previousGooglebot) {
+          googlebotTag.setAttribute("content", previousGooglebot);
+        } else {
+          googlebotTag.remove();
         }
       }
     };

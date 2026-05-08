@@ -1,12 +1,2 @@
 User-agent: *
-Allow: /
-Disallow: /login
-Disallow: /signup
-Disallow: /reset-password
-Disallow: /verify-otp
-Disallow: /dashboard
-Disallow: /people
-Disallow: /notifications
-
-Sitemap: https://globme.vercel.app/sitemap.xml
-Sitemap: https://globme.vercel.app/api/public/sitemap.xml
+Disallow: /
