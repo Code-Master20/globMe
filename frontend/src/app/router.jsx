@@ -21,6 +21,7 @@ import { PeopleHub } from "../pages/network/people/PeopleHub.jsx";
 import { PublicPostDetail } from "../pages/posts/PublicPostDetail.jsx";
 import { Profile } from "../pages/profile/Profile.jsx";
 import { ProfileStoryDetail } from "../pages/profile/ProfileStoryDetail.jsx";
+import { UploadStudio } from "../pages/upload/UploadStudio.jsx";
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -44,25 +45,25 @@ export const router = createBrowserRouter(
       />
       <Route
         path="reset-password"
-        element={
-          <PublicRoute>
-            <EditPassword />
-          </PublicRoute>
-        }
+        element={<EditPassword />}
       />
       <Route
         path="verify-otp"
-        element={
-          <PublicRoute>
-            <OtpVerification />
-          </PublicRoute>
-        }
+        element={<OtpVerification />}
       />
       <Route
         path="dashboard"
         element={
           <PrivateRoute>
             <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="upload"
+        element={
+          <PrivateRoute>
+            <UploadStudio />
           </PrivateRoute>
         }
       />

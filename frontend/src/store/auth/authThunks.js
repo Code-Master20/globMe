@@ -229,9 +229,17 @@ export const otpVerifiedAndResetPassword = createAsyncThunk(
 
 export const logOut = createAsyncThunk(
   "auth/logout",
-  async (clientCredentials, thunkAPI) => {
+  async (_, thunkAPI) => {
     try {
-    } catch (error) {}
+      const response = await api.post("/auth/log-out");
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue({
+        status: error.response?.status,
+        message: error.response?.data?.message || "Logout failed",
+        success: false,
+      });
+    }
   },
 );
 

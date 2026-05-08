@@ -51,6 +51,12 @@ const emailSchema = z
   .lowercase({ message: "email usually in lowercase" })
   .refine(validator.isEmail, { message: "invalid email format" });
 
+const otpSchema = z
+  .string({ required_error: "otp is required" })
+  .trim()
+  .length(8, { message: "otp must be 8 digits" })
+  .regex(/^\d+$/, { message: "otp must be numeric" });
+
 //========================zodErrorSchema========================
 const logInZodSchema = z.object({
   email: emailSchema,
@@ -79,9 +85,21 @@ const passResetWithOtpZodSchema = z.object({
   newPassword: passwordSchema,
 });
 
+const emailChangeRequestZodSchema = z.object({
+  newEmail: emailSchema,
+});
+
+const emailChangeVerifyZodSchema = z.object({
+  newEmail: emailSchema,
+  currentEmailOtp: otpSchema,
+  newEmailOtp: otpSchema,
+});
+
 module.exports = {
   signUpZodSchema,
   logInZodSchema,
   passResetZodSchema,
   passResetWithOtpZodSchema,
+  emailChangeRequestZodSchema,
+  emailChangeVerifyZodSchema,
 };

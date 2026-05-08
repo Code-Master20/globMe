@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary.utils");
 const User = require("../models/auth/user.model");
 const Post = require("../models/post.model");
+const Playlist = require("../models/playlist.model");
 const StoryLike = require("../models/storyLike.model");
 const Notification = require("../models/notification.model");
 const ErrorHandler = require("../utils/errorHandler.util");
@@ -11,6 +12,18 @@ const toPublicUser = require("../utils/auth/publicUser.util");
 const STORY_LIFETIME_MS = 36 * 60 * 60 * 1000;
 const MAX_STORY_DURATION_SECONDS = 90;
 const STORY_ALLOWED_POST_TYPES = ["image", "video"];
+const OWNER_ALLOWED_POST_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+];
+const OWNER_ALLOWED_POST_VIDEO_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
+];
 const STORY_HISTORY_LIMIT = 12;
 
 const normalizeListInput = (value, pattern = /\r?\n|,/) => {
@@ -28,6 +41,232 @@ const normalizeListInput = (value, pattern = /\r?\n|,/) => {
     .split(pattern)
     .map((item) => item.trim())
     .filter(Boolean);
+};
+
+const normalizeCategoryInput = (value) => {
+  const normalizedValue = `${value ?? ""}`.trim().toLowerCase();
+  return normalizedValue || null;
+};
+
+const normalizeTagInput = (value) =>
+  Array.from(
+    new Set(
+      normalizeListInput(value)
+        .map((item) => item.toLowerCase())
+        .slice(0, 12),
+    ),
+  );
+
+const normalizeOwnerPostFormat = ({ postType, contentFormat }) => {
+  const normalizedFormat = `${contentFormat ?? ""}`.trim().toLowerCase();
+
+  if (postType === "video") {
+    if (normalizedFormat === "long") {
+      return "long";
+    }
+
+    return "reel";
+  }
+
+  if (normalizedFormat === "reel") {
+    return "reel";
+  }
+
+  return "article";
+};
+
+const getOwnerPostTypeFromFile = (file) =>
+  file?.mimetype?.startsWith("video/") ? "video" : "image";
+
+const buildOwnerPostTitle = (providedTitle, file) => {
+  const trimmedTitle = `${providedTitle ?? ""}`.trim();
+
+  if (trimmedTitle) {
+    return trimmedTitle;
+  }
+
+  const fallbackName = `${file?.originalname ?? "untitled post"}`.replace(
+    /\.[^.]+$/,
+    "",
+  );
+
+  return fallbackName.trim() || "untitled post";
+};
+
+const formatPostPayload = (postDoc, options = {}) => {
+  if (!postDoc) {
+    return null;
+  }
+
+  const {
+    viewerId = null,
+    savedToWatchLater = false,
+    playlists = [],
+  } = options;
+  const post = typeof postDoc.toObject === "function" ? postDoc.toObject() : postDoc;
+
+  return {
+    _id: `${post._id}`,
+    title: post.title,
+    description: post.description,
+    tags: Array.isArray(post.tags) ? post.tags : [],
+    postType: post.postType,
+    category: post.category || null,
+    contentFormat: post.contentFormat || null,
+    durationSeconds: Number(post.durationSeconds) || 0,
+    url: post.url,
+    likeCount: post.likeCount || 0,
+    shareCount: post.shareCount || 0,
+    commentCount: post.commentCount || 0,
+    postDate: post.postDate,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    savedToWatchLater,
+    playlists,
+    user: post.user ? toPublicUser(post.user, { viewerId }) : null,
+  };
+};
+
+const normalizePlaylistPostIds = (value) => {
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return [];
+    }
+
+    try {
+      return normalizePlaylistPostIds(JSON.parse(trimmedValue));
+    } catch (error) {
+      return normalizePlaylistPostIds(trimmedValue.split(","));
+    }
+  }
+
+  if (!Array.isArray(value)) {
+    return value && mongoose.isValidObjectId(`${value}`.trim()) ? [`${value}`.trim()] : [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => `${item ?? ""}`.trim())
+        .filter((item) => mongoose.isValidObjectId(item)),
+    ),
+  );
+};
+
+const appendVideoToPlaylists = async ({
+  ownerId,
+  videoPostId,
+  existingPlaylistIds = [],
+  newPlaylistTitle = "",
+  newPlaylistDescription = "",
+}) => {
+  const linkedPlaylists = [];
+
+  if (existingPlaylistIds.length) {
+    const existingPlaylists = await Playlist.find({
+      _id: { $in: existingPlaylistIds },
+      owner: ownerId,
+    }).select("title");
+
+    if (existingPlaylists.length) {
+      await Playlist.updateMany(
+        {
+          _id: { $in: existingPlaylists.map((playlist) => playlist._id) },
+          owner: ownerId,
+        },
+        {
+          $addToSet: { videoPosts: videoPostId },
+          $set: { isPublic: true },
+        },
+      );
+
+      linkedPlaylists.push(
+        ...existingPlaylists.map((playlist) => ({
+          _id: `${playlist._id}`,
+          title: playlist.title,
+        })),
+      );
+    }
+  }
+
+  const normalizedNewTitle = `${newPlaylistTitle ?? ""}`.trim().toLowerCase();
+  const normalizedNewDescription = `${newPlaylistDescription ?? ""}`.trim();
+
+  if (normalizedNewTitle) {
+    let playlist = await Playlist.findOne({
+      owner: ownerId,
+      title: normalizedNewTitle,
+    });
+
+    if (!playlist) {
+      playlist = await Playlist.create({
+        owner: ownerId,
+        title: normalizedNewTitle,
+        description: normalizedNewDescription,
+        isPublic: true,
+        videoPosts: [videoPostId],
+      });
+    } else {
+      if (normalizedNewDescription && !`${playlist.description ?? ""}`.trim()) {
+        playlist.description = normalizedNewDescription;
+      }
+
+      playlist.isPublic = true;
+
+      if (!playlist.videoPosts.some((postId) => `${postId}` === `${videoPostId}`)) {
+        playlist.videoPosts.push(videoPostId);
+      }
+
+      await playlist.save();
+    }
+
+    if (!linkedPlaylists.some((item) => item._id === `${playlist._id}`)) {
+      linkedPlaylists.push({
+        _id: `${playlist._id}`,
+        title: playlist.title,
+      });
+    }
+  }
+
+  return linkedPlaylists;
+};
+
+const formatPlaylistPayload = (playlistDoc) => {
+  if (!playlistDoc) {
+    return null;
+  }
+
+  const playlist = typeof playlistDoc.toObject === "function"
+    ? playlistDoc.toObject()
+    : playlistDoc;
+  const posts = Array.isArray(playlist.videoPosts) ? playlist.videoPosts : [];
+
+  return {
+    _id: `${playlist._id}`,
+    title: playlist.title,
+    description: playlist.description || "",
+    isPublic: playlist.isPublic !== false,
+    createdAt: playlist.createdAt,
+    updatedAt: playlist.updatedAt,
+    videoCount: posts.length,
+    videos: posts
+      .filter((post) => post && post.postType === "video")
+      .map((post) => ({
+        _id: `${post._id}`,
+        title: post.title,
+        description: post.description,
+        url: post.url,
+        postType: post.postType,
+        category: post.category || "uncategorized",
+        likeCount: post.likeCount,
+        shareCount: post.shareCount,
+        commentCount: post.commentCount,
+        createdAt: post.createdAt,
+        updatedAt: post.updatedAt,
+      })),
+  };
 };
 
 const uploadBufferToCloudinary = (file, options) =>
@@ -643,6 +882,439 @@ const getStoryEligiblePosts = async (req, res) => {
   }
 };
 
+const getOwnerVideoLibrary = async (req, res) => {
+  try {
+    const posts = await Post.find({
+      user: req.user.id,
+      postType: "video",
+    })
+      .select("title description url postType category createdAt updatedAt")
+      .select("title description url postType category contentFormat durationSeconds createdAt updatedAt")
+      .sort({ createdAt: -1 });
+
+    const normalizedPosts = posts.map((post) => ({
+      _id: `${post._id}`,
+      title: post.title,
+      description: post.description,
+      url: post.url,
+      postType: post.postType,
+      category: post.category || "uncategorized",
+      contentFormat: post.contentFormat || "reel",
+      durationSeconds: Number(post.durationSeconds) || 0,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+    }));
+
+    const categorySummary = normalizedPosts.reduce((accumulator, post) => {
+      const categoryKey = post.category || "uncategorized";
+      accumulator[categoryKey] = (accumulator[categoryKey] || 0) + 1;
+      return accumulator;
+    }, {});
+
+    return new SuccessHandler(200, "Video library loaded", {
+      posts: normalizedPosts,
+      categories: Object.entries(categorySummary).map(([category, count]) => ({
+        category,
+        count,
+      })),
+    }).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Video library could not be loaded")
+      .log("video library error", error)
+      .send(res);
+  }
+};
+
+const getOwnerPlaylists = async (req, res) => {
+  try {
+    const playlists = await Playlist.find({ owner: req.user.id })
+      .populate({
+        path: "videoPosts",
+        match: { postType: "video", user: req.user.id },
+        select:
+          "title description url postType category likeCount shareCount commentCount createdAt updatedAt",
+      })
+      .sort({ updatedAt: -1 });
+
+    return new SuccessHandler(
+      200,
+      "Playlists loaded",
+      playlists.map(formatPlaylistPayload),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Playlists could not be loaded")
+      .log("owner playlists error", error)
+      .send(res);
+  }
+};
+
+const createPlaylist = async (req, res) => {
+  try {
+    const title = `${req.body?.title ?? ""}`.trim().toLowerCase();
+    const description = `${req.body?.description ?? ""}`.trim();
+    const videoPostIds = normalizePlaylistPostIds(req.body?.videoPostIds);
+
+    if (!title) {
+      return new ErrorHandler(400, "Playlist title is required").send(res);
+    }
+
+    const ownerVideos = await Post.find({
+      _id: { $in: videoPostIds },
+      user: req.user.id,
+      postType: "video",
+    }).select("_id");
+
+    const ownerVideoIds = ownerVideos.map((post) => post._id);
+
+    const playlist = await Playlist.create({
+      owner: req.user.id,
+      title,
+      description,
+      isPublic: true,
+      videoPosts: ownerVideoIds,
+    });
+
+    const hydratedPlaylist = await Playlist.findById(playlist._id).populate({
+      path: "videoPosts",
+      select:
+        "title description url postType category likeCount shareCount commentCount createdAt updatedAt",
+    });
+
+    return new SuccessHandler(
+      201,
+      "Playlist created successfully",
+      formatPlaylistPayload(hydratedPlaylist),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Playlist could not be created")
+      .log("create playlist error", error)
+      .send(res);
+  }
+};
+
+const updatePlaylist = async (req, res) => {
+  try {
+    const { playlistId } = req.params;
+
+    if (!mongoose.isValidObjectId(playlistId)) {
+      return new ErrorHandler(400, "Invalid playlist selected").send(res);
+    }
+
+    const playlist = await Playlist.findOne({ _id: playlistId, owner: req.user.id });
+
+    if (!playlist) {
+      return new ErrorHandler(404, "Playlist not found").send(res);
+    }
+
+    const title = `${req.body?.title ?? playlist.title}`.trim().toLowerCase();
+    const description =
+      req.body?.description !== undefined
+        ? `${req.body.description ?? ""}`.trim()
+        : playlist.description;
+    const videoPostIds =
+      req.body?.videoPostIds !== undefined
+        ? normalizePlaylistPostIds(req.body.videoPostIds)
+        : playlist.videoPosts.map((postId) => `${postId}`);
+
+    if (!title) {
+      return new ErrorHandler(400, "Playlist title is required").send(res);
+    }
+
+    const ownerVideos = await Post.find({
+      _id: { $in: videoPostIds },
+      user: req.user.id,
+      postType: "video",
+    }).select("_id");
+
+    playlist.title = title;
+    playlist.description = description;
+    playlist.videoPosts = ownerVideos.map((post) => post._id);
+    playlist.isPublic = true;
+    await playlist.save();
+
+    const hydratedPlaylist = await Playlist.findById(playlist._id).populate({
+      path: "videoPosts",
+      select:
+        "title description url postType category likeCount shareCount commentCount createdAt updatedAt",
+    });
+
+    return new SuccessHandler(
+      200,
+      "Playlist updated successfully",
+      formatPlaylistPayload(hydratedPlaylist),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Playlist could not be updated")
+      .log("update playlist error", error)
+      .send(res);
+  }
+};
+
+const getPublicProfilePlaylists = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!mongoose.isValidObjectId(userId)) {
+      return new ErrorHandler(400, "Invalid profile id").send(res);
+    }
+
+    const playlists = await Playlist.find({
+      owner: userId,
+      isPublic: true,
+    })
+      .populate({
+        path: "videoPosts",
+        match: { postType: "video", user: userId },
+        select:
+          "title description url postType category likeCount shareCount commentCount createdAt updatedAt",
+      })
+      .sort({ updatedAt: -1 });
+
+    return new SuccessHandler(
+      200,
+      "Public playlists loaded",
+      playlists.map(formatPlaylistPayload),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Public playlists could not be loaded")
+      .log("public playlists error", error)
+      .send(res);
+  }
+};
+
+const updateVideoCategory = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const category = normalizeCategoryInput(req.body?.category);
+
+    if (!mongoose.isValidObjectId(postId)) {
+      return new ErrorHandler(400, "Invalid post selected").send(res);
+    }
+
+    const post = await Post.findOne({
+      _id: postId,
+      user: req.user.id,
+      postType: "video",
+    });
+
+    if (!post) {
+      return new ErrorHandler(404, "Video post not found").send(res);
+    }
+
+    post.category = category;
+    await post.save();
+
+    return new SuccessHandler(200, "Video category updated", {
+      _id: `${post._id}`,
+      category: post.category || "uncategorized",
+    }).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Video category could not be updated")
+      .log("video category error", error)
+      .send(res);
+  }
+};
+
+const createOwnerPost = async (req, res) => {
+  try {
+    const mediaFile = req.file;
+
+    if (!mediaFile) {
+      return new ErrorHandler(400, "Choose a photo or video to publish").send(res);
+    }
+
+    const postType = getOwnerPostTypeFromFile(mediaFile);
+    const contentFormat = normalizeOwnerPostFormat({
+      postType,
+      contentFormat: req.body?.contentFormat,
+    });
+    const category = postType === "video" ? normalizeCategoryInput(req.body?.category) : null;
+    const title = buildOwnerPostTitle(req.body?.title, mediaFile);
+    const description = `${req.body?.description ?? ""}`.trim();
+    const tags = normalizeTagInput(req.body?.tags);
+    const playlistIds = postType === "video"
+      ? normalizePlaylistPostIds(req.body?.playlistIds)
+      : [];
+    const newPlaylistTitle =
+      postType === "video" ? `${req.body?.newPlaylistTitle ?? ""}`.trim() : "";
+    const newPlaylistDescription =
+      postType === "video" ? `${req.body?.newPlaylistDescription ?? ""}`.trim() : "";
+
+    const uploadResult = await uploadBufferToCloudinary(mediaFile, {
+      folder: postType === "video" ? "seekFi/posts/videos" : "seekFi/posts/images",
+      resource_type: "auto",
+    });
+
+    const newPost = await Post.create({
+      title,
+      description,
+      tags,
+      postType,
+      category,
+      contentFormat,
+      durationSeconds:
+        postType === "video" ? getUploadDurationSeconds(uploadResult) : 0,
+      url: uploadResult.secure_url,
+      cloudinaryId: uploadResult.public_id,
+      user: req.user.id,
+      postDate: Date.now(),
+    });
+
+    const linkedPlaylists = postType === "video"
+      ? await appendVideoToPlaylists({
+        ownerId: req.user.id,
+        videoPostId: newPost._id,
+        existingPlaylistIds: playlistIds,
+        newPlaylistTitle,
+        newPlaylistDescription,
+      })
+      : [];
+
+    const hydratedPost = await Post.findById(newPost._id).populate(
+      "user",
+      "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt",
+    );
+
+    return new SuccessHandler(
+      201,
+      "Post published successfully",
+      formatPostPayload(hydratedPost, {
+        viewerId: req.user.id,
+        playlists: linkedPlaylists,
+      }),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Post could not be published")
+      .log("owner post publish error", error)
+      .send(res);
+  }
+};
+
+const getOwnerPosts = async (req, res) => {
+  try {
+    const requestedType = `${req.query.type ?? "all"}`.trim().toLowerCase();
+    const allowedTypes = ["all", "image", "video"];
+    const query = {
+      user: req.user.id,
+    };
+
+    if (allowedTypes.includes(requestedType) && requestedType !== "all") {
+      query.postType = requestedType;
+    }
+
+    const posts = await Post.find(query)
+      .populate(
+        "user",
+        "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt",
+      )
+      .sort({ createdAt: -1 })
+      .limit(36);
+
+    return new SuccessHandler(
+      200,
+      "Owner posts loaded",
+      posts.map((post) =>
+        formatPostPayload(post, {
+          viewerId: req.user.id,
+        }),
+      ),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Owner posts could not be loaded")
+      .log("owner posts error", error)
+      .send(res);
+  }
+};
+
+const toggleWatchLater = async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    if (!mongoose.isValidObjectId(postId)) {
+      return new ErrorHandler(400, "Invalid post selected").send(res);
+    }
+
+    const post = await Post.findById(postId).select(
+      "title description url postType category user likeCount commentCount shareCount postDate createdAt updatedAt",
+    );
+
+    if (!post || post.postType !== "video") {
+      return new ErrorHandler(404, "Video post not found").send(res);
+    }
+
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    const existingIndex = (user.watchLaterPosts || []).findIndex(
+      (savedPostId) => `${savedPostId}` === `${post._id}`,
+    );
+    const isSaved = existingIndex >= 0;
+
+    if (isSaved) {
+      user.watchLaterPosts.splice(existingIndex, 1);
+    } else {
+      user.watchLaterPosts.push(post._id);
+    }
+
+    await user.save();
+
+    return new SuccessHandler(
+      200,
+      isSaved ? "Removed from watch later" : "Saved to watch later",
+      {
+        postId: `${post._id}`,
+        savedToWatchLater: !isSaved,
+      },
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Watch later could not be updated")
+      .log("watch later toggle error", error)
+      .send(res);
+  }
+};
+
+const getWatchLaterVideos = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("watchLaterPosts");
+
+    if (!user) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    const watchLaterIds = Array.isArray(user.watchLaterPosts)
+      ? user.watchLaterPosts
+      : [];
+
+    const posts = await Post.find({
+      _id: { $in: watchLaterIds },
+      postType: "video",
+    })
+      .populate(
+        "user",
+        "username avatar profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt",
+      )
+      .sort({ createdAt: -1 });
+
+    const normalizedPosts = posts
+      .filter((post) => post.user)
+      .map((post) =>
+        formatPostPayload(post, {
+          viewerId: user._id,
+          savedToWatchLater: true,
+        }),
+      );
+
+    return new SuccessHandler(200, "Watch later videos loaded", normalizedPosts).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Watch later videos could not be loaded")
+      .log("watch later load error", error)
+      .send(res);
+  }
+};
+
 const updateProfileDetails = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -816,4 +1488,14 @@ module.exports = {
   updateCreatorMode,
   getProfileView,
   deleteStoryHistoryEntry,
+  getOwnerVideoLibrary,
+  createOwnerPost,
+  getOwnerPosts,
+  getOwnerPlaylists,
+  updateVideoCategory,
+  toggleWatchLater,
+  getWatchLaterVideos,
+  createPlaylist,
+  updatePlaylist,
+  getPublicProfilePlaylists,
 };

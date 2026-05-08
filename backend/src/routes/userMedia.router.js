@@ -20,9 +20,19 @@ const {
   deleteStory,
   deleteStoryHistoryEntry,
   getStoryEligiblePosts,
+  getOwnerVideoLibrary,
+  createOwnerPost,
+  getOwnerPosts,
+  getOwnerPlaylists,
+  getWatchLaterVideos,
+  toggleWatchLater,
   updateProfileDetails,
   updateCreatorMode,
+  updateVideoCategory,
   getProfileView,
+  createPlaylist,
+  updatePlaylist,
+  getPublicProfilePlaylists,
 } = require("../controllers/userMedia.controller");
 
 const handleSingleImageUpload = (fieldName) => (req, res, next) => {
@@ -103,6 +113,41 @@ const handleStoryUpload = (req, res, next) => {
   });
 };
 
+const ownerPostUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 },
+  fileFilter: (req, file, callback) => {
+    const allowedImageTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+    ];
+    const allowedVideoTypes = ["video/mp4", "video/webm", "video/ogg", "video/quicktime"];
+
+    if ([...allowedImageTypes, ...allowedVideoTypes].includes(file.mimetype)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("Only photo and video files are allowed for posts"), false);
+  },
+});
+
+const handleOwnerPostUpload = (req, res, next) => {
+  ownerPostUpload.single("media")(req, res, (error) => {
+    if (!error) {
+      return next();
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      return new ErrorHandler(400, "Post media file is too large").send(res);
+    }
+
+    return new ErrorHandler(400, error.message || "Post upload failed").send(res);
+  });
+};
+
 router.post(
   "/upload-avatar",
   isMeMiddleware,
@@ -125,12 +170,22 @@ router.post(
 );
 
 router.get("/story-posts", isMeMiddleware, getStoryEligiblePosts);
+router.get("/posts", isMeMiddleware, getOwnerPosts);
+router.get("/videos", isMeMiddleware, getOwnerVideoLibrary);
+router.get("/playlists", isMeMiddleware, getOwnerPlaylists);
+router.get("/watch-later", isMeMiddleware, getWatchLaterVideos);
 router.post("/stories/:userId/like", isMeMiddleware, toggleStoryLike);
 router.post("/stories/:userId/comments", isMeMiddleware, addStoryComment);
+router.post("/watch-later/:postId", isMeMiddleware, toggleWatchLater);
+router.post("/posts/upload", isMeMiddleware, handleOwnerPostUpload, createOwnerPost);
+router.post("/playlists", isMeMiddleware, createPlaylist);
 router.get("/story-history/:storyHistoryId/comments", isMeMiddleware, getOwnerStoryComments);
 router.patch("/profile", isMeMiddleware, updateProfileDetails);
 router.patch("/profile/creator", isMeMiddleware, updateCreatorMode);
+router.patch("/videos/:postId/category", isMeMiddleware, updateVideoCategory);
+router.patch("/playlists/:playlistId", isMeMiddleware, updatePlaylist);
 router.get("/profile/:userId", optionalAuthMiddleware, getProfileView);
+router.get("/profile/:userId/playlists", optionalAuthMiddleware, getPublicProfilePlaylists);
 
 router.delete("/delete-avatar", isMeMiddleware, deleteAvatar);
 router.delete("/delete-banner", isMeMiddleware, deleteBanner);

@@ -48,6 +48,7 @@ export const PublicFeedView = ({
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [watchLaterBusyId, setWatchLaterBusyId] = useState("");
 
   usePageMetadata({
     title: seoTitle || title,
@@ -98,6 +99,36 @@ export const PublicFeedView = ({
     setShowAuthPrompt(true);
   };
 
+  const handleWatchLaterToggle = async (postId) => {
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    try {
+      setWatchLaterBusyId(postId);
+      const response = await api.post(`/user/watch-later/${postId}`);
+      const isSaved = Boolean(response.data?.data?.savedToWatchLater);
+
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                savedToWatchLater: isSaved,
+              }
+            : post,
+        ),
+      );
+
+      toast.success(response.data?.message || "Watch later updated");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Watch later update failed");
+    } finally {
+      setWatchLaterBusyId("");
+    }
+  };
+
   return (
     <>
       <main className={styles.page}>
@@ -140,12 +171,22 @@ export const PublicFeedView = ({
                     className={styles.mediaButton}
                     onClick={() => navigate(`/posts/${post._id}`)}
                   >
-                    <img
-                      src={post.url}
-                      alt={post.title || post.description || "globMe post"}
-                      className={styles.media}
-                      loading="lazy"
-                    />
+                    {post.postType === "video" ? (
+                      <video
+                        src={post.url}
+                        className={styles.media}
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                    ) : (
+                      <img
+                        src={post.url}
+                        alt={post.title || post.description || "globMe post"}
+                        className={styles.media}
+                        loading="lazy"
+                      />
+                    )}
                   </button>
                 </div>
 
@@ -168,6 +209,20 @@ export const PublicFeedView = ({
                   </div>
 
                   <div className={styles.actionGroup}>
+                    {post.postType === "video" ? (
+                      <button
+                        type="button"
+                        className={styles.actionBtn}
+                        onClick={() => handleWatchLaterToggle(post._id)}
+                        disabled={watchLaterBusyId === post._id}
+                      >
+                        {watchLaterBusyId === post._id
+                          ? "Saving..."
+                          : post.savedToWatchLater
+                            ? "Saved"
+                            : "Watch later"}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className={styles.actionBtn}

@@ -11,6 +11,7 @@ import {
   MdOutlineCake,
   MdOutlineCalendarMonth,
   MdOutlineFavoriteBorder,
+  MdOutlinePlaylistPlay,
   MdOutlineWorkOutline,
   MdOutlineWc,
 } from "react-icons/md";
@@ -159,6 +160,9 @@ export const Profile = () => {
   const [storyViewerStories, setStoryViewerStories] = useState([]);
   const [storyViewerLoading, setStoryViewerLoading] = useState(false);
   const [autoOpenedStoryKey, setAutoOpenedStoryKey] = useState("");
+  const [playlists, setPlaylists] = useState([]);
+  const [playlistsLoading, setPlaylistsLoading] = useState(false);
+  const [playlistsError, setPlaylistsError] = useState("");
   const pendingStoryAudioRef = useRef(null);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
@@ -393,6 +397,48 @@ export const Profile = () => {
       ignore = true;
     };
   }, [isOwner, user, userId]);
+
+  useEffect(() => {
+    const profileId = isOwner ? user?._id : userId;
+
+    if (!profileId) {
+      setPlaylists([]);
+      return;
+    }
+
+    let ignore = false;
+
+    const loadPlaylists = async () => {
+      try {
+        setPlaylistsLoading(true);
+        setPlaylistsError("");
+        const response = isOwner
+          ? await api.get("/user/playlists")
+          : await api.get(`/user/profile/${profileId}/playlists`);
+
+        if (!ignore) {
+          setPlaylists(Array.isArray(response.data?.data) ? response.data.data : []);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setPlaylists([]);
+          setPlaylistsError(
+            error.response?.data?.message || "Playlists could not be loaded.",
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setPlaylistsLoading(false);
+        }
+      }
+    };
+
+    loadPlaylists();
+
+    return () => {
+      ignore = true;
+    };
+  }, [isOwner, user?._id, userId]);
 
   const handleAvatarSelect = (file) => {
     setUploadTarget("avatar");
@@ -1549,6 +1595,86 @@ export const Profile = () => {
                   </div>
                 </div>
               ) : null}
+            </section>
+          ) : null}
+
+          {playlists.length > 0 || playlistsLoading || (isOwner && !playlistsError) ? (
+            <section className={styles.playlistPanel}>
+              <div className={styles.playlistPanelHeader}>
+                <div>
+                  <p className={styles.storyEyebrow}>
+                    {isOwner ? "Your playlists" : `${profileUser.username}'s playlists`}
+                  </p>
+                  <h2>Public video playlists</h2>
+                </div>
+
+                {isOwner ? (
+                  <button
+                    type="button"
+                    className={styles.storySecondaryButton}
+                    onClick={() => navigate("/dashboard")}
+                  >
+                    <MdOutlinePlaylistPlay />
+                    Manage playlists
+                  </button>
+                ) : null}
+              </div>
+
+              {playlistsLoading ? (
+                <div className={styles.storyPlaceholder}>Loading playlists...</div>
+              ) : playlistsError ? (
+                <div className={styles.storyPlaceholder}>{playlistsError}</div>
+              ) : playlists.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  {isOwner
+                    ? "Create a few playlists from your dashboard and they will show up here for visitors."
+                    : "This profile has not published any playlists yet."}
+                </div>
+              ) : (
+                <div className={styles.playlistStack}>
+                  {playlists.map((playlist) => (
+                    <article key={playlist._id} className={styles.playlistCard}>
+                      <div className={styles.playlistCardHeader}>
+                        <div>
+                          <h3>{formatDisplayValue(playlist.title) || "Untitled playlist"}</h3>
+                          <p>{playlist.description || "Public playlist"}</p>
+                        </div>
+                        <span className={styles.playlistCount}>
+                          {playlist.videoCount || 0} videos
+                        </span>
+                      </div>
+
+                      {Array.isArray(playlist.videos) && playlist.videos.length > 0 ? (
+                        <div className={styles.playlistVideoGrid}>
+                          {playlist.videos.map((video) => (
+                            <article key={video._id} className={styles.playlistVideoCard}>
+                              <div className={styles.playlistVideoFrame}>
+                                <video
+                                  src={video.url}
+                                  className={styles.playlistVideoThumb}
+                                  muted
+                                  preload="metadata"
+                                />
+                              </div>
+
+                              <div className={styles.playlistVideoMeta}>
+                                <strong>
+                                  {formatDisplayValue(video.title) || "Untitled video"}
+                                </strong>
+                                <span>{formatDisplayValue(video.category) || "Uncategorized"}</span>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={styles.storyPlaceholder}>
+                          This playlist does not have any public videos right now.
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
           ) : null}
 

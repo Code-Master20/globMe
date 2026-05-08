@@ -13,11 +13,31 @@ const postSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+    tags: {
+      type: [String],
+      default: [],
+    },
     postType: {
       type: String,
       required: true,
       trim: true,
       lowercase: true,
+    },
+    category: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+    },
+    contentFormat: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+    },
+    durationSeconds: {
+      type: Number,
+      default: 0,
     },
     url: {
       type: String,

@@ -29,19 +29,30 @@ const getPublicPosts = async (req, res) => {
 
     const normalizedPosts = posts
       .filter((post) => post.user)
-      .map((post) => ({
+      .map((post) => {
+        const watchLaterPostIds = Array.isArray(req.user?.watchLaterPosts)
+          ? req.user.watchLaterPosts.map((item) => `${item}`)
+          : [];
+
+        return {
         _id: post._id,
         title: post.title,
         description: post.description,
+        tags: Array.isArray(post.tags) ? post.tags : [],
         postType: post.postType,
+        category: post.category || null,
+        contentFormat: post.contentFormat || null,
+        durationSeconds: Number(post.durationSeconds) || 0,
         url: post.url,
-        likeCount: post.likeCount,
-        shareCount: post.shareCount,
-        commentCount: post.commentCount,
-        postDate: post.postDate,
-        createdAt: post.createdAt,
-        user: toPublicUser(post.user, { viewerId }),
-      }));
+          likeCount: post.likeCount,
+          shareCount: post.shareCount,
+          commentCount: post.commentCount,
+          postDate: post.postDate,
+          createdAt: post.createdAt,
+          savedToWatchLater: watchLaterPostIds.includes(`${post._id}`),
+          user: toPublicUser(post.user, { viewerId }),
+        };
+      });
 
     return new SuccessHandler(200, "Public posts", normalizedPosts).send(res);
   } catch (error) {
@@ -67,7 +78,11 @@ const getPublicPostById = async (req, res) => {
       _id: post._id,
       title: post.title,
       description: post.description,
+      tags: Array.isArray(post.tags) ? post.tags : [],
       postType: post.postType,
+      category: post.category || null,
+      contentFormat: post.contentFormat || null,
+      durationSeconds: Number(post.durationSeconds) || 0,
       url: post.url,
       likeCount: post.likeCount,
       shareCount: post.shareCount,
@@ -75,6 +90,9 @@ const getPublicPostById = async (req, res) => {
       postDate: post.postDate,
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
+      savedToWatchLater: Array.isArray(req.user?.watchLaterPosts)
+        ? req.user.watchLaterPosts.some((item) => `${item}` === `${post._id}`)
+        : false,
       user: toPublicUser(post.user, { viewerId }),
     }).send(res);
   } catch (error) {

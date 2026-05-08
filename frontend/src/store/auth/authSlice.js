@@ -15,6 +15,7 @@ import {
   deleteStoryHistory,
   updateProfileDetails,
   updateCreatorMode,
+  logOut,
 } from "./authThunks";
 
 //=============================== setting constants to localstorage for values' persistent =========================
@@ -218,6 +219,24 @@ const authSlice = createSlice({
         state.successMessage = null;
         state.errorMessage = action.payload.message;
         state.id = action.payload.id;
+      })
+
+      // ====================== LOG OUT ======================
+      .addCase(logOut.pending, (state) => {
+        state.loading = true;
+        state.errorMessage = null;
+      })
+      .addCase(logOut.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = false;
+        state.user = null;
+        state.successMessage = action.payload.message;
+        state.errorMessage = null;
+        state.purpose = null;
+      })
+      .addCase(logOut.rejected, (state, action) => {
+        state.loading = false;
+        state.errorMessage = action.payload?.message || "Logout failed";
       })
 
       // ====================== UPLOAD PROFILE PIC ======================
