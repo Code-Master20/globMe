@@ -9,6 +9,27 @@ import {
 import { InvalidInputTracker } from "./InvalidInputTracker";
 import { toast } from "react-toastify";
 
+const readStoredUser = () => {
+  try {
+    const rawValue = localStorage.getItem("user");
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue);
+
+    return parsedValue && typeof parsedValue === "object" ? parsedValue : null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredText = (source, key, fallback = "") =>
+  typeof source?.[key] === "string" ? source[key] : fallback;
+
+const normalizeTextInput = (value) => `${value ?? ""}`;
+
 export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -19,10 +40,10 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
   }
 
   const [clientCredentials, setClientCredentials] = useState(() => {
-    const storedUser = localStorage.getItem("user");
+    const storedUser = readStoredUser();
 
     return {
-      email: storedUser ? JSON.parse(storedUser)?.email : "",
+      email: getStoredText(storedUser, "email"),
       password: "",
       newPassword: "",
     };
@@ -32,6 +53,7 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
 
   function handleOnChange(event) {
     const { name, value } = event.target;
+    const safeValue = normalizeTextInput(value);
 
     if (debounceRef.current[name]) {
       clearTimeout(debounceRef.current[name]);
@@ -39,10 +61,10 @@ export const ResetPassWithOldPass = ({ setOtpResetTrigger }) => {
 
     const formattedValue =
       name === "email"
-        ? value.trim().toLowerCase()
+        ? safeValue.trim().toLowerCase()
         : name === "password" || name === "newPassword"
-          ? value.trim()
-          : value;
+          ? safeValue.trim()
+          : safeValue;
 
     if (name === "email") {
       localStorage.setItem(

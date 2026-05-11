@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { useSelector } from "react-redux";
 import api from "../../lib/api";
+import { StoryRail } from "./StoryRail";
 import { StoryViewerModal } from "./StoryViewerModal";
-import { VideoThumbnail } from "./VideoThumbnail";
 import styles from "./StoryTray.module.css";
 
 const getStoryPostedTime = (storyItem) => {
@@ -12,6 +12,16 @@ const getStoryPostedTime = (storyItem) => {
     : 0;
 
   return Number.isNaN(expiresAtMs) ? 0 : expiresAtMs;
+};
+
+const hasFutureStoryExpiry = (value) => {
+  if (!value) {
+    return false;
+  }
+
+  const expiryDate = new Date(value);
+
+  return !Number.isNaN(expiryDate.getTime()) && expiryDate.getTime() > Date.now();
 };
 
 const getOwnerStoryEntryTime = (storyEntry) => {
@@ -48,6 +58,7 @@ const buildOwnerViewerStories = (currentUser) => {
   }
 
   const activeStory = currentUser.story
+    && hasFutureStoryExpiry(currentUser.storyExpiresAt)
     ? {
         _id: currentUser.storyActiveHistoryId || "live",
         mediaUrl: currentUser.story,
@@ -64,7 +75,9 @@ const buildOwnerViewerStories = (currentUser) => {
     : null;
 
   const historyEntries = Array.isArray(currentUser.storyHistory)
-    ? currentUser.storyHistory.filter((item) => item?.mediaUrl)
+    ? currentUser.storyHistory.filter(
+        (item) => item?.mediaUrl && hasFutureStoryExpiry(item?.expiresAt),
+      )
     : [];
 
   const activeHistoryEntry =
@@ -128,6 +141,23 @@ export const StoryTray = ({ onRequireAuth }) => {
   const [viewerIndex, setViewerIndex] = useState(0);
 
   const viewerStories = buildViewerStories(stories, user);
+  const trayItems = stories.map((item) => {
+    const isOwnStory = `${item?.user?._id || ""}` === `${user?._id || ""}`;
+
+    return {
+      id: `${item?.user?._id || "story"}-${item?.story?.storyEntryId || "live"}`,
+      mediaUrl: item?.story?.mediaUrl || "",
+      mediaType: item?.story?.mediaType || "image",
+      title: isOwnStory ? "Your story" : item?.user?.username || "globMe member",
+      subtitle: isOwnStory
+        ? "tap to view"
+        : item?.story?.mediaType === "video"
+          ? "video update"
+          : "photo update",
+      badge: item?.story?.mediaType === "video" ? "video" : "photo",
+      accent: isOwnStory ? "current" : "live",
+    };
+  });
 
   useEffect(() => {
     let ignore = false;
@@ -158,7 +188,7 @@ export const StoryTray = ({ onRequireAuth }) => {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [user?._id]);
 
   if (!loading && stories.length === 0) {
     return null;
@@ -173,54 +203,45 @@ export const StoryTray = ({ onRequireAuth }) => {
             <h2>
               {isAuthenticated
                 ? "Live status/stories from your friends"
-                : "Live updates from people on globMe"}
+                : "Stories/status from people around the world"}
             </h2>
           </div>
-          <span>{loading ? "Loading..." : `${stories.length} live`}</span>
+          <span>{loading ? "Loading..." : `${stories.length} live now`}</span>
         </div>
 
-        <div className={styles.trayScroller}>
-          {loading
-            ? [0, 1, 2, 3].map((item) => (
-                <div key={item} className={styles.storyCardSkeleton} />
-              ))
-            : stories.map((item, index) => (
-                <button
-                  type="button"
-                  key={item.user?._id || index}
-                  className={styles.storyCard}
-                  onClick={() => {
-                    const nextViewerIndex = viewerStories.findIndex(
-                      (viewerItem) =>
-                        `${viewerItem?.user?._id || ""}` === `${item.user?._id || ""}` &&
-                        `${viewerItem?.story?.storyEntryId || ""}` ===
-                          `${item.story?.storyEntryId || ""}`,
-                    );
+        <StoryRail
+          items={trayItems}
+          loading={loading}
+          onSelect={(selectedItem, index) => {
+            const sourceStory =
+              stories.find(
+                (storyItem) =>
+                  (storyItem?.story?.mediaUrl || "") === (selectedItem?.mediaUrl || "") &&
+                  `${storyItem?.user?._id || ""}` ===
+                    `${
+                      selectedItem?.title === "Your story"
+                        ? user?._id || ""
+                        : (
+                            stories.find(
+                              (candidate) =>
+                                (candidate?.user?.username || "globMe member") ===
+                                selectedItem?.title,
+                            )?.user?._id || ""
+                          )
+                    }`,
+              ) || stories[index];
 
-                    setViewerIndex(nextViewerIndex >= 0 ? nextViewerIndex : index);
-                    setViewerOpen(true);
-                  }}
-                >
-                  <div className={styles.storyPreviewFrame}>
-                    {item.story?.mediaType === "video" ? (
-                      <VideoThumbnail
-                        src={item.story?.mediaUrl}
-                        className={styles.storyPreviewMedia}
-                        alt={`${item.user?.username || "globMe member"} story video`}
-                      />
-                    ) : (
-                      <img
-                        src={item.story?.mediaUrl}
-                        alt={`${item.user?.username || "globMe member"} story`}
-                        className={styles.storyPreviewMedia}
-                      />
-                    )}
-                  </div>
-                  <strong>{item.user?.username || "globMe member"}</strong>
-                  <span>{item.story?.likeCount || 0} likes</span>
-                </button>
-              ))}
-        </div>
+            const nextViewerIndex = viewerStories.findIndex(
+              (viewerItem) =>
+                `${viewerItem?.user?._id || ""}` === `${sourceStory?.user?._id || ""}` &&
+                `${viewerItem?.story?.storyEntryId || ""}` ===
+                  `${sourceStory?.story?.storyEntryId || ""}`,
+            );
+
+            setViewerIndex(nextViewerIndex >= 0 ? nextViewerIndex : index);
+            setViewerOpen(true);
+          }}
+        />
       </section>
 
       <StoryViewerModal

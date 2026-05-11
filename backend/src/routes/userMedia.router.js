@@ -23,6 +23,7 @@ const {
   getOwnerVideoLibrary,
   createOwnerPost,
   getOwnerPosts,
+  getProfilePosts,
   getOwnerPlaylists,
   getWatchLaterVideos,
   toggleWatchLater,
@@ -123,7 +124,18 @@ const ownerPostUpload = multer({
       "image/png",
       "image/webp",
     ];
-    const allowedVideoTypes = ["video/mp4", "video/webm", "video/ogg", "video/quicktime"];
+    const allowedVideoTypes = [
+      "video/mp4",
+      "video/webm",
+      "video/ogg",
+      "video/quicktime",
+      "video/x-m4v",
+      "video/x-msvideo",
+      "video/avi",
+      "video/mpeg",
+      "video/mp2t",
+      "video/x-matroska",
+    ];
 
     if ([...allowedImageTypes, ...allowedVideoTypes].includes(file.mimetype)) {
       callback(null, true);
@@ -185,6 +197,7 @@ router.patch("/profile/creator", isMeMiddleware, updateCreatorMode);
 router.patch("/videos/:postId/category", isMeMiddleware, updateVideoCategory);
 router.patch("/playlists/:playlistId", isMeMiddleware, updatePlaylist);
 router.get("/profile/:userId", optionalAuthMiddleware, getProfileView);
+router.get("/profile/:userId/posts", optionalAuthMiddleware, getProfilePosts);
 router.get("/profile/:userId/playlists", optionalAuthMiddleware, getPublicProfilePlaylists);
 
 router.delete("/delete-avatar", isMeMiddleware, deleteAvatar);

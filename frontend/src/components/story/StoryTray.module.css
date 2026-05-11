@@ -1,10 +1,12 @@
 .tray {
   margin-bottom: 1.3rem;
   padding: 1rem;
-  border-radius: 2.2rem;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  box-shadow: 0 1.5rem 3.5rem rgba(15, 23, 42, 0.06);
+  border-radius: 2rem;
+  background:
+    radial-gradient(circle at top, rgba(251, 146, 60, 0.2), transparent 28%),
+    linear-gradient(180deg, #0f172a 0%, #111827 100%);
+  border: 1px solid rgba(251, 146, 60, 0.16);
+  box-shadow: 0 1.6rem 3.5rem rgba(15, 23, 42, 0.22);
 }
 
 .trayHeader {
@@ -15,8 +17,8 @@
 }
 
 .trayHeader p {
-  color: #ef4444;
-  font-size: 1rem;
+  color: #fb923c;
+  font-size: 0.9rem;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -24,85 +26,18 @@
 
 .trayHeader h2 {
   margin-top: 0.45rem;
-  color: #172033;
-  font-size: 1.55rem;
+  color: #f8fafc;
+  font-size: 1.45rem;
 }
 
 .trayHeader span {
-  color: #64748b;
-  font-size: 1.1rem;
-}
-
-.trayScroller {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 140px;
-  gap: 0.9rem;
-  margin-top: 1rem;
-  overflow-x: auto;
-  padding-bottom: 0.3rem;
-}
-
-.storyCard,
-.storyCardSkeleton {
-  min-height: 170px;
-  border-radius: 1.7rem;
-}
-
-.storyCard {
-  padding: 0.7rem;
-  border: 1px solid #dbe4ef;
-  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
-  cursor: pointer;
-  text-align: center;
-}
-
-.storyCardSkeleton {
-  background: linear-gradient(90deg, #e2e8f0 0%, #f8fafc 50%, #e2e8f0 100%);
-}
-
-.storyPreviewFrame {
-  width: 100%;
-  height: 104px;
-  margin: 0 auto;
-  position: relative;
-  overflow: hidden;
-  border-radius: 1.2rem;
-  background: linear-gradient(135deg, #fb923c 0%, #ef4444 52%, #ec4899 100%);
-}
-
-.storyPreviewMedia {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  background: #e2e8f0;
-  pointer-events: none;
-}
-
-.storyPreviewMedia::-webkit-media-controls,
-.storyPreviewMedia::-webkit-media-controls-enclosure,
-.storyPreviewMedia::-webkit-media-controls-panel,
-.storyPreviewMedia::-webkit-media-controls-play-button,
-.storyPreviewMedia::-webkit-media-controls-start-playback-button,
-.storyPreviewMedia::-webkit-media-controls-overlay-play-button {
-  display: none !important;
-  -webkit-appearance: none;
-}
-
-.storyCard strong {
-  display: block;
-  margin-top: 0.75rem;
-  color: #172033;
-  font-size: 1rem;
-  line-height: 1.2;
-}
-
-.storyCard span {
-  display: block;
-  margin-top: 0.35rem;
-  color: #64748b;
-  font-size: 0.92rem;
+  align-self: center;
+  padding: 0.45rem 0.78rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.44);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-size: 0.95rem;
 }
 
 @media (max-width: 640px) {
@@ -111,16 +46,7 @@
     border-radius: 1.6rem;
   }
 
-  .trayScroller {
-    grid-auto-columns: 116px;
-  }
-
-  .storyCard,
-  .storyCardSkeleton {
-    min-height: 150px;
-  }
-
-  .storyPreviewFrame {
-    height: 92px;
+  .trayHeader h2 {
+    font-size: 1.18rem;
   }
 }

@@ -14,6 +14,27 @@ import globMe from "../../assets/globme.png";
 
 const BLOCKED_STORAGE_KEY = "login-block-countdown";
 
+const readStoredUser = () => {
+  try {
+    const rawValue = localStorage.getItem("user");
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue);
+
+    return parsedValue && typeof parsedValue === "object" ? parsedValue : null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredText = (source, key, fallback = "") =>
+  typeof source?.[key] === "string" ? source[key] : fallback;
+
+const normalizeTextInput = (value) => `${value ?? ""}`;
+
 const parseBlockedCountdown = (message) => {
   if (typeof message !== "string") {
     return null;
@@ -40,12 +61,12 @@ export const LogIn = () => {
 
   const { errorMessage } = useSelector((state) => state.auth);
 
-  const storedUser = JSON.parse(localStorage.getItem("user")) || null;
+  const storedUser = readStoredUser();
 
   const [clientCredentials, setClientCredentials] = useState({
-    email: storedUser ? storedUser.email : "",
-    password: storedUser ? storedUser.password : "",
-    purpose: storedUser ? storedUser.purpose : "login",
+    email: getStoredText(storedUser, "email"),
+    password: getStoredText(storedUser, "password"),
+    purpose: getStoredText(storedUser, "purpose", "login"),
   });
 
   const debounceRef = useRef({});
@@ -58,12 +79,13 @@ export const LogIn = () => {
     }
 
     debounceRef.current[name] = setTimeout(() => {
+      const safeValue = normalizeTextInput(value);
       const formattedValue =
         name === "email"
-          ? value.trim().toLowerCase()
+          ? safeValue.trim().toLowerCase()
           : name === "password"
-            ? value.trim()
-            : value;
+            ? safeValue.trim()
+            : safeValue;
 
       setClientCredentials((prev) => ({
         ...prev,
@@ -71,7 +93,7 @@ export const LogIn = () => {
       }));
 
       setTimeout(() => {
-        const existingUser = JSON.parse(localStorage.getItem("user")) || {
+        const existingUser = readStoredUser() || {
           purpose: "login",
         };
         localStorage.setItem(
@@ -92,6 +114,7 @@ export const LogIn = () => {
   const [timerIdArr, setTimerIdArr] = useState([]);
   const [countdown, setCountdown] = useState(null);
   const [hydrated, setHydrated] = useState(false);
+  const [disable, setDisable] = useState(false);
   const [tries, setTries] = useState(() => {
     const storedTries = localStorage.getItem("tryRemains");
     return storedTries ? JSON.parse(storedTries) : 3;
@@ -188,7 +211,6 @@ export const LogIn = () => {
     }
   }
 
-  const [disable, setDisable] = useState(false);
   const [tryPassReset, setTryPassReset] = useState(() => {
     return JSON.parse(localStorage.getItem("tryPassReset")) || false;
   });
@@ -472,8 +494,8 @@ export const LogIn = () => {
                   type="submit"
                   disabled={
                     disable ||
-                    !clientCredentials.email.trim() ||
-                    !clientCredentials.password.trim()
+                    !`${clientCredentials.email ?? ""}`.trim() ||
+                    !`${clientCredentials.password ?? ""}`.trim()
                   }
                 >
                   Continue with OTP

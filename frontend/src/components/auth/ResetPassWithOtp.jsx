@@ -8,6 +8,27 @@ import { toast } from "react-toastify";
 import { MdOutlineRemoveRedEye } from "react-icons/md";
 import { FaRegEyeSlash } from "react-icons/fa6";
 
+const readStoredUser = () => {
+  try {
+    const rawValue = localStorage.getItem("user");
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue);
+
+    return parsedValue && typeof parsedValue === "object" ? parsedValue : null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredText = (source, key, fallback = "") =>
+  typeof source?.[key] === "string" ? source[key] : fallback;
+
+const normalizeTextInput = (value) => `${value ?? ""}`;
+
 export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -17,9 +38,9 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
   }
 
   //============receiving data from form and sending to backend=================
-  const storedUser = localStorage.getItem("user") || "";
+  const storedUser = readStoredUser();
   const [credentials, setCredentials] = useState({
-    email: storedUser ? JSON.parse(storedUser).email : "",
+    email: getStoredText(storedUser, "email"),
     newPassword: "",
   });
   const [loading, setLoading] = useState(false);
@@ -30,8 +51,9 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
 
   function handleOnChange(e) {
     const { name, value } = e.target;
+    const safeValue = normalizeTextInput(value);
     const formattedValue =
-      name === "email" ? value.trim().toLowerCase() : value.trim();
+      name === "email" ? safeValue.trim().toLowerCase() : safeValue.trim();
 
     setCredentials((prev) => ({
       ...prev,
@@ -39,7 +61,7 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
     }));
 
     if (name === "email") {
-      const existingUser = JSON.parse(localStorage.getItem("user")) || {};
+      const existingUser = readStoredUser() || {};
       localStorage.setItem(
         "user",
         JSON.stringify({
@@ -60,10 +82,10 @@ export const ResetPassWithOtp = ({ setOtpResetTrigger }) => {
     e.preventDefault();
     setLoading(true);
 
-    const localUser = JSON.parse(localStorage.getItem("user")) || {};
+    const localUser = readStoredUser() || {};
     const payload = {
-      email: credentials.email.trim().toLowerCase(),
-      newPassword: credentials.newPassword.trim(),
+      email: `${credentials.email ?? ""}`.trim().toLowerCase(),
+      newPassword: `${credentials.newPassword ?? ""}`.trim(),
     };
 
     localStorage.setItem(

@@ -11,6 +11,27 @@ import { MdOutlineRemoveRedEye } from "react-icons/md";
 import { FaRegEyeSlash } from "react-icons/fa6";
 import globMe from "../../assets/globme.png";
 
+const readStoredUser = () => {
+  try {
+    const rawValue = localStorage.getItem("user");
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue);
+
+    return parsedValue && typeof parsedValue === "object" ? parsedValue : null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredText = (source, key, fallback = "") =>
+  typeof source?.[key] === "string" ? source[key] : fallback;
+
+const normalizeTextInput = (value) => `${value ?? ""}`;
+
 export const SignUp = () => {
   usePageMetadata({
     title: "Create account",
@@ -25,12 +46,12 @@ export const SignUp = () => {
 
   const debounceRef = useRef({});
 
-  const storedUser = JSON.parse(localStorage.getItem("user")) || null;
+  const storedUser = readStoredUser();
   const [clientCredentials, setClientCredentials] = useState({
-    username: storedUser ? storedUser.username : "",
-    email: storedUser ? storedUser.email : "",
-    password: storedUser ? storedUser.password : "",
-    purpose: storedUser ? storedUser.purpose : "signup",
+    username: getStoredText(storedUser, "username"),
+    email: getStoredText(storedUser, "email"),
+    password: getStoredText(storedUser, "password"),
+    purpose: getStoredText(storedUser, "purpose", "signup"),
   });
 
   function handleOnChange(event) {
@@ -41,14 +62,15 @@ export const SignUp = () => {
     }
 
     debounceRef.current[name] = setTimeout(() => {
+      const safeValue = normalizeTextInput(value);
       const formattedValue =
         name === "email"
-          ? value.trim().toLowerCase()
+          ? safeValue.trim().toLowerCase()
           : name === "username"
-            ? value.toLowerCase()
+            ? safeValue.toLowerCase()
             : name === "password"
-              ? value.trim()
-              : value;
+              ? safeValue.trim()
+              : safeValue;
 
       setClientCredentials((prev) => ({
         ...prev,
@@ -56,7 +78,7 @@ export const SignUp = () => {
       }));
 
       setTimeout(() => {
-        const existingUser = JSON.parse(localStorage.getItem("user")) || {
+        const existingUser = readStoredUser() || {
           purpose: "signup",
         };
 
@@ -80,18 +102,20 @@ export const SignUp = () => {
     event.preventDefault();
     setLoading(true);
 
+    const normalizedUsername = `${clientCredentials.username ?? ""}`.trim();
+
     const trimCredentials = {
       ...clientCredentials,
-      username: clientCredentials.username.trim(),
+      username: normalizedUsername,
     };
 
     localStorage.setItem(
       "user",
-      JSON.stringify({
-        ...clientCredentials,
-        username: clientCredentials.username.trim(),
-      }),
-    );
+        JSON.stringify({
+          ...clientCredentials,
+          username: normalizedUsername,
+        }),
+      );
 
     const resultAction = await dispatch(signUpOtpReceived(trimCredentials));
 
@@ -308,9 +332,9 @@ export const SignUp = () => {
                   className={styles["primary-btn"]}
                   type="submit"
                   disabled={
-                    !clientCredentials.username.trim() ||
-                    !clientCredentials.email.trim() ||
-                    !clientCredentials.password.trim()
+                    !`${clientCredentials.username ?? ""}`.trim() ||
+                    !`${clientCredentials.email ?? ""}`.trim() ||
+                    !`${clientCredentials.password ?? ""}`.trim()
                   }
                 >
                   Send verification code

@@ -46,13 +46,23 @@ const getActiveStoryPayload = (userObject) => {
   };
 };
 
+const isLiveStoryDate = (value) => {
+  if (!value) {
+    return false;
+  }
+
+  const storyDate = new Date(value);
+
+  return !Number.isNaN(storyDate.getTime()) && storyDate.getTime() > Date.now();
+};
+
 const getStoryHistoryPayload = (userObject, activeHistoryId = null) => {
   if (!Array.isArray(userObject?.storyHistory)) {
     return [];
   }
 
   return userObject.storyHistory
-    .filter((item) => item?.mediaUrl)
+    .filter((item) => item?.mediaUrl && isLiveStoryDate(item?.expiresAt))
     .map((item) => {
       const createdAt = item?.createdAt ? new Date(item.createdAt) : null;
       const expiresAt = item?.expiresAt ? new Date(item.expiresAt) : null;

@@ -11,6 +11,7 @@ const toPublicUser = require("../utils/auth/publicUser.util");
 
 const STORY_LIFETIME_MS = 36 * 60 * 60 * 1000;
 const MAX_STORY_DURATION_SECONDS = 90;
+const MAX_OWNER_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
 const STORY_ALLOWED_POST_TYPES = ["image", "video"];
 const OWNER_ALLOWED_POST_IMAGE_TYPES = [
   "image/jpeg",
@@ -385,6 +386,74 @@ const removeStoryHistoryEntryById = (user, storyHistoryId) => {
 
   user.storyHistory = user.storyHistory.filter((item) => `${item?._id}` !== targetId);
   return existingEntry;
+};
+
+const isStoryEntryExpired = (entry) => {
+  if (!entry?.mediaUrl || !entry?.expiresAt) {
+    return true;
+  }
+
+  const expiresAt = new Date(entry.expiresAt);
+
+  return Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now();
+};
+
+const pruneExpiredStoriesFromUser = (user) => {
+  if (!user) {
+    return {
+      changed: false,
+      expiredEntries: [],
+      activeStoryExpired: false,
+    };
+  }
+
+  const currentHistory = Array.isArray(user.storyHistory) ? user.storyHistory : [];
+  const liveHistory = [];
+  const expiredEntries = [];
+
+  currentHistory.forEach((entry) => {
+    if (isStoryEntryExpired(entry)) {
+      expiredEntries.push(entry);
+      return;
+    }
+
+    liveHistory.push(entry);
+  });
+
+  const activeStoryExpired = isStoryEntryExpired({
+    mediaUrl: user.story,
+    expiresAt: user.storyExpiresAt,
+  });
+  const historyChanged = liveHistory.length !== currentHistory.length;
+  let changed = historyChanged;
+
+  if (historyChanged) {
+    user.storyHistory = liveHistory;
+  }
+
+  if (activeStoryExpired) {
+    const hadStoryState = Boolean(
+      user.story ||
+        user.storyType ||
+        user.storyAudio ||
+        user.storyCloudinaryId ||
+        user.storyAudioCloudinaryId ||
+        user.storySourcePost ||
+        user.storyExpiresAt ||
+        user.storyActiveHistoryId,
+    );
+
+    if (hadStoryState) {
+      resetStoryFields(user);
+      changed = true;
+    }
+  }
+
+  return {
+    changed,
+    expiredEntries,
+    activeStoryExpired,
+  };
 };
 
 const clearStoryLikes = async (userId) => {
@@ -1132,6 +1201,11 @@ const createOwnerPost = async (req, res) => {
     const title = buildOwnerPostTitle(req.body?.title, mediaFile);
     const description = `${req.body?.description ?? ""}`.trim();
     const tags = normalizeTagInput(req.body?.tags);
+
+    if (postType === "video" && Number(mediaFile.size) > MAX_OWNER_VIDEO_UPLOAD_BYTES) {
+      return new ErrorHandler(400, "Video posts must be 100MB or smaller").send(res);
+    }
+
     const playlistIds = postType === "video"
       ? normalizePlaylistPostIds(req.body?.playlistIds)
       : [];
@@ -1142,7 +1216,7 @@ const createOwnerPost = async (req, res) => {
 
     const uploadResult = await uploadBufferToCloudinary(mediaFile, {
       folder: postType === "video" ? "seekFi/posts/videos" : "seekFi/posts/images",
-      resource_type: "auto",
+      resource_type: postType === "video" ? "video" : "image",
     });
 
     const newPost = await Post.create({
@@ -1222,6 +1296,51 @@ const getOwnerPosts = async (req, res) => {
   } catch (error) {
     return new ErrorHandler(500, "Owner posts could not be loaded")
       .log("owner posts error", error)
+      .send(res);
+  }
+};
+
+const getProfilePosts = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const viewerId = req.user?.id || req.user?._id || null;
+    const requestedType = `${req.query.type ?? "all"}`.trim().toLowerCase();
+    const allowedTypes = ["all", "image", "video"];
+
+    if (!mongoose.isValidObjectId(userId)) {
+      return new ErrorHandler(400, "Invalid profile id").send(res);
+    }
+
+    const query = {
+      user: userId,
+    };
+
+    if (allowedTypes.includes(requestedType) && requestedType !== "all") {
+      query.postType = requestedType;
+    }
+
+    const posts = await Post.find(query)
+      .populate(
+        "user",
+        "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt",
+      )
+      .sort({ createdAt: -1 })
+      .limit(36);
+
+    return new SuccessHandler(
+      200,
+      "Profile posts loaded",
+      posts
+        .filter((post) => post.user)
+        .map((post) =>
+          formatPostPayload(post, {
+            viewerId,
+          }),
+        ),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Profile posts could not be loaded")
+      .log("profile posts error", error)
       .send(res);
   }
 };
@@ -1435,6 +1554,22 @@ const getProfileView = async (req, res) => {
       return new ErrorHandler(404, "Profile not found").send(res);
     }
 
+    const {
+      changed: storyCleanupChanged,
+      expiredEntries,
+      activeStoryExpired,
+    } = pruneExpiredStoriesFromUser(user);
+
+    if (storyCleanupChanged) {
+      await user.save();
+
+      await Promise.all(expiredEntries.map((entry) => destroyStoryHistoryEntryAssets(entry)));
+
+      if (activeStoryExpired) {
+        await clearStoryLikes(user._id);
+      }
+    }
+
     let relationshipStatus = null;
 
     if (viewer && `${viewer._id}` !== `${user._id}`) {
@@ -1491,6 +1626,7 @@ module.exports = {
   getOwnerVideoLibrary,
   createOwnerPost,
   getOwnerPosts,
+  getProfilePosts,
   getOwnerPlaylists,
   updateVideoCategory,
   toggleWatchLater,

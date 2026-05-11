@@ -13,6 +13,27 @@ import { InvalidInputTracker } from "../../components/auth/InvalidInputTracker";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import globMe from "../../assets/globme.png";
 
+const readStoredUser = () => {
+  try {
+    const rawValue = localStorage.getItem("user");
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue);
+
+    return parsedValue && typeof parsedValue === "object" ? parsedValue : null;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredText = (source, key, fallback = "") =>
+  typeof source?.[key] === "string" ? source[key] : fallback;
+
+const normalizeTextInput = (value) => `${value ?? ""}`;
+
 export const OtpVerification = () => {
   usePageMetadata({
     title: "OTP verification",
@@ -24,20 +45,21 @@ export const OtpVerification = () => {
   const dispatch = useDispatch();
   const { errorMessage } = useSelector((state) => state.auth);
 
-  const storedUser = JSON.parse(localStorage.getItem("user")) || null;
+  const storedUser = readStoredUser();
   const [clientCredentials, setClientCredentials] = useState({
-    email: storedUser ? storedUser.email : "",
-    otp: storedUser?.otp ? storedUser.otp : "",
-    purpose: storedUser ? storedUser.purpose : "",
+    email: getStoredText(storedUser, "email"),
+    otp: getStoredText(storedUser, "otp"),
+    purpose: getStoredText(storedUser, "purpose"),
   });
   const debounceRef = useRef(null);
 
   function handleOnChange(event) {
     const { name, value } = event.target;
+    const safeValue = normalizeTextInput(value);
 
     setClientCredentials((prev) => ({
       ...prev,
-      [name]: value.trim(),
+      [name]: safeValue.trim(),
     }));
 
     if (debounceRef.current) {
@@ -45,12 +67,12 @@ export const OtpVerification = () => {
     }
 
     debounceRef.current = setTimeout(() => {
-      const existingUser = JSON.parse(localStorage.getItem("user")) || {};
+      const existingUser = readStoredUser() || {};
       localStorage.setItem(
         "user",
         JSON.stringify({
           ...existingUser,
-          otp: value.trim(),
+          otp: safeValue.trim(),
         }),
       );
     }, 1000);
@@ -62,7 +84,7 @@ export const OtpVerification = () => {
   const [loading, setLoading] = useState(false);
   const [path, setPath] = useState(null);
   const [timerIdArr, setTimerIdArr] = useState([]);
-  const purpose = storedUser ? storedUser.purpose : null;
+  const purpose = getStoredText(storedUser, "purpose", null);
   const [redirect, setRedirect] = useState(false);
   const [tries, setTries] = useState(storedTries);
   const [timeRemains, setTimeRemains] = useState(storedTimes);
@@ -323,7 +345,7 @@ export const OtpVerification = () => {
                 <button
                   className={styles["primary-btn"]}
                   type="submit"
-                  disabled={!clientCredentials.otp.trim()}
+                  disabled={!`${clientCredentials.otp ?? ""}`.trim()}
                 >
                   Verify code
                 </button>

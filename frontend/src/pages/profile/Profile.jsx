@@ -11,7 +11,6 @@ import {
   MdOutlineCake,
   MdOutlineCalendarMonth,
   MdOutlineFavoriteBorder,
-  MdOutlinePlaylistPlay,
   MdOutlineWorkOutline,
   MdOutlineWc,
 } from "react-icons/md";
@@ -22,9 +21,9 @@ import noProfile from "../../assets/noProfile.png";
 import { AuthAccessPrompt } from "../../components/auth/AuthAccessPrompt";
 import { EditProfileInfo } from "../../components/profile/EditProfileInfo";
 import { ImageUpload } from "../../components/media/ImgUpload";
+import { StoryRail } from "../../components/story/StoryRail";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import { StoryViewerModal } from "../../components/story/StoryViewerModal";
-import { VideoThumbnail } from "../../components/story/VideoThumbnail";
 import {
   updateCreatorMode,
   uploadBanner,
@@ -111,6 +110,16 @@ const getStorySortTime = (storyEntry) => {
   return Number.isNaN(dateValue.getTime()) ? 0 : dateValue.getTime();
 };
 
+const hasFutureStoryExpiry = (value) => {
+  if (!value) {
+    return false;
+  }
+
+  const expiryDate = new Date(value);
+
+  return !Number.isNaN(expiryDate.getTime()) && expiryDate.getTime() > Date.now();
+};
+
 const getLocalMediaDuration = (file) =>
   new Promise((resolve, reject) => {
     const mediaElement = document.createElement(
@@ -150,6 +159,9 @@ export const Profile = () => {
   const [storyPosts, setStoryPosts] = useState([]);
   const [storyPostsLoading, setStoryPostsLoading] = useState(false);
   const [storyPostsError, setStoryPostsError] = useState("");
+  const [uploadedPosts, setUploadedPosts] = useState([]);
+  const [uploadedPostsLoading, setUploadedPostsLoading] = useState(false);
+  const [uploadedPostsError, setUploadedPostsError] = useState("");
   const [pendingStoryMediaFile, setPendingStoryMediaFile] = useState(null);
   const [pendingStoryAudioFile, setPendingStoryAudioFile] = useState(null);
   const [selectedStoryPost, setSelectedStoryPost] = useState(null);
@@ -163,19 +175,29 @@ export const Profile = () => {
   const [playlists, setPlaylists] = useState([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [playlistsError, setPlaylistsError] = useState("");
+  const [selectedContentView, setSelectedContentView] = useState("all");
+  const [selectedPhotoView, setSelectedPhotoView] = useState("all");
+  const [selectedVideoView, setSelectedVideoView] = useState("all");
+  const [hasChosenContentView, setHasChosenContentView] = useState(false);
+  const [hasChosenPhotoView, setHasChosenPhotoView] = useState(false);
+  const [hasChosenVideoView, setHasChosenVideoView] = useState(false);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState("");
   const pendingStoryAudioRef = useRef(null);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
+  const profileContentKey = isOwner ? user?._id || "owner" : userId || "guest";
   const metadataProfile = isOwner ? user : viewedUser;
   const profileUser = isOwner ? user : viewedUser;
   const activeStory = profileUser?.story || "";
   const activeStoryType = profileUser?.storyType || "image";
   const activeStoryAudio = profileUser?.storyAudio || "";
   const storyExpiresAt = profileUser?.storyExpiresAt || "";
-  const hasActiveStory = Boolean(activeStory && storyExpiresAt);
+  const hasActiveStory = Boolean(activeStory && hasFutureStoryExpiry(storyExpiresAt));
   const ownerStoryHistory =
     isOwner && Array.isArray(profileUser?.storyHistory)
-      ? profileUser.storyHistory.filter((item) => item?.mediaUrl)
+      ? profileUser.storyHistory.filter(
+          (item) => item?.mediaUrl && hasFutureStoryExpiry(item?.expiresAt),
+        )
       : [];
   const activeOwnerStoryEntry =
     ownerStoryHistory.find((item) => item?.isActive) ||
@@ -240,6 +262,38 @@ export const Profile = () => {
         },
       }))
     : [];
+  const ownerStoryRailItems = ownerStoryCards.map((item, index) => {
+    const createdLabel = item?.createdAt ? formatStoryExpiry(item.createdAt) : "";
+    const timeLeftLabel = item?.expiresAt ? getStoryTimeLeftLabel(item.expiresAt) : "";
+
+    return {
+      id: `${item?._id || "story"}`,
+      mediaUrl: item?.mediaUrl || "",
+      mediaType: item?.mediaType || "image",
+      title: item?.isActive ? "Current story" : `Story ${index + 1}`,
+      subtitle: item?.isActive
+        ? timeLeftLabel || "live now"
+        : createdLabel
+          ? `shared ${createdLabel}`
+          : "tap to view",
+      badge: item?.mediaType === "video" ? "video" : "photo",
+      accent: item?.isActive ? "current" : "live",
+    };
+  });
+  const visitorStoryRailItems =
+    !isOwner && hasActiveStory
+      ? [
+          {
+            id: `${profileUser?._id || "profile"}-story`,
+            mediaUrl: activeStory,
+            mediaType: activeStoryType,
+            title: profileUser?.username || "Member story",
+            subtitle: storyExpiresAt ? getStoryTimeLeftLabel(storyExpiresAt) : "live now",
+            badge: activeStoryType === "video" ? "video" : "photo",
+            accent: "current",
+          },
+        ]
+      : [];
 
   usePageMetadata({
     title: metadataProfile?.username
@@ -309,6 +363,27 @@ export const Profile = () => {
       audioElement.currentTime = 0;
     };
   }, [pendingStoryAudioPreview]);
+
+  useEffect(() => {
+    if (!storyComposerOpen) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !(loading && uploadTarget === "story")) {
+        setStoryComposerOpen(false);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [loading, storyComposerOpen, uploadTarget]);
 
   useEffect(() => {
     if (width > 640 && showInfo) {
@@ -403,7 +478,9 @@ export const Profile = () => {
 
     if (!profileId) {
       setPlaylists([]);
-      return;
+      setPlaylistsError("");
+      setPlaylistsLoading(false);
+      return undefined;
     }
 
     let ignore = false;
@@ -439,6 +516,140 @@ export const Profile = () => {
       ignore = true;
     };
   }, [isOwner, user?._id, userId]);
+
+  useEffect(() => {
+    const profileId = isOwner ? user?._id : userId;
+
+    if (!profileId) {
+      setUploadedPosts([]);
+      setUploadedPostsError("");
+      setUploadedPostsLoading(false);
+      return undefined;
+    }
+
+    let ignore = false;
+
+    const loadUploadedPosts = async () => {
+      try {
+        setUploadedPostsLoading(true);
+        setUploadedPostsError("");
+        const response = isOwner
+          ? await api.get("/user/posts")
+          : await api.get(`/user/profile/${profileId}/posts`);
+
+        if (!ignore) {
+          setUploadedPosts(Array.isArray(response.data?.data) ? response.data.data : []);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setUploadedPosts([]);
+          setUploadedPostsError(
+            error.response?.data?.message || "Your uploaded posts could not be loaded.",
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setUploadedPostsLoading(false);
+        }
+      }
+    };
+
+    loadUploadedPosts();
+
+    return () => {
+      ignore = true;
+    };
+  }, [isOwner, user?._id, userId]);
+
+  useEffect(() => {
+    setSelectedContentView("all");
+    setSelectedPhotoView("all");
+    setSelectedVideoView("all");
+    setHasChosenContentView(false);
+    setHasChosenPhotoView(false);
+    setHasChosenVideoView(false);
+  }, [profileContentKey]);
+
+  useEffect(() => {
+    const hasUploadedPosts = uploadedPosts.length > 0;
+    const hasPhotos = uploadedPosts.some((post) => post.postType === "image");
+    const hasShortVideos = uploadedPosts.some(
+      (post) => post.postType === "video" && post.contentFormat !== "long",
+    );
+    const hasLongVideos = uploadedPosts.some(
+      (post) => post.postType === "video" && post.contentFormat === "long",
+    );
+    const hasPlaylists = playlists.length > 0;
+    const availableViews = [
+      hasUploadedPosts ? "all" : "",
+      hasPhotos ? "photos" : "",
+      hasShortVideos || hasLongVideos ? "videos" : "",
+      hasPlaylists ? "playlists" : "",
+    ].filter(Boolean);
+
+    if (!availableViews.length) {
+      return;
+    }
+
+    if (!hasChosenContentView && !availableViews.includes(selectedContentView)) {
+      setSelectedContentView(availableViews[0]);
+    }
+  }, [hasChosenContentView, playlists, selectedContentView, uploadedPosts]);
+
+  useEffect(() => {
+    const hasRawPhotos = uploadedPosts.some(
+      (post) => post.postType === "image" && post.contentFormat !== "reel",
+    );
+    const hasReelsPhotos = uploadedPosts.some(
+      (post) => post.postType === "image" && post.contentFormat === "reel",
+    );
+    const availablePhotoViews = [
+      hasRawPhotos || hasReelsPhotos ? "all" : "",
+      hasRawPhotos ? "raw" : "",
+      hasReelsPhotos ? "reels" : "",
+    ].filter(Boolean);
+
+    if (!availablePhotoViews.length) {
+      return;
+    }
+
+    if (!hasChosenPhotoView && !availablePhotoViews.includes(selectedPhotoView)) {
+      setSelectedPhotoView(availablePhotoViews[0]);
+    }
+  }, [hasChosenPhotoView, selectedPhotoView, uploadedPosts]);
+
+  useEffect(() => {
+    const hasShortVideos = uploadedPosts.some(
+      (post) => post.postType === "video" && post.contentFormat !== "long",
+    );
+    const hasLongVideos = uploadedPosts.some(
+      (post) => post.postType === "video" && post.contentFormat === "long",
+    );
+    const availableVideoViews = [
+      hasShortVideos || hasLongVideos ? "all" : "",
+      hasShortVideos ? "shorts" : "",
+      hasLongVideos ? "longs" : "",
+    ].filter(Boolean);
+
+    if (!availableVideoViews.length) {
+      return;
+    }
+
+    if (!hasChosenVideoView && !availableVideoViews.includes(selectedVideoView)) {
+      setSelectedVideoView(availableVideoViews[0]);
+    }
+  }, [hasChosenVideoView, selectedVideoView, uploadedPosts]);
+
+  useEffect(() => {
+    if (!playlists.length) {
+      setSelectedPlaylistId("");
+      return;
+    }
+
+    if (!playlists.some((playlist) => playlist._id === selectedPlaylistId)) {
+      setSelectedPlaylistId(playlists[0]._id);
+    }
+  }, [playlists, selectedPlaylistId]);
 
   const handleAvatarSelect = (file) => {
     setUploadTarget("avatar");
@@ -780,11 +991,42 @@ export const Profile = () => {
   const canVisitorSeeFollowing = typeof profileUser.followingCount === "number";
   const relationshipStatus = profileUser.relationshipStatus || "none";
   const storyExpiryLabel = formatStoryExpiry(storyExpiresAt);
-  const storyTimeLeftLabel = getStoryTimeLeftLabel(storyExpiresAt);
   const pendingStoryType = pendingStoryMediaFile
     ? (pendingStoryMediaFile.type?.startsWith("video/") ? "video" : "image")
     : (selectedStoryPost?.postType || "image");
   const composerHasSelection = Boolean(pendingStoryMediaFile || selectedStoryPost?._id);
+  const rawPhotoPosts = uploadedPosts.filter(
+    (post) => post.postType === "image" && post.contentFormat !== "reel",
+  );
+  const allUploadedPosts = [...uploadedPosts].sort(
+    (left, right) =>
+      new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime(),
+  );
+  const reelsPhotoPosts = uploadedPosts.filter(
+    (post) => post.postType === "image" && post.contentFormat === "reel",
+  );
+  const allPhotoPosts = [...rawPhotoPosts, ...reelsPhotoPosts].sort(
+    (left, right) =>
+      new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime(),
+  );
+  const shortVideoPosts = uploadedPosts.filter(
+    (post) => post.postType === "video" && post.contentFormat !== "long",
+  );
+  const longVideoPosts = uploadedPosts.filter(
+    (post) => post.postType === "video" && post.contentFormat === "long",
+  );
+  const allVideoPosts = [...longVideoPosts, ...shortVideoPosts].sort(
+    (left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime(),
+  );
+  const selectedPlaylist =
+    playlists.find((playlist) => playlist._id === selectedPlaylistId) || playlists[0] || null;
+  const playlistVideos = Array.isArray(selectedPlaylist?.videos)
+    ? selectedPlaylist.videos
+    : [];
+  const hasFloatingOptions =
+    selectedContentView === "photos" ||
+    selectedContentView === "videos" ||
+    (selectedContentView === "playlists" && playlists.length > 0);
 
   const connectionStats = [
     {
@@ -980,10 +1222,233 @@ export const Profile = () => {
     );
   };
 
+  const storyComposerOverlay = isOwner && storyComposerOpen ? (
+    <div
+      className={styles.storyComposerOverlay}
+      onClick={() => {
+        if (!(loading && uploadTarget === "story")) {
+          setStoryComposerOpen(false);
+        }
+      }}
+    >
+      <div
+        className={styles.storyComposerDialog}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create story"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className={styles.storyComposerDialogHeader}>
+          <div>
+            <p className={styles.storyEyebrow}>Create story</p>
+            <h2>Upload story</h2>
+          </div>
+
+          <button
+            type="button"
+            className={styles.storyComposerClose}
+            onClick={() => setStoryComposerOpen(false)}
+            disabled={loading && uploadTarget === "story"}
+            aria-label="Close story composer"
+          >
+            <MdClose />
+          </button>
+        </div>
+
+        <div className={`${styles.storyComposer} ${styles.storyComposerElevated}`}>
+          <p className={styles.storyComposerIntro}>
+            Build one live story from a photo or video on your device, add
+            optional music, or turn one of your uploaded posts into the story.
+            Video and music clips must stay within 1 minute 30 seconds.
+          </p>
+
+          <div className={styles.storyComposerActions}>
+            <ImageUpload
+              Icon={RiImageEditLine}
+              className={styles.storyUploader}
+              buttonClassName={styles.storyUploadButton}
+              onFileSelect={handleStoryMediaSelect}
+              disabled={loading}
+              size={18}
+              accept="image/*,video/*"
+              label={
+                pendingStoryMediaFile ? "Change photo/video" : "Choose photo/video"
+              }
+              title="Choose a photo or video for your story"
+            />
+
+            <ImageUpload
+              Icon={RiImageEditLine}
+              className={styles.storyUploader}
+              buttonClassName={styles.storySecondaryButton}
+              onFileSelect={handleStoryAudioSelect}
+              disabled={loading}
+              size={18}
+              accept="audio/*"
+              label={pendingStoryAudioFile ? "Change music" : "Add music"}
+              title="Attach optional music from your device"
+            />
+
+            {(pendingStoryMediaFile || pendingStoryAudioFile || selectedStoryPost) ? (
+              <button
+                type="button"
+                className={styles.storySecondaryButton}
+                onClick={resetStoryComposer}
+                disabled={loading}
+              >
+                Clear draft
+              </button>
+            ) : null}
+          </div>
+
+          <div className={styles.storyComposerGrid}>
+            <div className={styles.storyComposerCard}>
+              <div className={styles.storyComposerSectionHeader}>
+                <h3>Draft preview</h3>
+                <span>
+                  {selectedStoryPost
+                    ? "Using one of your posts"
+                    : pendingStoryMediaFile
+                      ? "Using device media"
+                      : "Nothing selected yet"}
+                </span>
+              </div>
+
+              {composerHasSelection ? (
+                <div className={styles.storyDraftPreview}>
+                  {pendingStoryType === "video" ? (
+                    <video
+                      src={pendingStoryMediaPreview || selectedStoryPost?.url}
+                      className={styles.storyImage}
+                      controls
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img
+                      src={pendingStoryMediaPreview || selectedStoryPost?.url}
+                      alt="Story draft"
+                      className={styles.storyImage}
+                    />
+                  )}
+
+                  <div className={styles.storyMeta}>
+                    <span className={styles.storyBadge}>
+                      {pendingStoryType === "video" ? "Video story" : "Photo story"}
+                    </span>
+                    <p>
+                      {selectedStoryPost
+                        ? formatDisplayValue(selectedStoryPost.title) || "Selected post"
+                        : pendingStoryMediaFile?.name || "Device upload"}
+                    </p>
+
+                    {pendingStoryAudioFile ? (
+                      <audio
+                        key={pendingStoryAudioPreview}
+                        ref={pendingStoryAudioRef}
+                        src={pendingStoryAudioPreview}
+                        autoPlay
+                        loop
+                        preload="metadata"
+                        className={styles.storyAudioPlayer}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.storyPlaceholder}>
+                  Choose a photo or video, or select one of your posts below.
+                </div>
+              )}
+            </div>
+
+            <div className={styles.storyComposerCard}>
+              <div className={styles.storyComposerSectionHeader}>
+                <h3>Your uploaded posts</h3>
+                <span>Image and video posts can become your story</span>
+              </div>
+
+              {storyPostsLoading ? (
+                <div className={styles.storyPostsState}>Loading your posts...</div>
+              ) : storyPostsError ? (
+                <div className={styles.storyPostsState}>{storyPostsError}</div>
+              ) : storyPosts.length === 0 ? (
+                <div className={styles.storyPostsState}>
+                  No image or video posts are available yet.
+                </div>
+              ) : (
+                <div className={styles.storyPostList}>
+                  {storyPosts.map((post) => {
+                    const isSelected = selectedStoryPost?._id === post._id;
+
+                    return (
+                      <button
+                        type="button"
+                        key={post._id}
+                        className={`${styles.storyPostCard} ${
+                          isSelected ? styles.storyPostCardActive : ""
+                        }`}
+                        onClick={() => {
+                          setPendingStoryMediaFile(null);
+                          setSelectedStoryPost(post);
+                        }}
+                      >
+                        {post.postType === "video" ? (
+                          <video
+                            src={post.url}
+                            className={styles.storyPostThumb}
+                            muted
+                            preload="metadata"
+                          />
+                        ) : (
+                          <img
+                            src={post.url}
+                            alt={post.title || "Uploaded post"}
+                            className={styles.storyPostThumb}
+                          />
+                        )}
+
+                        <div className={styles.storyPostMeta}>
+                          <strong>
+                            {formatDisplayValue(post.title) || "Untitled post"}
+                          </strong>
+                          <span>{formatDisplayValue(post.postType)}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.storyComposerFooter}>
+            <span>
+              Published stories stay live for 36 hours, then disappear
+              automatically. Video and music length is capped at 1 minute
+              30 seconds.
+            </span>
+            <button
+              type="button"
+              className={styles.storyPublishButton}
+              onClick={handlePublishStory}
+              disabled={loading || !composerHasSelection}
+            >
+              {loading && uploadTarget === "story" ? "Publishing..." : "Publish story"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <>
       <main className={styles.mainContainer}>
-        <section className={styles.contentContainer}>
+        <section
+          className={`${styles.contentContainer} ${
+            storyComposerOpen ? styles.contentContainerMuted : ""
+          }`}
+        >
         <div className={styles.bannerWrapper}>
           <img
             src={profileUser.banner || noBanner}
@@ -1275,409 +1740,6 @@ export const Profile = () => {
             ) : null}
           </div>
 
-          {hasActiveStory || isOwner ? (
-            <section className={styles.storyPanel}>
-              <div className={styles.storyPanelHeader}>
-                <div>
-                  <p className={styles.storyEyebrow}>
-                    {isOwner ? "Your story" : `${profileUser.username}'s story`}
-                  </p>
-                  <h2>{hasActiveStory ? "Live for 36 hours" : "Share a story"}</h2>
-                </div>
-              </div>
-
-              {isOwner && storyComposerOpen ? (
-                <div className={styles.storyComposer}>
-                  <p className={styles.storyComposerIntro}>
-                    Build one live story from a photo or video on your device, add
-                    optional music, or turn one of your uploaded posts into the story.
-                    Video and music clips must stay within 1 minute 30 seconds.
-                  </p>
-
-                  <div className={styles.storyComposerActions}>
-                    <ImageUpload
-                      Icon={RiImageEditLine}
-                      className={styles.storyUploader}
-                      buttonClassName={styles.storyUploadButton}
-                      onFileSelect={handleStoryMediaSelect}
-                      disabled={loading}
-                      size={18}
-                      accept="image/*,video/*"
-                      label={
-                        pendingStoryMediaFile ? "Change photo/video" : "Choose photo/video"
-                      }
-                      title="Choose a photo or video for your story"
-                    />
-
-                    <ImageUpload
-                      Icon={RiImageEditLine}
-                      className={styles.storyUploader}
-                      buttonClassName={styles.storySecondaryButton}
-                      onFileSelect={handleStoryAudioSelect}
-                      disabled={loading}
-                      size={18}
-                      accept="audio/*"
-                      label={pendingStoryAudioFile ? "Change music" : "Add music"}
-                      title="Attach optional music from your device"
-                    />
-
-                    {(pendingStoryMediaFile || pendingStoryAudioFile || selectedStoryPost) ? (
-                      <button
-                        type="button"
-                        className={styles.storySecondaryButton}
-                        onClick={resetStoryComposer}
-                        disabled={loading}
-                      >
-                        Clear draft
-                      </button>
-                    ) : null}
-                  </div>
-
-                  <div className={styles.storyComposerGrid}>
-                    <div className={styles.storyComposerCard}>
-                      <div className={styles.storyComposerSectionHeader}>
-                        <h3>Draft preview</h3>
-                        <span>
-                          {selectedStoryPost
-                            ? "Using one of your posts"
-                            : pendingStoryMediaFile
-                              ? "Using device media"
-                              : "Nothing selected yet"}
-                        </span>
-                      </div>
-
-                      {composerHasSelection ? (
-                        <div className={styles.storyDraftPreview}>
-                          {pendingStoryType === "video" ? (
-                            <video
-                              src={pendingStoryMediaPreview || selectedStoryPost?.url}
-                              className={styles.storyImage}
-                              controls
-                              preload="metadata"
-                            />
-                          ) : (
-                            <img
-                              src={pendingStoryMediaPreview || selectedStoryPost?.url}
-                              alt="Story draft"
-                              className={styles.storyImage}
-                            />
-                          )}
-
-                          <div className={styles.storyMeta}>
-                            <span className={styles.storyBadge}>
-                              {pendingStoryType === "video" ? "Video story" : "Photo story"}
-                            </span>
-                            <p>
-                              {selectedStoryPost
-                                ? formatDisplayValue(selectedStoryPost.title) ||
-                                  "Selected post"
-                                : pendingStoryMediaFile?.name || "Device upload"}
-                            </p>
-
-                            {pendingStoryAudioFile ? (
-                              <audio
-                                key={pendingStoryAudioPreview}
-                                ref={pendingStoryAudioRef}
-                                src={pendingStoryAudioPreview}
-                                autoPlay
-                                loop
-                                preload="metadata"
-                                className={styles.storyAudioPlayer}
-                              />
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className={styles.storyPlaceholder}>
-                          Choose a photo or video, or select one of your posts below.
-                        </div>
-                      )}
-                    </div>
-
-                    <div className={styles.storyComposerCard}>
-                      <div className={styles.storyComposerSectionHeader}>
-                        <h3>Your uploaded posts</h3>
-                        <span>Image and video posts can become your story</span>
-                      </div>
-
-                      {storyPostsLoading ? (
-                        <div className={styles.storyPostsState}>Loading your posts...</div>
-                      ) : storyPostsError ? (
-                        <div className={styles.storyPostsState}>{storyPostsError}</div>
-                      ) : storyPosts.length === 0 ? (
-                        <div className={styles.storyPostsState}>
-                          No image or video posts are available yet.
-                        </div>
-                      ) : (
-                        <div className={styles.storyPostList}>
-                          {storyPosts.map((post) => {
-                            const isSelected = selectedStoryPost?._id === post._id;
-
-                            return (
-                              <button
-                                type="button"
-                                key={post._id}
-                                className={`${styles.storyPostCard} ${
-                                  isSelected ? styles.storyPostCardActive : ""
-                                }`}
-                                onClick={() => {
-                                  setPendingStoryMediaFile(null);
-                                  setSelectedStoryPost(post);
-                                }}
-                              >
-                                {post.postType === "video" ? (
-                                  <video
-                                    src={post.url}
-                                    className={styles.storyPostThumb}
-                                    muted
-                                    preload="metadata"
-                                  />
-                                ) : (
-                                  <img
-                                    src={post.url}
-                                    alt={post.title || "Uploaded post"}
-                                    className={styles.storyPostThumb}
-                                  />
-                                )}
-
-                                <div className={styles.storyPostMeta}>
-                                  <strong>
-                                    {formatDisplayValue(post.title) || "Untitled post"}
-                                  </strong>
-                                  <span>{formatDisplayValue(post.postType)}</span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={styles.storyComposerFooter}>
-                    <span>
-                      Published stories stay live for 36 hours, then disappear
-                      automatically. Video and music length is capped at 1 minute
-                      30 seconds.
-                    </span>
-                    <button
-                      type="button"
-                      className={styles.storyPublishButton}
-                      onClick={handlePublishStory}
-                      disabled={loading || !composerHasSelection}
-                    >
-                      {loading && uploadTarget === "story"
-                        ? "Publishing..."
-                        : "Publish story"}
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {!isOwner && hasActiveStory ? (
-                <button
-                  type="button"
-                  className={styles.storyPreview}
-                  onClick={handleOpenProfileStory}
-                >
-                  {activeStoryType === "video" ? (
-                    <VideoThumbnail
-                      src={activeStory}
-                      className={styles.storyPreviewMedia}
-                      alt={`${profileUser.username || "User"} story video`}
-                    />
-                  ) : (
-                    <img
-                      src={activeStory}
-                      alt={`${profileUser.username || "User"} story`}
-                      className={styles.storyPreviewMedia}
-                    />
-                  )}
-
-                  <div className={styles.storyMeta}>
-                    <span className={styles.storyBadge}>{storyTimeLeftLabel}</span>
-                    <p>
-                      This story stays visible until {storyExpiryLabel} and then
-                      disappears automatically.
-                    </p>
-                  </div>
-                </button>
-              ) : null}
-
-              {isOwner && ownerStoryCards.length === 0 ? (
-                <div className={styles.storyPlaceholder}>
-                  Upload a photo or video story, add music if you want, or reuse one
-                  of your posts. It stays live for 36 hours and then expires
-                  automatically.
-                </div>
-              ) : null}
-
-              {isOwner && ownerStoryCards.length > 0 ? (
-                <div className={styles.storyHistorySection}>
-                  <div className={styles.storyHistoryHeader}>
-                    <h3>Recent stories</h3>
-                    <span>
-                      {ownerStoryCards.length}{" "}
-                      {ownerStoryCards.length === 1 ? "story" : "stories"}
-                    </span>
-                  </div>
-
-                  <div className={styles.storyHistoryRail}>
-                    {ownerStoryCards.map((item, index) => {
-                      const isCurrentStory = Boolean(item.isActive);
-                      const createdLabel = item.createdAt
-                        ? formatStoryExpiry(item.createdAt)
-                        : "";
-                      const expiryLabel = item.expiresAt
-                        ? formatStoryExpiry(item.expiresAt)
-                        : "";
-                      const cardLabel = isCurrentStory
-                        ? "Recently added"
-                        : createdLabel
-                          ? `Shared ${createdLabel}`
-                          : "Older story";
-
-                      return (
-                        <button
-                          type="button"
-                          key={`${item.mediaUrl}-${item.createdAt || index}`}
-                          className={styles.storyHistoryCard}
-                          onClick={() => handleOpenOwnerStoryDetail(item._id)}
-                        >
-                          <div className={styles.storyHistoryFrame}>
-                            {item.mediaType === "video" ? (
-                              <VideoThumbnail
-                                src={item.mediaUrl}
-                                className={styles.storyHistoryThumb}
-                                alt={`Recent story ${index + 1} video`}
-                              />
-                            ) : (
-                              <img
-                                src={item.mediaUrl}
-                                alt={`Recent story ${index + 1}`}
-                                className={styles.storyHistoryThumb}
-                              />
-                            )}
-                          </div>
-
-                          <div className={styles.storyHistoryMeta}>
-                            <div className={styles.storyHistoryMetaTop}>
-                              <span
-                                className={`${styles.storyHistoryPill} ${
-                                  isCurrentStory
-                                    ? styles.storyHistoryPillLive
-                                    : styles.storyHistoryPillRecent
-                                }`}
-                              >
-                                {isCurrentStory ? "Recent" : "Older"}
-                              </span>
-                              <span className={styles.storyHistoryType}>
-                                {item.mediaType === "video" ? "Video" : "Photo"}
-                              </span>
-                            </div>
-
-                            <strong>{cardLabel}</strong>
-                            <p>
-                              {isCurrentStory && expiryLabel
-                                ? `Ends ${expiryLabel}`
-                                : createdLabel
-                                  ? `Shared ${createdLabel}`
-                                  : "Shared earlier"}
-                            </p>
-                            <small>
-                              {item.likeCount || 0} likes
-                              {item.audioUrl ? " • music" : ""}
-                            </small>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-            </section>
-          ) : null}
-
-          {playlists.length > 0 || playlistsLoading || (isOwner && !playlistsError) ? (
-            <section className={styles.playlistPanel}>
-              <div className={styles.playlistPanelHeader}>
-                <div>
-                  <p className={styles.storyEyebrow}>
-                    {isOwner ? "Your playlists" : `${profileUser.username}'s playlists`}
-                  </p>
-                  <h2>Public video playlists</h2>
-                </div>
-
-                {isOwner ? (
-                  <button
-                    type="button"
-                    className={styles.storySecondaryButton}
-                    onClick={() => navigate("/dashboard")}
-                  >
-                    <MdOutlinePlaylistPlay />
-                    Manage playlists
-                  </button>
-                ) : null}
-              </div>
-
-              {playlistsLoading ? (
-                <div className={styles.storyPlaceholder}>Loading playlists...</div>
-              ) : playlistsError ? (
-                <div className={styles.storyPlaceholder}>{playlistsError}</div>
-              ) : playlists.length === 0 ? (
-                <div className={styles.storyPlaceholder}>
-                  {isOwner
-                    ? "Create a few playlists from your dashboard and they will show up here for visitors."
-                    : "This profile has not published any playlists yet."}
-                </div>
-              ) : (
-                <div className={styles.playlistStack}>
-                  {playlists.map((playlist) => (
-                    <article key={playlist._id} className={styles.playlistCard}>
-                      <div className={styles.playlistCardHeader}>
-                        <div>
-                          <h3>{formatDisplayValue(playlist.title) || "Untitled playlist"}</h3>
-                          <p>{playlist.description || "Public playlist"}</p>
-                        </div>
-                        <span className={styles.playlistCount}>
-                          {playlist.videoCount || 0} videos
-                        </span>
-                      </div>
-
-                      {Array.isArray(playlist.videos) && playlist.videos.length > 0 ? (
-                        <div className={styles.playlistVideoGrid}>
-                          {playlist.videos.map((video) => (
-                            <article key={video._id} className={styles.playlistVideoCard}>
-                              <div className={styles.playlistVideoFrame}>
-                                <video
-                                  src={video.url}
-                                  className={styles.playlistVideoThumb}
-                                  muted
-                                  preload="metadata"
-                                />
-                              </div>
-
-                              <div className={styles.playlistVideoMeta}>
-                                <strong>
-                                  {formatDisplayValue(video.title) || "Untitled video"}
-                                </strong>
-                                <span>{formatDisplayValue(video.category) || "Uncategorized"}</span>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className={styles.storyPlaceholder}>
-                          This playlist does not have any public videos right now.
-                        </div>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-          ) : null}
-
           {isOwner && !isSmallScreen ? (
             <section className={styles.gridLayout}>
               <article className={styles.panel}>
@@ -1778,6 +1840,368 @@ export const Profile = () => {
               </article>
             </section>
           ) : null}
+
+          {hasActiveStory || isOwner ? (
+            <section className={styles.storyPanel}>
+              <div className={styles.storyPanelHeader}>
+                <div>
+                  <p className={styles.storyEyebrow}>
+                    {isOwner ? "Your story" : `${profileUser.username}'s story`}
+                  </p>
+                  {!hasActiveStory ? <h2>Share a story</h2> : null}
+                </div>
+              </div>
+
+              {!isOwner && hasActiveStory ? (
+                <div className={styles.storyRailSection}>
+                  <StoryRail
+                    items={visitorStoryRailItems}
+                    onSelect={handleOpenProfileStory}
+                    getItemLabel={() =>
+                      `Open ${profileUser.username || "user"} story`
+                    }
+                  />
+
+                  <p className={styles.storyRailHint}>
+                    This story stays visible until {storyExpiryLabel} and then
+                    disappears automatically.
+                  </p>
+                </div>
+              ) : null}
+
+              {isOwner && ownerStoryCards.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  Upload a photo or video story, add music if you want, or reuse one
+                  of your posts. It stays live for 36 hours and then expires
+                  automatically.
+                </div>
+              ) : null}
+
+              {isOwner && ownerStoryCards.length > 0 ? (
+                <div className={styles.storyHistorySection}>
+                  <div className={styles.storyHistoryHeader}>
+                    <h3>Recent stories</h3>
+                    <span>
+                      {ownerStoryCards.length}{" "}
+                      {ownerStoryCards.length === 1 ? "story" : "stories"}
+                    </span>
+                  </div>
+
+                  <StoryRail
+                    items={ownerStoryRailItems}
+                    onSelect={(item) => handleOpenOwnerStoryDetail(item?.id)}
+                    getItemLabel={(item, index) =>
+                      `Open your story ${index + 1}${item?.subtitle ? `, ${item.subtitle}` : ""}`
+                    }
+                  />
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          {profileUser ? (
+            <section className={styles.uploadsSection}>
+              <section className={styles.uploadsPanel}>
+                <div
+                  className={`${styles.uploadsPanelHeader} ${
+                    hasFloatingOptions ? styles.uploadsPanelHeaderWithControls : ""
+                  }`}
+                >
+                  <div className={styles.contentNavStack}>
+                    <div className={styles.contentNav}>
+                      <button
+                        type="button"
+                        className={`${styles.contentNavButton} ${
+                          selectedContentView === "all" ? styles.contentNavButtonActive : ""
+                        }`}
+                        onClick={() => {
+                          setHasChosenContentView(true);
+                          setSelectedContentView("all");
+                        }}
+                      >
+                        <strong>All</strong>
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.contentNavButton} ${
+                          selectedContentView === "photos" ? styles.contentNavButtonActive : ""
+                        }`}
+                        onClick={() => {
+                          setHasChosenContentView(true);
+                          setSelectedContentView("photos");
+                        }}
+                      >
+                        <strong>Photos</strong>
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.contentNavButton} ${
+                          selectedContentView === "videos" ? styles.contentNavButtonActive : ""
+                        }`}
+                        onClick={() => {
+                          setHasChosenContentView(true);
+                          setSelectedContentView("videos");
+                        }}
+                      >
+                        <strong>Videos</strong>
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.contentNavButton} ${
+                          selectedContentView === "playlists"
+                            ? styles.contentNavButtonActive
+                            : ""
+                        }`}
+                        onClick={() => {
+                          setHasChosenContentView(true);
+                          setSelectedContentView("playlists");
+                        }}
+                      >
+                        <strong>Playlists</strong>
+                      </button>
+                    </div>
+                    <div
+                      className={`${styles.uploadsControlsShelf} ${
+                        hasFloatingOptions ? styles.uploadsControlsShelfActive : ""
+                      }`}
+                      aria-hidden={!hasFloatingOptions}
+                    >
+                      {hasFloatingOptions ? (
+                        <div className={styles.uploadsControls}>
+                          {selectedContentView === "photos" ? (
+                            <div className={styles.contentSubnavBar}>
+                              <button
+                                type="button"
+                                className={`${styles.contentSubnavButton} ${
+                                  selectedPhotoView === "all"
+                                    ? styles.contentSubnavButtonActive
+                                    : ""
+                                }`}
+                                onClick={() => {
+                                  setHasChosenPhotoView(true);
+                                  setSelectedPhotoView("all");
+                                }}
+                              >
+                                <strong>All</strong>
+                              </button>
+                              <button
+                                type="button"
+                                className={`${styles.contentSubnavButton} ${
+                                  selectedPhotoView === "raw"
+                                    ? styles.contentSubnavButtonActive
+                                    : ""
+                                }`}
+                                onClick={() => {
+                                  setHasChosenPhotoView(true);
+                                  setSelectedPhotoView("raw");
+                                }}
+                              >
+                                <strong>Raw photos</strong>
+                              </button>
+                              <button
+                                type="button"
+                                className={`${styles.contentSubnavButton} ${
+                                  selectedPhotoView === "reels"
+                                    ? styles.contentSubnavButtonActive
+                                    : ""
+                                }`}
+                                onClick={() => {
+                                  setHasChosenPhotoView(true);
+                                  setSelectedPhotoView("reels");
+                                }}
+                              >
+                                <strong>Reels photos</strong>
+                              </button>
+                            </div>
+                          ) : null}
+
+                          {selectedContentView === "videos" ? (
+                            <div className={styles.contentSubnavBar}>
+                              <button
+                                type="button"
+                                className={`${styles.contentSubnavButton} ${
+                                  selectedVideoView === "all"
+                                    ? styles.contentSubnavButtonActive
+                                    : ""
+                                }`}
+                                onClick={() => {
+                                  setHasChosenVideoView(true);
+                                  setSelectedVideoView("all");
+                                }}
+                              >
+                                <strong>All</strong>
+                              </button>
+                              <button
+                                type="button"
+                                className={`${styles.contentSubnavButton} ${
+                                  selectedVideoView === "longs"
+                                    ? styles.contentSubnavButtonActive
+                                    : ""
+                                }`}
+                                onClick={() => {
+                                  setHasChosenVideoView(true);
+                                  setSelectedVideoView("longs");
+                                }}
+                              >
+                                <strong>Longs</strong>
+                              </button>
+                              <button
+                                type="button"
+                                className={`${styles.contentSubnavButton} ${
+                                  selectedVideoView === "shorts"
+                                    ? styles.contentSubnavButtonActive
+                                    : ""
+                                }`}
+                                onClick={() => {
+                                  setHasChosenVideoView(true);
+                                  setSelectedVideoView("shorts");
+                                }}
+                              >
+                                <strong>Shorts</strong>
+                              </button>
+                            </div>
+                          ) : null}
+
+                          {selectedContentView === "playlists" && playlists.length > 0 ? (
+                            <div className={styles.playlistOptionsRow}>
+                              {playlists.map((playlist) => (
+                                <button
+                                  type="button"
+                                  key={playlist._id}
+                                  className={`${styles.playlistOptionButton} ${
+                                    selectedPlaylist?._id === playlist._id
+                                      ? styles.playlistOptionButtonActive
+                                      : ""
+                                  }`}
+                                  onClick={() => setSelectedPlaylistId(playlist._id)}
+                                >
+                                  {formatDisplayValue(playlist.title) || "Untitled playlist"}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.uploadsCanvas}>
+                  {uploadedPostsLoading || (selectedContentView === "playlists" && playlistsLoading) ? (
+                <div className={styles.storyPlaceholder}>
+                  {selectedContentView === "playlists"
+                    ? "Loading playlists..."
+                    : isOwner
+                      ? "Loading your uploaded posts..."
+                      : "Loading profile posts..."}
+                </div>
+              ) : selectedContentView === "playlists" && playlistsError ? (
+                <div className={styles.storyPlaceholder}>{playlistsError}</div>
+              ) : selectedContentView === "playlists" && playlists.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  {isOwner
+                    ? "Create playlists from your dashboard and they will appear here."
+                    : "This profile has not published any playlists yet."}
+                </div>
+              ) : uploadedPostsError ? (
+                <div className={styles.storyPlaceholder}>{uploadedPostsError}</div>
+              ) : selectedContentView === "all" && allUploadedPosts.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  {isOwner ? "No posts yet." : "This profile has not uploaded posts yet."}
+                </div>
+              ) : selectedContentView === "photos" && selectedPhotoView === "all" && allPhotoPosts.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  {isOwner ? "No photos yet." : "This profile has not uploaded photos yet."}
+                </div>
+              ) : selectedContentView === "photos" && selectedPhotoView === "raw" && rawPhotoPosts.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  {isOwner ? "No raw photos yet." : "This profile has not uploaded raw photos yet."}
+                </div>
+              ) : selectedContentView === "photos" && selectedPhotoView === "reels" && reelsPhotoPosts.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  {isOwner
+                    ? "No reels photos yet."
+                    : "This profile has not uploaded reels photos yet."}
+                </div>
+              ) : selectedContentView === "videos" && selectedVideoView === "all" && allVideoPosts.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  {isOwner ? "No videos yet." : "This profile has not uploaded videos yet."}
+                </div>
+              ) : selectedContentView === "videos" && selectedVideoView === "shorts" && shortVideoPosts.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  {isOwner
+                    ? "No short videos yet."
+                    : "This profile has not uploaded short videos yet."}
+                </div>
+              ) : selectedContentView === "videos" && selectedVideoView === "longs" && longVideoPosts.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  {isOwner ? "No long videos yet." : "This profile has not uploaded long videos yet."}
+                </div>
+              ) : selectedContentView === "playlists" && playlistVideos.length === 0 ? (
+                <div className={styles.storyPlaceholder}>
+                  This playlist does not have any videos yet.
+                </div>
+                  ) : (
+                    <div className={styles.uploadsGrid}>
+                      {(selectedContentView === "all"
+                        ? allUploadedPosts
+                        : selectedContentView === "photos"
+                        ? selectedPhotoView === "all"
+                          ? allPhotoPosts
+                          : selectedPhotoView === "reels"
+                          ? reelsPhotoPosts
+                          : rawPhotoPosts
+                        : selectedContentView === "videos"
+                          ? selectedVideoView === "all"
+                            ? allVideoPosts
+                            : selectedVideoView === "longs"
+                            ? longVideoPosts
+                            : shortVideoPosts
+                            : playlistVideos
+                      ).map((post) => (
+                        <button
+                          type="button"
+                          key={post._id}
+                          className={styles.uploadPostCard}
+                          onClick={() => navigate(`/posts/${post._id}`)}
+                        >
+                          <div className={styles.uploadPostFrame}>
+                            {post.postType === "video" ? (
+                              <video
+                                src={post.url}
+                                className={styles.uploadPostThumb}
+                                muted
+                                preload="metadata"
+                              />
+                            ) : (
+                              <img
+                                src={post.url}
+                                alt={post.title || "Uploaded post"}
+                                className={styles.uploadPostThumb}
+                              />
+                            )}
+                          </div>
+
+                          <div className={styles.uploadPostMeta}>
+                            <div className={styles.uploadPostMetaTop}>
+                              <span>{formatDisplayValue(post.postType) || "Post"}</span>
+                              <span>
+                                {formatDisplayValue(post.contentFormat) ||
+                                  (selectedContentView === "playlists" ? "Playlist" : "Standard")}
+                              </span>
+                            </div>
+                            <strong>{formatDisplayValue(post.title) || "Untitled post"}</strong>
+                            <p>{formatDisplayValue(post.category) || "No category"}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            </section>
+          ) : null}
+
         </div>
 
         {isOwner && isSmallScreen ? (
@@ -1964,6 +2388,8 @@ export const Profile = () => {
         ) : null}
         </section>
       </main>
+
+      {storyComposerOverlay}
 
       <AuthAccessPrompt
         open={showAuthPrompt}
