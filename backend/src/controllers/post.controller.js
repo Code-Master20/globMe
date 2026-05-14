@@ -3,6 +3,7 @@ const cloudinary = require("../config/cloudinary.utils");
 const SuccessHandler = require("../utils/successHandler.util");
 const ErrorHandler = require("../utils/errorHandler.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
+const { getViewerLikedPostIdSet } = require("../utils/posts/postLike.util");
 
 const getPublicPosts = async (req, res) => {
   try {
@@ -26,30 +27,35 @@ const getPublicPosts = async (req, res) => {
       )
       .sort({ createdAt: -1 })
       .limit(limit);
+    const watchLaterPostIds = Array.isArray(req.user?.watchLaterPosts)
+      ? req.user.watchLaterPosts.map((item) => `${item}`)
+      : [];
+    const likedPostIds = await getViewerLikedPostIdSet(
+      viewerId,
+      posts.map((post) => post?._id),
+    );
 
     const normalizedPosts = posts
       .filter((post) => post.user)
       .map((post) => {
-        const watchLaterPostIds = Array.isArray(req.user?.watchLaterPosts)
-          ? req.user.watchLaterPosts.map((item) => `${item}`)
-          : [];
-
         return {
-        _id: post._id,
-        title: post.title,
-        description: post.description,
-        tags: Array.isArray(post.tags) ? post.tags : [],
-        postType: post.postType,
-        category: post.category || null,
-        contentFormat: post.contentFormat || null,
-        durationSeconds: Number(post.durationSeconds) || 0,
-        url: post.url,
+          _id: post._id,
+          title: post.title,
+          description: post.description,
+          tags: Array.isArray(post.tags) ? post.tags : [],
+          postType: post.postType,
+          category: post.category || null,
+          contentFormat: post.contentFormat || null,
+          durationSeconds: Number(post.durationSeconds) || 0,
+          url: post.url,
           likeCount: post.likeCount,
           shareCount: post.shareCount,
           commentCount: post.commentCount,
+          viewCount: post.viewCount || 0,
           postDate: post.postDate,
           createdAt: post.createdAt,
           savedToWatchLater: watchLaterPostIds.includes(`${post._id}`),
+          likedByViewer: likedPostIds.has(`${post._id}`),
           user: toPublicUser(post.user, { viewerId }),
         };
       });
@@ -73,6 +79,7 @@ const getPublicPostById = async (req, res) => {
     if (!post || !post.user) {
       return new ErrorHandler(404, "Post not found").send(res);
     }
+    const likedPostIds = await getViewerLikedPostIdSet(viewerId, [post._id]);
 
     return new SuccessHandler(200, "Public post", {
       _id: post._id,
@@ -87,17 +94,62 @@ const getPublicPostById = async (req, res) => {
       likeCount: post.likeCount,
       shareCount: post.shareCount,
       commentCount: post.commentCount,
+      viewCount: post.viewCount || 0,
       postDate: post.postDate,
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
       savedToWatchLater: Array.isArray(req.user?.watchLaterPosts)
         ? req.user.watchLaterPosts.some((item) => `${item}` === `${post._id}`)
         : false,
+      likedByViewer: likedPostIds.has(`${post._id}`),
       user: toPublicUser(post.user, { viewerId }),
     }).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Public post could not be loaded")
       .log("public post by id error", error)
+      .send(res);
+  }
+};
+
+const incrementPublicPostView = async (req, res) => {
+  try {
+    const viewerId = req.user?.id || req.user?._id || null;
+    const existingPost = await Post.findById(req.params.postId).select(
+      "_id user viewCount postType contentFormat",
+    );
+
+    if (!existingPost) {
+      return new ErrorHandler(404, "Post not found").send(res);
+    }
+
+    if (viewerId && `${viewerId}` === `${existingPost.user}`) {
+      return new SuccessHandler(200, "Owner view ignored", {
+        postId: `${existingPost._id}`,
+        viewCount: existingPost.viewCount || 0,
+        postType: existingPost.postType,
+        contentFormat: existingPost.contentFormat || null,
+      }).send(res);
+    }
+
+    const post = await Post.findByIdAndUpdate(
+      req.params.postId,
+      { $inc: { viewCount: 1 } },
+      { new: true, select: "_id viewCount postType contentFormat" },
+    );
+
+    if (!post) {
+      return new ErrorHandler(404, "Post not found").send(res);
+    }
+
+    return new SuccessHandler(200, "Post view recorded", {
+      postId: `${post._id}`,
+      viewCount: post.viewCount || 0,
+      postType: post.postType,
+      contentFormat: post.contentFormat || null,
+    }).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Post view could not be recorded")
+      .log("public post view error", error)
       .send(res);
   }
 };
@@ -137,4 +189,4 @@ const deletePost = async (req, res) => {
   }
 };
 
-module.exports = { deletePost, getPublicPosts, getPublicPostById };
+module.exports = { deletePost, getPublicPosts, getPublicPostById, incrementPublicPostView };

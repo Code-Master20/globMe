@@ -14,8 +14,24 @@ const commentSchema = new mongoose.Schema(
     },
     comment: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
+    },
+    imageUrl: {
+      type: String,
+      default: null,
+    },
+    imageCloudinaryId: {
+      type: String,
+      default: null,
+    },
+    linkUrl: {
+      type: String,
+      default: null,
+    },
+    likeCount: {
+      type: Number,
+      default: 0,
     },
     parentComment: {
       type: mongoose.Schema.Types.ObjectId,
@@ -29,57 +45,6 @@ const commentSchema = new mongoose.Schema(
 );
 
 commentSchema.index({ post: 1, createdAt: -1 });
+commentSchema.index({ post: 1, parentComment: 1, createdAt: -1 });
 
-const Comment = mongoose.model("Comment", commentSchema);
-
-module.exports = Comment;
-
-/*
-========================================finding related comments with postId=======================
-commentSchema.index({ post: 1 });
-for the above portion of code Now I am able to run this portion of code -->
-Comment.find({ post: postId })
-  .sort({ createdAt: -1 })
-  .limit(20);
-, which means -->“Give me all comments (20comts) belonging to this post”
-
-
-
-
-==========================Reply-To-Comment->Reply-To-Reply infinity previliges===========================
-   parentComment: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Comment",
-      default: null,
-    },
-    the above portion allow as previlleges to do :-
-    comment
-    reply to comment
-    reply to reply
-
-=============================efficency during searching comments of a particular post==============================
-    commentSchema.index({ post: 1, createdAt: -1 });
-    “When MongoDB searches comments for a post,
-    it will READ them in order of newest → oldest.”
-
-
-    ====================populate() use cases===========================
-    Your Comment document in MongoDB looks like this:-
-            {
-                "_id": "C2",
-                "post": "P1",
-                "user": "U3",
-                "comment": "Nice post",
-                "parentComment": "C1"
-            }
-        post, user, parentComment are just ObjectIds
-        MongoDB does NOT know what they mean
-        They are just IDs.
-
- BUT  populate() says to Mongoose:
- const comments = await Comment.find({ post: postId }).populate("user");
- 
-    “Hey, this field contains an ObjectId.
-    Go to the referenced collection, fetch the document,
-    and temporarily replace the ID with real data.”
-*/
+module.exports = mongoose.model("Comment", commentSchema);

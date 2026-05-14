@@ -2,12 +2,14 @@ const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary.utils");
 const User = require("../models/auth/user.model");
 const Post = require("../models/post.model");
+const Like = require("../models/like.model");
 const Playlist = require("../models/playlist.model");
 const StoryLike = require("../models/storyLike.model");
 const Notification = require("../models/notification.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
+const { getViewerLikedPostIdSet } = require("../utils/posts/postLike.util");
 
 const STORY_LIFETIME_MS = 36 * 60 * 60 * 1000;
 const MAX_STORY_DURATION_SECONDS = 90;
@@ -103,6 +105,7 @@ const formatPostPayload = (postDoc, options = {}) => {
     viewerId = null,
     savedToWatchLater = false,
     playlists = [],
+    likedByViewer = false,
   } = options;
   const post = typeof postDoc.toObject === "function" ? postDoc.toObject() : postDoc;
 
@@ -119,10 +122,12 @@ const formatPostPayload = (postDoc, options = {}) => {
     likeCount: post.likeCount || 0,
     shareCount: post.shareCount || 0,
     commentCount: post.commentCount || 0,
+    viewCount: post.viewCount || 0,
     postDate: post.postDate,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
     savedToWatchLater,
+    likedByViewer,
     playlists,
     user: post.user ? toPublicUser(post.user, { viewerId }) : null,
   };
@@ -179,7 +184,6 @@ const appendVideoToPlaylists = async ({
         },
         {
           $addToSet: { videoPosts: videoPostId },
-          $set: { isPublic: true },
         },
       );
 
@@ -213,9 +217,6 @@ const appendVideoToPlaylists = async ({
       if (normalizedNewDescription && !`${playlist.description ?? ""}`.trim()) {
         playlist.description = normalizedNewDescription;
       }
-
-      playlist.isPublic = true;
-
       if (!playlist.videoPosts.some((postId) => `${postId}` === `${videoPostId}`)) {
         playlist.videoPosts.push(videoPostId);
       }
@@ -234,11 +235,12 @@ const appendVideoToPlaylists = async ({
   return linkedPlaylists;
 };
 
-const formatPlaylistPayload = (playlistDoc) => {
+const formatPlaylistPayload = (playlistDoc, options = {}) => {
   if (!playlistDoc) {
     return null;
   }
 
+  const likedPostIdSet = options.likedPostIdSet || new Set();
   const playlist = typeof playlistDoc.toObject === "function"
     ? playlistDoc.toObject()
     : playlistDoc;
@@ -266,6 +268,8 @@ const formatPlaylistPayload = (playlistDoc) => {
         likeCount: post.likeCount,
         shareCount: post.shareCount,
         commentCount: post.commentCount,
+        viewCount: post.viewCount || 0,
+        likedByViewer: likedPostIdSet.has(`${post._id}`),
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,
       })),
@@ -1002,14 +1006,20 @@ const getOwnerPlaylists = async (req, res) => {
       .populate({
         path: "videoPosts",
         select:
-          "title description url postType category contentFormat likeCount shareCount commentCount createdAt updatedAt",
+          "title description url postType category contentFormat likeCount shareCount commentCount viewCount createdAt updatedAt",
       })
       .sort({ updatedAt: -1 });
+    const likedPostIds = await getViewerLikedPostIdSet(
+      req.user.id,
+      playlists.flatMap((playlist) =>
+        Array.isArray(playlist.videoPosts) ? playlist.videoPosts.map((post) => post?._id) : [],
+      ),
+    );
 
     return new SuccessHandler(
       200,
       "Playlists loaded",
-      playlists.map(formatPlaylistPayload),
+      playlists.map((playlist) => formatPlaylistPayload(playlist, { likedPostIdSet: likedPostIds })),
     ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Playlists could not be loaded")
@@ -1023,6 +1033,7 @@ const createPlaylist = async (req, res) => {
     const title = `${req.body?.title ?? ""}`.trim().toLowerCase();
     const description = `${req.body?.description ?? ""}`.trim();
     const videoPostIds = normalizePlaylistPostIds(req.body?.videoPostIds);
+    const isPublic = req.body?.isPublic !== false;
 
     if (!title) {
       return new ErrorHandler(400, "Playlist title is required").send(res);
@@ -1038,20 +1049,26 @@ const createPlaylist = async (req, res) => {
       owner: req.user.id,
       title,
       description,
-      isPublic: true,
+      isPublic,
       videoPosts: eligiblePostIds,
     });
 
     const hydratedPlaylist = await Playlist.findById(playlist._id).populate({
       path: "videoPosts",
       select:
-        "title description url postType category contentFormat likeCount shareCount commentCount createdAt updatedAt",
+        "title description url postType category contentFormat likeCount shareCount commentCount viewCount createdAt updatedAt",
     });
+    const likedPostIds = await getViewerLikedPostIdSet(
+      req.user.id,
+      Array.isArray(hydratedPlaylist?.videoPosts)
+        ? hydratedPlaylist.videoPosts.map((post) => post?._id)
+        : [],
+    );
 
     return new SuccessHandler(
       201,
       "Playlist created successfully",
-      formatPlaylistPayload(hydratedPlaylist),
+      formatPlaylistPayload(hydratedPlaylist, { likedPostIdSet: likedPostIds }),
     ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Playlist could not be created")
@@ -1079,6 +1096,8 @@ const updatePlaylist = async (req, res) => {
       req.body?.description !== undefined
         ? `${req.body.description ?? ""}`.trim()
         : playlist.description;
+    const isPublic =
+      req.body?.isPublic !== undefined ? req.body.isPublic !== false : playlist.isPublic;
     const videoPostIds =
       req.body?.videoPostIds !== undefined
         ? normalizePlaylistPostIds(req.body.videoPostIds)
@@ -1095,19 +1114,25 @@ const updatePlaylist = async (req, res) => {
     playlist.title = title;
     playlist.description = description;
     playlist.videoPosts = eligiblePosts.map((post) => post._id);
-    playlist.isPublic = true;
+    playlist.isPublic = isPublic;
     await playlist.save();
 
     const hydratedPlaylist = await Playlist.findById(playlist._id).populate({
       path: "videoPosts",
       select:
-        "title description url postType category contentFormat likeCount shareCount commentCount createdAt updatedAt",
+        "title description url postType category contentFormat likeCount shareCount commentCount viewCount createdAt updatedAt",
     });
+    const likedPostIds = await getViewerLikedPostIdSet(
+      req.user.id,
+      Array.isArray(hydratedPlaylist?.videoPosts)
+        ? hydratedPlaylist.videoPosts.map((post) => post?._id)
+        : [],
+    );
 
     return new SuccessHandler(
       200,
       "Playlist updated successfully",
-      formatPlaylistPayload(hydratedPlaylist),
+      formatPlaylistPayload(hydratedPlaylist, { likedPostIdSet: likedPostIds }),
     ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Playlist could not be updated")
@@ -1119,6 +1144,7 @@ const updatePlaylist = async (req, res) => {
 const getPublicProfilePlaylists = async (req, res) => {
   try {
     const { userId } = req.params;
+    const viewerId = req.user?.id || req.user?._id || null;
 
     if (!mongoose.isValidObjectId(userId)) {
       return new ErrorHandler(400, "Invalid profile id").send(res);
@@ -1131,14 +1157,20 @@ const getPublicProfilePlaylists = async (req, res) => {
       .populate({
         path: "videoPosts",
         select:
-          "title description url postType category contentFormat likeCount shareCount commentCount createdAt updatedAt",
+          "title description url postType category contentFormat likeCount shareCount commentCount viewCount createdAt updatedAt",
       })
       .sort({ updatedAt: -1 });
+    const likedPostIds = await getViewerLikedPostIdSet(
+      viewerId,
+      playlists.flatMap((playlist) =>
+        Array.isArray(playlist.videoPosts) ? playlist.videoPosts.map((post) => post?._id) : [],
+      ),
+    );
 
     return new SuccessHandler(
       200,
       "Public playlists loaded",
-      playlists.map(formatPlaylistPayload),
+      playlists.map((playlist) => formatPlaylistPayload(playlist, { likedPostIdSet: likedPostIds })),
     ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Public playlists could not be loaded")
@@ -1279,6 +1311,10 @@ const getOwnerPosts = async (req, res) => {
       )
       .sort({ createdAt: -1 })
       .limit(36);
+    const likedPostIds = await getViewerLikedPostIdSet(
+      req.user.id,
+      posts.map((post) => post?._id),
+    );
 
     return new SuccessHandler(
       200,
@@ -1286,6 +1322,7 @@ const getOwnerPosts = async (req, res) => {
       posts.map((post) =>
         formatPostPayload(post, {
           viewerId: req.user.id,
+          likedByViewer: likedPostIds.has(`${post._id}`),
         }),
       ),
     ).send(res);
@@ -1322,6 +1359,10 @@ const getProfilePosts = async (req, res) => {
       )
       .sort({ createdAt: -1 })
       .limit(36);
+    const likedPostIds = await getViewerLikedPostIdSet(
+      viewerId,
+      posts.map((post) => post?._id),
+    );
 
     return new SuccessHandler(
       200,
@@ -1331,12 +1372,134 @@ const getProfilePosts = async (req, res) => {
         .map((post) =>
           formatPostPayload(post, {
             viewerId,
+            likedByViewer: likedPostIds.has(`${post._id}`),
           }),
         ),
     ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Profile posts could not be loaded")
       .log("profile posts error", error)
+      .send(res);
+  }
+};
+
+const togglePostLike = async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    if (!mongoose.isValidObjectId(postId)) {
+      return new ErrorHandler(400, "Invalid post selected").send(res);
+    }
+
+    const post = await Post.findById(postId).select("user likeCount title");
+
+    if (!post) {
+      return new ErrorHandler(404, "Post not found").send(res);
+    }
+
+    const existingLike = await Like.findOne({
+      post: postId,
+      user: req.user.id,
+    });
+
+    let liked = false;
+
+    if (existingLike) {
+      await existingLike.deleteOne();
+      post.likeCount = Math.max(0, Number(post.likeCount || 0) - 1);
+      await Notification.deleteMany({
+        user: post.user,
+        actor: req.user.id,
+        type: "post_like",
+        link: `/posts/${post._id}`,
+      });
+    } else {
+      await Like.create({
+        post: postId,
+        user: req.user.id,
+      });
+      post.likeCount = Number(post.likeCount || 0) + 1;
+      liked = true;
+
+      if (`${post.user}` !== `${req.user.id}`) {
+        const actor = await User.findById(req.user.id).select("username");
+
+        try {
+          await Notification.create({
+            user: post.user,
+            actor: req.user.id,
+            type: "post_like",
+            message: `${actor?.username || "Someone"} liked your post${post.title ? `: ${post.title}` : ""}`,
+            link: `/posts/${post._id}`,
+          });
+        } catch (notificationError) {
+          console.error("post like notification error", notificationError);
+        }
+      }
+    }
+
+    await post.save();
+
+    return new SuccessHandler(
+      200,
+      liked ? "Post liked" : "Like removed",
+      {
+        postId: `${post._id}`,
+        liked,
+        likeCount: post.likeCount,
+      },
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Post like could not be updated")
+      .log("post like toggle error", error)
+      .send(res);
+  }
+};
+
+const getPostLikes = async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    if (!mongoose.isValidObjectId(postId)) {
+      return new ErrorHandler(400, "Invalid post selected").send(res);
+    }
+
+    const post = await Post.findById(postId).select("user title");
+
+    if (!post) {
+      return new ErrorHandler(404, "Post not found").send(res);
+    }
+
+    if (`${post.user}` !== `${req.user.id}`) {
+      return new ErrorHandler(403, "Only the post owner can view likes").send(res);
+    }
+
+    const likes = await Like.find({ post: postId })
+      .populate(
+        "user",
+        "username avatar profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt",
+      )
+      .sort({ createdAt: -1 });
+
+    return new SuccessHandler(
+      200,
+      "Post likes loaded",
+      {
+        postId: `${post._id}`,
+        title: post.title,
+        totalLikes: likes.length,
+        likes: likes
+          .filter((item) => item.user)
+          .map((item) => ({
+            _id: `${item._id}`,
+            createdAt: item.createdAt,
+            user: toPublicUser(item.user, { viewerId: req.user.id }),
+          })),
+      },
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Post likes could not be loaded")
+      .log("post likes load error", error)
       .send(res);
   }
 };
@@ -1350,7 +1513,7 @@ const toggleWatchLater = async (req, res) => {
     }
 
     const post = await Post.findById(postId).select(
-      "title description url postType category user likeCount commentCount shareCount postDate createdAt updatedAt",
+      "title description url postType category user likeCount commentCount shareCount viewCount postDate createdAt updatedAt",
     );
 
     if (!post || post.postType !== "video") {
@@ -1412,6 +1575,10 @@ const getWatchLaterVideos = async (req, res) => {
         "username avatar profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt",
       )
       .sort({ createdAt: -1 });
+    const likedPostIds = await getViewerLikedPostIdSet(
+      req.user.id,
+      posts.map((post) => post?._id),
+    );
 
     const normalizedPosts = posts
       .filter((post) => post.user)
@@ -1419,6 +1586,7 @@ const getWatchLaterVideos = async (req, res) => {
         formatPostPayload(post, {
           viewerId: user._id,
           savedToWatchLater: true,
+          likedByViewer: likedPostIds.has(`${post._id}`),
         }),
       );
 
@@ -1623,6 +1791,8 @@ module.exports = {
   createOwnerPost,
   getOwnerPosts,
   getProfilePosts,
+  togglePostLike,
+  getPostLikes,
   getOwnerPlaylists,
   updateVideoCategory,
   toggleWatchLater,

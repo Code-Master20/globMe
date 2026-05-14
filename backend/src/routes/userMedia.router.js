@@ -12,6 +12,10 @@ const {
   getOwnerStoryComments,
 } = require("../controllers/story.controller");
 const {
+  createPostComment,
+  toggleCommentLike,
+} = require("../controllers/comment.controller");
+const {
   uploadAvatar,
   uploadBanner,
   uploadStory,
@@ -24,6 +28,8 @@ const {
   createOwnerPost,
   getOwnerPosts,
   getProfilePosts,
+  togglePostLike,
+  getPostLikes,
   getOwnerPlaylists,
   getWatchLaterVideos,
   toggleWatchLater,
@@ -160,6 +166,41 @@ const handleOwnerPostUpload = (req, res, next) => {
   });
 };
 
+const commentImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, callback) => {
+    const allowedImageTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+    ];
+
+    if (allowedImageTypes.includes(file.mimetype)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("Only image files are allowed for comment photos"), false);
+  },
+});
+
+const handleCommentImageUpload = (req, res, next) => {
+  commentImageUpload.single("image")(req, res, (error) => {
+    if (!error) {
+      return next();
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      return new ErrorHandler(400, "Comment image file is too large").send(res);
+    }
+
+    return new ErrorHandler(400, error.message || "Comment image upload failed").send(res);
+  });
+};
+
 router.post(
   "/upload-avatar",
   isMeMiddleware,
@@ -186,8 +227,17 @@ router.get("/posts", isMeMiddleware, getOwnerPosts);
 router.get("/videos", isMeMiddleware, getOwnerVideoLibrary);
 router.get("/playlists", isMeMiddleware, getOwnerPlaylists);
 router.get("/watch-later", isMeMiddleware, getWatchLaterVideos);
+router.get("/posts/:postId/likes", isMeMiddleware, getPostLikes);
 router.post("/stories/:userId/like", isMeMiddleware, toggleStoryLike);
+router.post("/posts/:postId/like", isMeMiddleware, togglePostLike);
+router.post("/comments/:commentId/like", isMeMiddleware, toggleCommentLike);
 router.post("/stories/:userId/comments", isMeMiddleware, addStoryComment);
+router.post(
+  "/posts/:postId/comments",
+  isMeMiddleware,
+  handleCommentImageUpload,
+  createPostComment,
+);
 router.post("/watch-later/:postId", isMeMiddleware, toggleWatchLater);
 router.post("/posts/upload", isMeMiddleware, handleOwnerPostUpload, createOwnerPost);
 router.post("/playlists", isMeMiddleware, createPlaylist);
