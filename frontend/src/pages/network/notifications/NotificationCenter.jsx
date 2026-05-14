@@ -31,6 +31,8 @@ const getNotificationActionLabel = (notification) =>
     ? "View story"
     : notification.type === "story_comment" && notification.link
       ? "Open messages"
+      : notification.type === "post_like" && notification.link
+        ? "Open post"
       : "View profile";
 
 export const NotificationCenter = () => {

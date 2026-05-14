@@ -6,11 +6,13 @@ import { RiImageCircleAiFill, RiImageEditLine } from "react-icons/ri";
 import {
   MdClose,
   MdEditLocationAlt,
+  MdLockOutline,
   MdMailOutline,
   MdOutlineAutoAwesome,
   MdOutlineCake,
   MdOutlineCalendarMonth,
   MdOutlineFavoriteBorder,
+  MdOutlinePublic,
   MdOutlineWorkOutline,
   MdPlayArrow,
   MdOutlineWc,
@@ -111,6 +113,9 @@ const getStorySortTime = (storyEntry) => {
   return Number.isNaN(dateValue.getTime()) ? 0 : dateValue.getTime();
 };
 
+const shouldShowViewCount = (post) =>
+  post?.postType === "video" || post?.contentFormat === "reel";
+
 const hasFutureStoryExpiry = (value) => {
   if (!value) {
     return false;
@@ -188,8 +193,13 @@ export const Profile = () => {
   const [playlistPickerPost, setPlaylistPickerPost] = useState(null);
   const [playlistPickerIds, setPlaylistPickerIds] = useState([]);
   const [playlistPickerSaving, setPlaylistPickerSaving] = useState(false);
+  const [playlistVisibilitySavingId, setPlaylistVisibilitySavingId] = useState("");
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
   const [newPlaylistDescription, setNewPlaylistDescription] = useState("");
+  const [likesViewerPost, setLikesViewerPost] = useState(null);
+  const [likesViewerLoading, setLikesViewerLoading] = useState(false);
+  const [likesViewerItems, setLikesViewerItems] = useState([]);
+  const [likesViewerError, setLikesViewerError] = useState("");
   const pendingStoryAudioRef = useRef(null);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
@@ -404,6 +414,46 @@ export const Profile = () => {
       return undefined;
     }
 
+    api.post(`/public/posts/${activeInlineVideoPost._id}/view`)
+      .then((response) => {
+        const nextViewCount = Number(response.data?.data?.viewCount ?? 0);
+
+        setUploadedPosts((prev) =>
+          prev.map((post) =>
+            post._id === activeInlineVideoPost._id
+              ? {
+                  ...post,
+                  viewCount: nextViewCount,
+                }
+              : post,
+          ),
+        );
+        setPlaylists((prev) =>
+          prev.map((playlist) => ({
+            ...playlist,
+            videos: Array.isArray(playlist.videos)
+              ? playlist.videos.map((post) =>
+                  post._id === activeInlineVideoPost._id
+                    ? {
+                        ...post,
+                        viewCount: nextViewCount,
+                      }
+                    : post,
+                )
+              : playlist.videos,
+          })),
+        );
+        setActiveInlineVideoPost((prev) =>
+          prev && prev._id === activeInlineVideoPost._id
+            ? {
+                ...prev,
+                viewCount: nextViewCount,
+              }
+            : prev,
+        );
+      })
+      .catch(() => {});
+
     const previousBodyOverflow = document.body.style.overflow;
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
@@ -446,11 +496,36 @@ export const Profile = () => {
   }, [playlistPickerPost, playlistPickerSaving]);
 
   useEffect(() => {
+    if (!likesViewerPost) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setLikesViewerPost(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [likesViewerPost]);
+
+  useEffect(() => {
     setPlaylistPickerPost(null);
     setPlaylistPickerIds([]);
     setPlaylistPickerSaving(false);
+    setPlaylistVisibilitySavingId("");
     setNewPlaylistTitle("");
     setNewPlaylistDescription("");
+    setLikesViewerPost(null);
+    setLikesViewerItems([]);
+    setLikesViewerError("");
   }, [profileContentKey]);
 
   useEffect(() => {
@@ -1297,6 +1372,28 @@ export const Profile = () => {
     navigate(`/posts/${post._id}`);
   };
 
+  const handleOpenLikesViewer = async (event, post) => {
+    event.stopPropagation();
+
+    if (!isOwner || !post?._id) {
+      return;
+    }
+
+    try {
+      setLikesViewerPost(post);
+      setLikesViewerLoading(true);
+      setLikesViewerError("");
+      const response = await api.get(`/user/posts/${post._id}/likes`);
+      const payload = response.data?.data || {};
+      setLikesViewerItems(Array.isArray(payload.likes) ? payload.likes : []);
+    } catch (error) {
+      setLikesViewerItems([]);
+      setLikesViewerError(error.response?.data?.message || "Likes could not be loaded");
+    } finally {
+      setLikesViewerLoading(false);
+    }
+  };
+
   const handleOpenPlaylistPicker = (post) => {
     if (!isOwner || !post?._id) {
       return;
@@ -1398,6 +1495,39 @@ export const Profile = () => {
       toast.error(error.response?.data?.message || "Playlist update failed");
     } finally {
       setPlaylistPickerSaving(false);
+    }
+  };
+
+  const handlePlaylistVisibilityToggle = async () => {
+    if (!isOwner || !selectedPlaylist?._id) {
+      return;
+    }
+
+    try {
+      setPlaylistVisibilitySavingId(selectedPlaylist._id);
+      const response = await api.patch(`/user/playlists/${selectedPlaylist._id}`, {
+        isPublic: !selectedPlaylist.isPublic,
+      });
+      const nextPlaylist = response.data?.data;
+
+      if (!nextPlaylist) {
+        throw new Error("Playlist update did not return data");
+      }
+
+      setPlaylists((prev) =>
+        prev.map((playlist) =>
+          playlist._id === nextPlaylist._id ? nextPlaylist : playlist,
+        ),
+      );
+      toast.success(
+        nextPlaylist.isPublic
+          ? "Playlist is now public"
+          : "Playlist is now private",
+      );
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Playlist visibility could not be updated");
+    } finally {
+      setPlaylistVisibilitySavingId("");
     }
   };
 
@@ -1559,6 +1689,68 @@ export const Profile = () => {
             {playlistPickerSaving ? "Saving..." : "Save playlists"}
           </button>
         </div>
+      </div>
+    </div>
+  ) : null;
+
+  const likesViewerOverlay = likesViewerPost ? (
+    <div
+      className={styles.playlistPickerOverlay}
+      onClick={() => setLikesViewerPost(null)}
+    >
+      <div
+        className={styles.playlistPickerDialog}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Post likes"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className={styles.playlistPickerHeader}>
+          <div>
+            <p>Post likes</p>
+            <h2>{formatDisplayValue(likesViewerPost.title) || "Untitled post"}</h2>
+          </div>
+
+          <button
+            type="button"
+            className={styles.playlistPickerClose}
+            onClick={() => setLikesViewerPost(null)}
+            aria-label="Close likes viewer"
+          >
+            <MdClose />
+          </button>
+        </div>
+
+        {likesViewerLoading ? (
+          <div className={styles.playlistPickerEmpty}>Loading likes...</div>
+        ) : likesViewerError ? (
+          <div className={styles.playlistPickerEmpty}>{likesViewerError}</div>
+        ) : likesViewerItems.length === 0 ? (
+          <div className={styles.playlistPickerEmpty}>No one has liked this post yet.</div>
+        ) : (
+          <div className={styles.playlistPickerList}>
+            {likesViewerItems.map((item) => (
+              <button
+                key={item._id}
+                type="button"
+                className={styles.playlistPickerOption}
+                onClick={() => navigate(`/profile/${item.user?._id}`)}
+              >
+                <img
+                  src={item.user?.avatar || noProfile}
+                  alt={item.user?.username || "Profile"}
+                  className={styles.likesViewerAvatar}
+                />
+                <div>
+                  <strong>{item.user?.username || "globMe member"}</strong>
+                  <small>
+                    {formatDisplayValue(item.user?.profession) || "globMe member"}
+                  </small>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   ) : null;
@@ -2396,21 +2588,52 @@ export const Profile = () => {
                           ) : null}
 
                           {selectedContentView === "playlists" && playlists.length > 0 ? (
-                            <div className={styles.playlistOptionsRow}>
-                              {playlists.map((playlist) => (
-                                <button
-                                  type="button"
-                                  key={playlist._id}
-                                  className={`${styles.playlistOptionButton} ${
-                                    selectedPlaylist?._id === playlist._id
-                                      ? styles.playlistOptionButtonActive
-                                      : ""
-                                  }`}
-                                  onClick={() => setSelectedPlaylistId(playlist._id)}
-                                >
-                                  {formatDisplayValue(playlist.title) || "Untitled playlist"}
-                                </button>
-                              ))}
+                            <div className={styles.playlistControlsStack}>
+                              <div className={styles.playlistOptionsRow}>
+                                {playlists.map((playlist) => (
+                                  <button
+                                    type="button"
+                                    key={playlist._id}
+                                    className={`${styles.playlistOptionButton} ${
+                                      selectedPlaylist?._id === playlist._id
+                                        ? styles.playlistOptionButtonActive
+                                        : ""
+                                    }`}
+                                    onClick={() => setSelectedPlaylistId(playlist._id)}
+                                  >
+                                    {formatDisplayValue(playlist.title) || "Untitled playlist"}
+                                  </button>
+                                ))}
+                              </div>
+                              {isOwner && selectedPlaylist ? (
+                                <div className={styles.playlistVisibilityRow}>
+                                  <span className={styles.playlistVisibilityStatus}>
+                                    {selectedPlaylist.isPublic ? (
+                                      <>
+                                        <MdOutlinePublic size={16} />
+                                        Public
+                                      </>
+                                    ) : (
+                                      <>
+                                        <MdLockOutline size={16} />
+                                        Private
+                                      </>
+                                    )}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className={styles.playlistVisibilityButton}
+                                    onClick={handlePlaylistVisibilityToggle}
+                                    disabled={playlistVisibilitySavingId === selectedPlaylist._id}
+                                  >
+                                    {playlistVisibilitySavingId === selectedPlaylist._id
+                                      ? "Saving..."
+                                      : selectedPlaylist.isPublic
+                                        ? "Make private"
+                                        : "Make public"}
+                                  </button>
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
                         </div>
@@ -2539,12 +2762,25 @@ export const Profile = () => {
                             <strong>{formatDisplayValue(post.title) || "Untitled post"}</strong>
                             <p>{formatDisplayValue(post.category) || "No category"}</p>
                             <div className={styles.uploadPostStats}>
-                              <span>{post.likeCount || 0} likes</span>
+                              {shouldShowViewCount(post) ? (
+                                <span>{post.viewCount || 0} views</span>
+                              ) : null}
+                              {isOwner ? (
+                                <button
+                                  type="button"
+                                  className={styles.uploadPostStatButton}
+                                  onClick={(event) => handleOpenLikesViewer(event, post)}
+                                >
+                                  {post.likeCount || 0} likes
+                                </button>
+                              ) : (
+                                <span>{post.likeCount || 0} likes</span>
+                              )}
                               <span>{post.commentCount || 0} comments</span>
                               <span>{post.shareCount || 0} shares</span>
                             </div>
-                            {isOwner ? (
-                              <div className={styles.uploadPostActions}>
+                            <div className={styles.uploadPostActions}>
+                              {isOwner ? (
                                 <button
                                   type="button"
                                   className={styles.uploadPostActionButton}
@@ -2555,8 +2791,8 @@ export const Profile = () => {
                                 >
                                   Add to playlist
                                 </button>
-                              </div>
-                            ) : null}
+                              ) : null}
+                            </div>
                           </div>
                         </button>
                       ))}
@@ -2759,6 +2995,7 @@ export const Profile = () => {
       {activeInlineVideoOverlay}
 
       {playlistPickerOverlay}
+      {likesViewerOverlay}
 
       <AuthAccessPrompt
         open={showAuthPrompt}

@@ -2,16 +2,18 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
+  MdClose,
+  MdFavorite,
   MdOutlineBookmarkBorder,
   MdOutlineChatBubbleOutline,
   MdOutlineFavoriteBorder,
-  MdOutlinePlaylistPlay,
 } from "react-icons/md";
 import { PiShareFatLight } from "react-icons/pi";
 import { toast } from "react-toastify";
 import api from "../../lib/api";
 import noProfile from "../../assets/noProfile.png";
 import { AuthAccessPrompt } from "../../components/auth/AuthAccessPrompt";
+import { PostCommentsPanel } from "../../components/public/PostCommentsPanel";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import styles from "./PublicPostDetail.module.css";
 
@@ -58,15 +60,19 @@ const formatRelativeTime = (value) => {
   return `${Math.floor(diffMs / week)}w ago`;
 };
 
+const shouldShowViewCount = (post) =>
+  post?.postType === "video" || post?.contentFormat === "reel";
+
 export const PublicPostDetail = () => {
   const { postId } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [watchLaterLoading, setWatchLaterLoading] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
   const [ownerPlaylists, setOwnerPlaylists] = useState([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [playlistPickerIds, setPlaylistPickerIds] = useState([]);
@@ -74,6 +80,11 @@ export const PublicPostDetail = () => {
   const [playlistPickerSaving, setPlaylistPickerSaving] = useState(false);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
   const [newPlaylistDescription, setNewPlaylistDescription] = useState("");
+  const [likesViewerOpen, setLikesViewerOpen] = useState(false);
+  const [likesViewerLoading, setLikesViewerLoading] = useState(false);
+  const [likesViewerItems, setLikesViewerItems] = useState([]);
+  const [likesViewerError, setLikesViewerError] = useState("");
+  const [commentsOverlayOpen, setCommentsOverlayOpen] = useState(false);
 
   usePageMetadata({
     title: post?.title ? formatDisplayValue(post.title) : "Public post",
@@ -114,6 +125,36 @@ export const PublicPostDetail = () => {
   }, [postId]);
 
   useEffect(() => {
+    let ignore = false;
+
+    const recordView = async () => {
+      try {
+        const response = await api.post(`/public/posts/${postId}/view`);
+
+        if (!ignore) {
+          const nextViewCount = Number(response.data?.data?.viewCount ?? 0);
+          setPost((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  viewCount: nextViewCount,
+                }
+              : prev,
+          );
+        }
+      } catch {
+        // View tracking should not block the detail page.
+      }
+    };
+
+    recordView();
+
+    return () => {
+      ignore = true;
+    };
+  }, [postId]);
+
+  useEffect(() => {
     if (!playlistPickerOpen) {
       return undefined;
     }
@@ -133,6 +174,50 @@ export const PublicPostDetail = () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [playlistPickerOpen, playlistPickerSaving]);
+
+  useEffect(() => {
+    if (!likesViewerOpen) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setLikesViewerOpen(false);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [likesViewerOpen]);
+
+  useEffect(() => {
+    if (!commentsOverlayOpen) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setCommentsOverlayOpen(false);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [commentsOverlayOpen]);
+
+  const isOwnerOfPost = Boolean(user?._id && post?.user?._id && `${user._id}` === `${post.user._id}`);
 
   const handleProtectedAction = () => {
     if (isAuthenticated) {
@@ -172,6 +257,59 @@ export const PublicPostDetail = () => {
       toast.error(toggleError.response?.data?.message || "Watch later update failed");
     } finally {
       setWatchLaterLoading(false);
+    }
+  };
+
+  const handleLikeToggle = async () => {
+    if (!post?._id) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    try {
+      setLikeLoading(true);
+      const response = await api.post(`/user/posts/${post._id}/like`);
+      const liked = Boolean(response.data?.data?.liked);
+      const likeCount = Number(response.data?.data?.likeCount ?? 0);
+
+      setPost((prev) =>
+        prev
+          ? {
+              ...prev,
+              likedByViewer: liked,
+              likeCount,
+            }
+          : prev,
+      );
+      toast.success(liked ? "Post liked" : "Like removed");
+    } catch (toggleError) {
+      toast.error(toggleError.response?.data?.message || "Post like could not be updated");
+    } finally {
+      setLikeLoading(false);
+    }
+  };
+
+  const handleOpenLikesViewer = async () => {
+    if (!post?._id || !isOwnerOfPost) {
+      return;
+    }
+
+    try {
+      setLikesViewerOpen(true);
+      setLikesViewerLoading(true);
+      setLikesViewerError("");
+      const response = await api.get(`/user/posts/${post._id}/likes`);
+      const payload = response.data?.data || {};
+      setLikesViewerItems(Array.isArray(payload.likes) ? payload.likes : []);
+    } catch (loadError) {
+      setLikesViewerItems([]);
+      setLikesViewerError(loadError.response?.data?.message || "Likes could not be loaded");
+    } finally {
+      setLikesViewerLoading(false);
     }
   };
 
@@ -321,6 +459,18 @@ export const PublicPostDetail = () => {
   const creatorLabel =
     formatDisplayValue(post.user?.profession) || "globMe creator";
   const publishedLabel = formatRelativeTime(post.createdAt || post.postDate);
+  const handleCommentCountChange = (nextCommentCount) => {
+    setPost((prev) =>
+      prev
+        ? {
+            ...prev,
+            commentCount: nextCommentCount,
+          }
+        : prev,
+    );
+  };
+  const handleOpenComments = () => setCommentsOverlayOpen(true);
+  const handleCloseComments = () => setCommentsOverlayOpen(false);
 
   return (
     <>
@@ -363,7 +513,20 @@ export const PublicPostDetail = () => {
                 <div className={styles.videoMetaRow}>
                   <span>{creatorLabel}</span>
                   <span>{publishedLabel}</span>
-                  <span>{post.likeCount || 0} likes</span>
+                  {shouldShowViewCount(post) ? (
+                    <span>{post.viewCount || 0} views</span>
+                  ) : null}
+                  {isOwnerOfPost ? (
+                    <button
+                      type="button"
+                      className={styles.statButton}
+                      onClick={handleOpenLikesViewer}
+                    >
+                      {post.likeCount || 0} likes
+                    </button>
+                  ) : (
+                    <span>{post.likeCount || 0} likes</span>
+                  )}
                 </div>
               </div>
 
@@ -391,33 +554,34 @@ export const PublicPostDetail = () => {
                   type="button"
                   className={styles.videoChip}
                   onClick={handleOpenPlaylistPicker}
+                  aria-label="Add to playlist"
                 >
-                  <MdOutlinePlaylistPlay />
-                  Add to playlist
+                  +
                 </button>
                 <button
                   type="button"
-                  className={styles.videoChip}
-                  onClick={handleProtectedAction}
+                  className={`${styles.videoChip} ${styles.videoIconOnly} ${post.likedByViewer ? styles.actionBtnActive : ""}`}
+                  onClick={handleLikeToggle}
+                  disabled={likeLoading}
+                  aria-label="Like"
                 >
-                  <MdOutlineFavoriteBorder />
-                  Like
+                  {post.likedByViewer ? <MdFavorite /> : <MdOutlineFavoriteBorder />}
                 </button>
                 <button
                   type="button"
-                  className={styles.videoChip}
-                  onClick={handleProtectedAction}
+                  className={`${styles.videoChip} ${styles.videoIconOnly}`}
+                  onClick={handleOpenComments}
+                  aria-label="Comment"
                 >
                   <MdOutlineChatBubbleOutline />
-                  Comment
                 </button>
                 <button
                   type="button"
-                  className={styles.videoChip}
+                  className={`${styles.videoChip} ${styles.videoIconOnly}`}
                   onClick={handleProtectedAction}
+                  aria-label="Share"
                 >
                   <PiShareFatLight />
-                  Share
                 </button>
               </div>
 
@@ -434,16 +598,6 @@ export const PublicPostDetail = () => {
                 </p>
               </section>
 
-              <section className={styles.videoPanel}>
-                <div className={styles.videoPanelHeader}>
-                  <strong>Comments</strong>
-                  <span>{post.commentCount || 0} total</span>
-                </div>
-                <p>
-                  Reactions and comment threads will expand here as this route
-                  grows.
-                </p>
-              </section>
             </section>
           </article>
         ) : (
@@ -482,7 +636,20 @@ export const PublicPostDetail = () => {
             </div>
 
             <div className={styles.statGroup}>
-              <span>{post.likeCount || 0} likes</span>
+              {shouldShowViewCount(post) ? (
+                <span>{post.viewCount || 0} views</span>
+              ) : null}
+              {isOwnerOfPost ? (
+                <button
+                  type="button"
+                  className={styles.statButton}
+                  onClick={handleOpenLikesViewer}
+                >
+                  {post.likeCount || 0} likes
+                </button>
+              ) : (
+                <span>{post.likeCount || 0} likes</span>
+              )}
               <span>{post.commentCount || 0} comments</span>
               <span>{post.shareCount || 0} shares</span>
             </div>
@@ -492,25 +659,78 @@ export const PublicPostDetail = () => {
                 type="button"
                 className={styles.actionBtn}
                 onClick={handleOpenPlaylistPicker}
+                aria-label="Add to playlist"
               >
-                Add to playlist
+                +
               </button>
-              <button type="button" className={styles.actionBtn} onClick={handleProtectedAction}>
-                <MdOutlineFavoriteBorder />
-                Like
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${styles.iconOnlyBtn} ${post.likedByViewer ? styles.actionBtnActive : ""}`}
+                onClick={handleLikeToggle}
+                disabled={likeLoading}
+                aria-label="Like"
+              >
+                {post.likedByViewer ? <MdFavorite /> : <MdOutlineFavoriteBorder />}
               </button>
-              <button type="button" className={styles.actionBtn} onClick={handleProtectedAction}>
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${styles.iconOnlyBtn}`}
+                onClick={handleOpenComments}
+                aria-label="Comment"
+              >
                 <MdOutlineChatBubbleOutline />
-                Comment
               </button>
-              <button type="button" className={styles.actionBtn} onClick={handleProtectedAction}>
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${styles.iconOnlyBtn}`}
+                onClick={handleProtectedAction}
+                aria-label="Share"
+              >
                 <PiShareFatLight />
-                Share
               </button>
             </div>
+
           </article>
         )}
       </main>
+
+      {commentsOverlayOpen ? (
+        <div
+          className={`${styles.commentsOverlay} ${isVideoPost ? styles.commentsOverlayVideo : ""}`}
+          onClick={handleCloseComments}
+        >
+          <div
+            className={`${styles.commentsOverlayCard} ${isVideoPost ? styles.commentsOverlayCardVideo : ""}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Post comments"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.commentsOverlayHeader}>
+              <div>
+                <p>Comments</p>
+                <h2>{formatDisplayValue(post.title) || "Public post"}</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.commentsOverlayClose}
+                onClick={handleCloseComments}
+                aria-label="Close comments"
+              >
+                <MdClose />
+              </button>
+            </div>
+
+            <PostCommentsPanel
+              postId={post._id}
+              postOwnerId={post.user?._id}
+              commentCount={post.commentCount || 0}
+              onCommentCountChange={handleCommentCountChange}
+              onRequireAuth={() => setShowAuthPrompt(true)}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {playlistPickerOpen ? (
         <div
@@ -613,6 +833,67 @@ export const PublicPostDetail = () => {
                 {playlistPickerSaving ? "Saving..." : "Save playlists"}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {likesViewerOpen ? (
+        <div
+          className={styles.playlistPickerOverlay}
+          onClick={() => setLikesViewerOpen(false)}
+        >
+          <div
+            className={styles.playlistPickerDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Post likes"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.playlistPickerHeader}>
+              <div>
+                <p>Post likes</p>
+                <h2>{formatDisplayValue(post.title) || "Public post"}</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.playlistPickerClose}
+                onClick={() => setLikesViewerOpen(false)}
+                aria-label="Close likes viewer"
+              >
+                x
+              </button>
+            </div>
+
+            {likesViewerLoading ? (
+              <div className={styles.playlistPickerEmpty}>Loading likes...</div>
+            ) : likesViewerError ? (
+              <div className={styles.playlistPickerEmpty}>{likesViewerError}</div>
+            ) : likesViewerItems.length === 0 ? (
+              <div className={styles.playlistPickerEmpty}>No one has liked this post yet.</div>
+            ) : (
+              <div className={styles.playlistPickerList}>
+                {likesViewerItems.map((item) => (
+                  <button
+                    key={item._id}
+                    type="button"
+                    className={styles.playlistPickerOption}
+                    onClick={() => navigate(`/profile/${item.user?._id}`)}
+                  >
+                    <img
+                      src={item.user?.avatar || noProfile}
+                      alt={item.user?.username || "Profile"}
+                      className={styles.likesAvatar}
+                    />
+                    <div>
+                      <strong>{item.user?.username || "globMe member"}</strong>
+                      <small>
+                        {formatDisplayValue(item.user?.profession) || "globMe member"}
+                      </small>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : null}

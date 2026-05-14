@@ -1,6 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MdOutlineChatBubbleOutline, MdOutlineFavoriteBorder } from "react-icons/md";
+import {
+  MdFavorite,
+  MdBookmarkAdded,
+  MdOutlineBookmarkBorder,
+  MdOutlineChatBubbleOutline,
+  MdOutlineFavoriteBorder,
+  MdVolumeOff,
+  MdVolumeUp,
+} from "react-icons/md";
 import { PiShareFatLight } from "react-icons/pi";
 import { toast } from "react-toastify";
 import { useSelector } from "react-redux";
@@ -33,22 +41,27 @@ const getDescriptionText = (post) => {
   return "A fresh globMe post shared publicly.";
 };
 
+const shouldShowViewCount = (post) =>
+  post?.postType === "video" || post?.contentFormat === "reel";
+
 export const PublicFeedView = ({
   title,
   description,
   filterType = "all",
   showStoryTray = false,
+  autoPlayVisibleVideos = false,
   emptyHeading,
   emptyCopy,
   seoTitle,
   seoDescription,
 }) => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [watchLaterBusyId, setWatchLaterBusyId] = useState("");
+  const [likeBusyId, setLikeBusyId] = useState("");
   const [ownerPlaylists, setOwnerPlaylists] = useState([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [playlistPickerPost, setPlaylistPickerPost] = useState(null);
@@ -56,6 +69,19 @@ export const PublicFeedView = ({
   const [playlistPickerSaving, setPlaylistPickerSaving] = useState(false);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
   const [newPlaylistDescription, setNewPlaylistDescription] = useState("");
+  const [likesViewerPost, setLikesViewerPost] = useState(null);
+  const [likesViewerLoading, setLikesViewerLoading] = useState(false);
+  const [likesViewerItems, setLikesViewerItems] = useState([]);
+  const [likesViewerError, setLikesViewerError] = useState("");
+  const [desktopHoverPreview, setDesktopHoverPreview] = useState(false);
+  const [activePreviewPostId, setActivePreviewPostId] = useState("");
+  const [previewControlPostId, setPreviewControlPostId] = useState("");
+  const [mobileSoundPreviewPostId, setMobileSoundPreviewPostId] = useState("");
+  const videoPreviewRefs = useRef(new Map());
+  const videoVisibilityRatiosRef = useRef(new Map());
+  const activeAutoplayVideoIdRef = useRef("");
+  const hoverPreviewPostIdRef = useRef("");
+  const previewAutoplayTimeoutRef = useRef(null);
 
   usePageMetadata({
     title: seoTitle || title,
@@ -97,6 +123,216 @@ export const PublicFeedView = ({
     };
   }, [filterType]);
 
+  const clearPreviewAutoplayTimeout = () => {
+    if (previewAutoplayTimeoutRef.current) {
+      window.clearTimeout(previewAutoplayTimeoutRef.current);
+      previewAutoplayTimeoutRef.current = null;
+    }
+  };
+
+  const pauseAllPreviewVideos = () => {
+    videoPreviewRefs.current.forEach((node) => node?.pause());
+    activeAutoplayVideoIdRef.current = "";
+    setActivePreviewPostId("");
+  };
+
+  const playPreviewVideo = (postId, options = {}) => {
+    const { muted = true } = options;
+
+    if (!postId) {
+      pauseAllPreviewVideos();
+      return;
+    }
+
+    const targetNode = videoPreviewRefs.current.get(postId);
+
+    videoPreviewRefs.current.forEach((node, currentPostId) => {
+      if (!node) {
+        return;
+      }
+
+      if (currentPostId !== postId) {
+        node.muted = true;
+        node.pause();
+      }
+    });
+
+    if (!targetNode) {
+      activeAutoplayVideoIdRef.current = "";
+      setActivePreviewPostId("");
+      return;
+    }
+
+    targetNode.muted = muted;
+    targetNode.volume = muted ? 0 : 1;
+    const playPromise = targetNode.play();
+
+    if (playPromise?.catch) {
+      playPromise.catch(() => {});
+    }
+
+    activeAutoplayVideoIdRef.current = postId;
+    setActivePreviewPostId(postId);
+    setPreviewControlPostId(postId);
+  };
+
+  const syncVisibleVideoPlayback = useEffectEvent(() => {
+    if (desktopHoverPreview || hoverPreviewPostIdRef.current) {
+      return;
+    }
+
+    const candidates = Array.from(videoPreviewRefs.current.entries())
+      .map(([postId, node]) => ({
+        postId,
+        node,
+        ratio: videoVisibilityRatiosRef.current.get(postId) || 0,
+      }))
+      .filter((item) => item.node && item.ratio >= 0.65);
+
+    const nextActiveVideo = candidates.sort((left, right) => right.ratio - left.ratio)[0] || null;
+    const nextActiveVideoId = nextActiveVideo?.postId || "";
+    const shouldPlayWithSound =
+      Boolean(nextActiveVideoId) && mobileSoundPreviewPostId === nextActiveVideoId;
+
+    if (mobileSoundPreviewPostId && mobileSoundPreviewPostId !== nextActiveVideoId) {
+      setMobileSoundPreviewPostId("");
+    }
+
+    playPreviewVideo(nextActiveVideoId, { muted: !shouldPlayWithSound });
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px) and (hover: hover) and (pointer: fine)");
+    const syncDesktopHoverPreview = (event) => {
+      setDesktopHoverPreview(event.matches);
+    };
+
+    syncDesktopHoverPreview(mediaQuery);
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", syncDesktopHoverPreview);
+      return () => {
+        mediaQuery.removeEventListener("change", syncDesktopHoverPreview);
+      };
+    }
+
+    mediaQuery.addListener(syncDesktopHoverPreview);
+    return () => {
+      mediaQuery.removeListener(syncDesktopHoverPreview);
+    };
+  }, []);
+
+  useEffect(() => {
+    clearPreviewAutoplayTimeout();
+
+    if (!autoPlayVisibleVideos || desktopHoverPreview) {
+      hoverPreviewPostIdRef.current = "";
+      setPreviewControlPostId("");
+      setMobileSoundPreviewPostId("");
+      pauseAllPreviewVideos();
+      videoVisibilityRatiosRef.current.clear();
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const postId = entry.target.getAttribute("data-post-id") || "";
+
+          if (!postId) {
+            return;
+          }
+
+          videoVisibilityRatiosRef.current.set(postId, entry.intersectionRatio);
+        });
+
+        clearPreviewAutoplayTimeout();
+        previewAutoplayTimeoutRef.current = window.setTimeout(() => {
+          syncVisibleVideoPlayback();
+        }, 180);
+      },
+      {
+        threshold: [0, 0.25, 0.5, 0.65, 0.8, 1],
+      },
+    );
+    const previewRefs = videoPreviewRefs.current;
+    const visibilityRatios = videoVisibilityRatiosRef.current;
+
+    previewRefs.forEach((node, postId) => {
+      if (!node) {
+        return;
+      }
+
+      node.muted = true;
+      node.playsInline = true;
+      node.loop = true;
+      node.setAttribute("data-post-id", postId);
+      observer.observe(node);
+    });
+
+    return () => {
+      observer.disconnect();
+      clearPreviewAutoplayTimeout();
+      pauseAllPreviewVideos();
+      visibilityRatios.clear();
+    };
+  }, [autoPlayVisibleVideos, desktopHoverPreview, posts]);
+
+  const registerVideoPreviewRef = (postId) => (node) => {
+    if (!postId) {
+      return;
+    }
+
+    if (node) {
+      videoPreviewRefs.current.set(postId, node);
+      return;
+    }
+
+    videoPreviewRefs.current.delete(postId);
+    videoVisibilityRatiosRef.current.delete(postId);
+  };
+
+  const handleVideoPreviewMouseEnter = (postId) => {
+    if (!desktopHoverPreview || !postId) {
+      return;
+    }
+
+    clearPreviewAutoplayTimeout();
+    hoverPreviewPostIdRef.current = postId;
+    playPreviewVideo(postId, { muted: false });
+  };
+
+  const handleVideoPreviewMouseLeave = (postId) => {
+    if (!desktopHoverPreview || hoverPreviewPostIdRef.current !== postId) {
+      return;
+    }
+
+    hoverPreviewPostIdRef.current = "";
+    pauseAllPreviewVideos();
+    const targetNode = videoPreviewRefs.current.get(postId);
+
+    if (targetNode) {
+      targetNode.muted = true;
+      targetNode.volume = 0;
+    }
+  };
+
+  const handleMobilePreviewSoundToggle = (event, postId) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (
+      desktopHoverPreview ||
+      (activePreviewPostId !== postId && previewControlPostId !== postId)
+    ) {
+      return;
+    }
+
+    const shouldEnableSound = mobileSoundPreviewPostId !== postId;
+    setMobileSoundPreviewPostId(shouldEnableSound ? postId : "");
+    playPreviewVideo(postId, { muted: !shouldEnableSound });
+  };
+
   useEffect(() => {
     if (!playlistPickerPost) {
       return undefined;
@@ -118,6 +354,30 @@ export const PublicFeedView = ({
     };
   }, [playlistPickerPost, playlistPickerSaving]);
 
+  useEffect(() => {
+    if (!likesViewerPost) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setLikesViewerPost(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [likesViewerPost]);
+
+  const isOwnerOfPost = (post) =>
+    Boolean(user?._id && post?.user?._id && `${user._id}` === `${post.user._id}`);
+
   const handleProtectedAction = () => {
     if (isAuthenticated) {
       toast.info("This action will be wired next.");
@@ -125,6 +385,65 @@ export const PublicFeedView = ({
     }
 
     setShowAuthPrompt(true);
+  };
+
+  const handleOpenComments = (postId) => {
+    if (!postId) {
+      return;
+    }
+
+    navigate(`/posts/${postId}`);
+  };
+
+  const handleLikeToggle = async (postId) => {
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    try {
+      setLikeBusyId(postId);
+      const response = await api.post(`/user/posts/${postId}/like`);
+      const liked = Boolean(response.data?.data?.liked);
+      const likeCount = Number(response.data?.data?.likeCount ?? 0);
+
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                likedByViewer: liked,
+                likeCount,
+              }
+            : post,
+        ),
+      );
+      toast.success(liked ? "Post liked" : "Like removed");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Post like could not be updated");
+    } finally {
+      setLikeBusyId("");
+    }
+  };
+
+  const handleOpenLikesViewer = async (post) => {
+    if (!post?._id || !isOwnerOfPost(post)) {
+      return;
+    }
+
+    try {
+      setLikesViewerPost(post);
+      setLikesViewerLoading(true);
+      setLikesViewerError("");
+      const response = await api.get(`/user/posts/${post._id}/likes`);
+      const payload = response.data?.data || {};
+      setLikesViewerItems(Array.isArray(payload.likes) ? payload.likes : []);
+    } catch (error) {
+      setLikesViewerItems([]);
+      setLikesViewerError(error.response?.data?.message || "Likes could not be loaded");
+    } finally {
+      setLikesViewerLoading(false);
+    }
   };
 
   const handleWatchLaterToggle = async (postId) => {
@@ -292,7 +611,12 @@ export const PublicFeedView = ({
         ) : (
           <section className={styles.feedGrid}>
             {posts.map((post) => (
-              <article key={post._id} className={styles.feedCard}>
+              <article
+                key={post._id}
+                className={styles.feedCard}
+                onMouseEnter={() => handleVideoPreviewMouseEnter(post.postType === "video" ? post._id : "")}
+                onMouseLeave={() => handleVideoPreviewMouseLeave(post._id)}
+              >
                 <button
                   type="button"
                   className={styles.profileRow}
@@ -319,10 +643,12 @@ export const PublicFeedView = ({
                   >
                     {post.postType === "video" ? (
                       <video
+                        ref={registerVideoPreviewRef(post._id)}
                         src={post.url}
                         className={styles.media}
                         muted
                         playsInline
+                        loop
                         preload="metadata"
                       />
                     ) : (
@@ -334,6 +660,32 @@ export const PublicFeedView = ({
                       />
                     )}
                   </button>
+                  {post.postType === "video" &&
+                  !desktopHoverPreview &&
+                  previewControlPostId === post._id ? (
+                    <button
+                      type="button"
+                      className={styles.previewSoundToggle}
+                      onClick={(event) => handleMobilePreviewSoundToggle(event, post._id)}
+                      aria-label={
+                        mobileSoundPreviewPostId === post._id
+                          ? "Mute preview sound"
+                          : "Play preview sound"
+                      }
+                    >
+                      {mobileSoundPreviewPostId === post._id ? (
+                        <>
+                          <MdVolumeUp />
+                          Sound on
+                        </>
+                      ) : (
+                        <>
+                          <MdVolumeOff />
+                          Tap for sound
+                        </>
+                      )}
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className={styles.cardBody}>
@@ -349,7 +701,20 @@ export const PublicFeedView = ({
 
                 <div className={styles.cardFooter}>
                   <div className={styles.statGroup}>
-                    <span>{post.likeCount || 0} likes</span>
+                    {shouldShowViewCount(post) ? (
+                      <span>{post.viewCount || 0} views</span>
+                    ) : null}
+                    {isOwnerOfPost(post) ? (
+                      <button
+                        type="button"
+                        className={styles.statButton}
+                        onClick={() => handleOpenLikesViewer(post)}
+                      >
+                        {post.likeCount || 0} likes
+                      </button>
+                    ) : (
+                      <span>{post.likeCount || 0} likes</span>
+                    )}
                     <span>{post.commentCount || 0} comments</span>
                     <span>{post.shareCount || 0} shares</span>
                   </div>
@@ -358,47 +723,56 @@ export const PublicFeedView = ({
                     {post.postType === "video" ? (
                       <button
                         type="button"
-                        className={styles.actionBtn}
+                        className={`${styles.actionBtn} ${styles.iconOnlyBtn} ${post.savedToWatchLater ? styles.actionBtnActive : ""}`}
                         onClick={() => handleWatchLaterToggle(post._id)}
                         disabled={watchLaterBusyId === post._id}
+                        aria-label={
+                          watchLaterBusyId === post._id
+                            ? "Saving to watch later"
+                            : post.savedToWatchLater
+                              ? "Saved to watch later"
+                              : "Save to watch later"
+                        }
                       >
-                        {watchLaterBusyId === post._id
-                          ? "Saving..."
-                          : post.savedToWatchLater
-                            ? "Saved"
-                            : "Watch later"}
+                        {post.savedToWatchLater ? (
+                          <MdBookmarkAdded />
+                        ) : (
+                          <MdOutlineBookmarkBorder />
+                        )}
                       </button>
                     ) : null}
                     <button
                       type="button"
                       className={styles.actionBtn}
                       onClick={() => handleOpenPlaylistPicker(post)}
+                      aria-label="Add to playlist"
                     >
-                      Add to playlist
+                      +
                     </button>
                     <button
                       type="button"
-                      className={styles.actionBtn}
-                      onClick={handleProtectedAction}
+                      className={`${styles.actionBtn} ${styles.iconOnlyBtn} ${post.likedByViewer ? styles.actionBtnActive : ""}`}
+                      onClick={() => handleLikeToggle(post._id)}
+                      disabled={likeBusyId === post._id}
+                      aria-label="Like"
                     >
-                      <MdOutlineFavoriteBorder />
-                      Like
+                      {post.likedByViewer ? <MdFavorite /> : <MdOutlineFavoriteBorder />}
                     </button>
                     <button
                       type="button"
-                      className={styles.actionBtn}
-                      onClick={handleProtectedAction}
+                      className={`${styles.actionBtn} ${styles.iconOnlyBtn}`}
+                      onClick={() => handleOpenComments(post._id)}
+                      aria-label="Comment"
                     >
                       <MdOutlineChatBubbleOutline />
-                      Comment
                     </button>
                     <button
                       type="button"
-                      className={styles.actionBtn}
+                      className={`${styles.actionBtn} ${styles.iconOnlyBtn}`}
                       onClick={handleProtectedAction}
+                      aria-label="Share"
                     >
                       <PiShareFatLight />
-                      Share
                     </button>
                   </div>
                 </div>
@@ -509,6 +883,67 @@ export const PublicFeedView = ({
                 {playlistPickerSaving ? "Saving..." : "Save playlists"}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {likesViewerPost ? (
+        <div
+          className={styles.playlistPickerOverlay}
+          onClick={() => setLikesViewerPost(null)}
+        >
+          <div
+            className={styles.playlistPickerDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Post likes"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.playlistPickerHeader}>
+              <div>
+                <p>Post likes</p>
+                <h2>{formatDisplayValue(likesViewerPost.title) || "Untitled post"}</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.playlistPickerClose}
+                onClick={() => setLikesViewerPost(null)}
+                aria-label="Close likes viewer"
+              >
+                x
+              </button>
+            </div>
+
+            {likesViewerLoading ? (
+              <div className={styles.playlistPickerEmpty}>Loading likes...</div>
+            ) : likesViewerError ? (
+              <div className={styles.playlistPickerEmpty}>{likesViewerError}</div>
+            ) : likesViewerItems.length === 0 ? (
+              <div className={styles.playlistPickerEmpty}>No one has liked this post yet.</div>
+            ) : (
+              <div className={styles.playlistPickerList}>
+                {likesViewerItems.map((item) => (
+                  <button
+                    key={item._id}
+                    type="button"
+                    className={styles.playlistPickerOption}
+                    onClick={() => navigate(`/profile/${item.user?._id}`)}
+                  >
+                    <img
+                      src={item.user?.avatar || noProfile}
+                      alt={item.user?.username || "Profile"}
+                      className={styles.likesAvatar}
+                    />
+                    <div>
+                      <strong>{item.user?.username || "globMe member"}</strong>
+                      <small>
+                        {formatDisplayValue(item.user?.profession) || "globMe member"}
+                      </small>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : null}
