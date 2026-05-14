@@ -252,8 +252,9 @@ const formatPlaylistPayload = (playlistDoc) => {
     createdAt: playlist.createdAt,
     updatedAt: playlist.updatedAt,
     videoCount: posts.length,
+    postCount: posts.length,
     videos: posts
-      .filter((post) => post && post.postType === "video")
+      .filter(Boolean)
       .map((post) => ({
         _id: `${post._id}`,
         title: post.title,
@@ -261,6 +262,7 @@ const formatPlaylistPayload = (playlistDoc) => {
         url: post.url,
         postType: post.postType,
         category: post.category || "uncategorized",
+        contentFormat: post.contentFormat || null,
         likeCount: post.likeCount,
         shareCount: post.shareCount,
         commentCount: post.commentCount,
@@ -999,9 +1001,8 @@ const getOwnerPlaylists = async (req, res) => {
     const playlists = await Playlist.find({ owner: req.user.id })
       .populate({
         path: "videoPosts",
-        match: { postType: "video", user: req.user.id },
         select:
-          "title description url postType category likeCount shareCount commentCount createdAt updatedAt",
+          "title description url postType category contentFormat likeCount shareCount commentCount createdAt updatedAt",
       })
       .sort({ updatedAt: -1 });
 
@@ -1027,26 +1028,24 @@ const createPlaylist = async (req, res) => {
       return new ErrorHandler(400, "Playlist title is required").send(res);
     }
 
-    const ownerVideos = await Post.find({
+    const eligiblePosts = await Post.find({
       _id: { $in: videoPostIds },
-      user: req.user.id,
-      postType: "video",
     }).select("_id");
 
-    const ownerVideoIds = ownerVideos.map((post) => post._id);
+    const eligiblePostIds = eligiblePosts.map((post) => post._id);
 
     const playlist = await Playlist.create({
       owner: req.user.id,
       title,
       description,
       isPublic: true,
-      videoPosts: ownerVideoIds,
+      videoPosts: eligiblePostIds,
     });
 
     const hydratedPlaylist = await Playlist.findById(playlist._id).populate({
       path: "videoPosts",
       select:
-        "title description url postType category likeCount shareCount commentCount createdAt updatedAt",
+        "title description url postType category contentFormat likeCount shareCount commentCount createdAt updatedAt",
     });
 
     return new SuccessHandler(
@@ -1089,22 +1088,20 @@ const updatePlaylist = async (req, res) => {
       return new ErrorHandler(400, "Playlist title is required").send(res);
     }
 
-    const ownerVideos = await Post.find({
+    const eligiblePosts = await Post.find({
       _id: { $in: videoPostIds },
-      user: req.user.id,
-      postType: "video",
     }).select("_id");
 
     playlist.title = title;
     playlist.description = description;
-    playlist.videoPosts = ownerVideos.map((post) => post._id);
+    playlist.videoPosts = eligiblePosts.map((post) => post._id);
     playlist.isPublic = true;
     await playlist.save();
 
     const hydratedPlaylist = await Playlist.findById(playlist._id).populate({
       path: "videoPosts",
       select:
-        "title description url postType category likeCount shareCount commentCount createdAt updatedAt",
+        "title description url postType category contentFormat likeCount shareCount commentCount createdAt updatedAt",
     });
 
     return new SuccessHandler(
@@ -1133,9 +1130,8 @@ const getPublicProfilePlaylists = async (req, res) => {
     })
       .populate({
         path: "videoPosts",
-        match: { postType: "video", user: userId },
         select:
-          "title description url postType category likeCount shareCount commentCount createdAt updatedAt",
+          "title description url postType category contentFormat likeCount shareCount commentCount createdAt updatedAt",
       })
       .sort({ updatedAt: -1 });
 

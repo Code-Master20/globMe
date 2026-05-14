@@ -1362,30 +1362,34 @@
     width: 100%;
   }
 
-  .uploadsControlsShelf,
-  .uploadsControlsShelfActive {
-    position: absolute;
+  .uploadsControlsShelf {
+    display: none;
     top: calc(100% + 0.65rem);
     left: 0;
-    z-index: 5;
-    min-height: 0;
+    z-index: 30;
+    width: auto;
+    max-width: calc(100vw - 2.5rem);
+  }
+
+  .uploadsControlsShelfActive {
+    display: block;
+    position: absolute;
     width: auto;
     max-width: calc(100vw - 2.5rem);
     min-width: 0;
-    pointer-events: auto;
   }
 
   .uploadsControls {
+    z-index: 31;
     width: max-content;
     max-width: min(100%, calc(100vw - 2.5rem));
     min-height: 48px;
     margin: 0;
-    overflow: visible;
     padding: 0.55rem;
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 255, 255, 0.88);
     border: 1px solid rgba(219, 228, 239, 0.95);
-    box-shadow: 0 16px 28px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 16px 28px rgba(15, 23, 42, 0.14);
     backdrop-filter: blur(12px);
     overflow-x: auto;
     overflow-y: hidden;
@@ -1396,7 +1400,7 @@
   }
 
   .uploadsPanelHeaderWithControls {
-    margin-bottom: 4.9rem;
+    margin-bottom: 0.85rem;
   }
 
   .uploadsCanvas {
@@ -1418,6 +1422,8 @@
   }
 
   .contentNav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     width: 100%;
     flex: 1 1 auto;
   }
@@ -1427,12 +1433,20 @@
     align-items: center;
     flex-wrap: nowrap;
     width: max-content;
+    min-width: max-content;
   }
 
   .contentNavButton,
   .contentSubnavButton,
   .playlistOptionButton {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .contentNavButton {
     width: 100%;
+    min-width: 0;
+    padding-inline: 0.6rem;
   }
 }
 
@@ -1466,6 +1480,7 @@
 }
 
 .uploadPostFrame {
+  position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
   background: #dbe4ef;
@@ -1477,6 +1492,35 @@
   object-fit: cover;
   display: block;
   background: #dbe4ef;
+}
+
+.uploadPostPlayButton {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #f8fafc;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.24);
+  backdrop-filter: blur(8px);
+  transition:
+    transform 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.uploadPostPlayButton:hover {
+  transform: translate(-50%, -50%) scale(1.04);
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 18px 30px rgba(15, 23, 42, 0.3);
 }
 
 .uploadPostMeta {
@@ -1505,6 +1549,312 @@
   color: #475569;
   font-size: 0.8rem;
   line-height: 1.5;
+}
+
+.uploadPostStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.8rem;
+  margin-top: 0.2rem;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.uploadPostActions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+}
+
+.uploadPostActionButton {
+  min-height: 36px;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid rgba(31, 107, 82, 0.18);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #1f6b52;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease;
+}
+
+.uploadPostActionButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(31, 107, 82, 0.3);
+  box-shadow: 0 12px 22px rgba(31, 107, 82, 0.08);
+  background: #ffffff;
+}
+
+.inlineVideoOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem;
+  background: rgba(15, 23, 42, 0.76);
+  backdrop-filter: blur(8px);
+}
+
+.inlineVideoDialog {
+  position: relative;
+  width: min(880px, 100%);
+  max-height: calc(100vh - 2.4rem);
+  overflow: auto;
+  padding: 1rem;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.12), transparent 32%),
+    #0f172a;
+  box-shadow: 0 24px 56px rgba(15, 23, 42, 0.34);
+}
+
+.inlineVideoClose {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  z-index: 1;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inlineVideoFrame {
+  overflow: hidden;
+  border-radius: 18px;
+  background: #020617;
+}
+
+.inlineVideoPlayer {
+  width: 100%;
+  max-height: min(70vh, 720px);
+  display: block;
+  background: #020617;
+}
+
+.inlineVideoMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+  color: #dbe4ef;
+}
+
+.inlineVideoKicker {
+  color: #93c5fd;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.inlineVideoMeta h2 {
+  color: #f8fafc;
+  font-size: clamp(1.2rem, 2.4vw, 1.55rem);
+  line-height: 1.2;
+}
+
+.inlineVideoMeta p {
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.playlistPickerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.playlistPickerDialog {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 2.4rem);
+  overflow: auto;
+  padding: 1rem;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 56px rgba(15, 23, 42, 0.24);
+}
+
+.playlistPickerHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.playlistPickerHeader p {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.playlistPickerHeader h2 {
+  margin-top: 0.2rem;
+  color: #172033;
+  font-size: 1.28rem;
+  line-height: 1.2;
+}
+
+.playlistPickerClose {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 14px;
+  background: #f1f5f9;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playlistPickerList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.playlistPickerOption {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 18px;
+  border: 1px solid #dbe4ef;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.playlistPickerOption input {
+  width: 16px;
+  height: 16px;
+  accent-color: #1f6b52;
+  flex-shrink: 0;
+}
+
+.playlistPickerOption strong,
+.playlistPickerOption small {
+  display: block;
+}
+
+.playlistPickerOption strong {
+  color: #172033;
+  font-size: 0.94rem;
+}
+
+.playlistPickerOption small {
+  margin-top: 0.15rem;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.playlistPickerEmpty {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.playlistPickerCreate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.playlistPickerField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.playlistPickerField span {
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.playlistPickerField input,
+.playlistPickerField textarea {
+  width: 100%;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 16px;
+  background: #f8fafc;
+  color: #172033;
+  font: inherit;
+}
+
+.playlistPickerField textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.playlistPickerActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.playlistPickerPrimary,
+.playlistPickerSecondary {
+  min-height: 42px;
+  padding: 0.65rem 1rem;
+  border-radius: 14px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    opacity 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.playlistPickerPrimary {
+  border: none;
+  background: #1f6b52;
+  color: #f8fafc;
+}
+
+.playlistPickerSecondary {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+}
+
+.playlistPickerPrimary:hover,
+.playlistPickerSecondary:hover {
+  transform: translateY(-1px);
 }
 
 .storyHistoryHeader {
@@ -2046,6 +2396,44 @@
 
   .storyHistoryRail {
     grid-template-columns: repeat(auto-fit, minmax(116px, 116px));
+  }
+
+  .inlineVideoOverlay {
+    padding: 0.75rem;
+  }
+
+  .inlineVideoDialog {
+    padding: 0.8rem;
+    border-radius: 20px;
+  }
+
+  .inlineVideoClose {
+    top: 0.7rem;
+    right: 0.7rem;
+    width: 40px;
+    height: 40px;
+  }
+
+  .inlineVideoPlayer {
+    max-height: 62vh;
+  }
+
+  .playlistPickerOverlay {
+    padding: 0.75rem;
+  }
+
+  .playlistPickerDialog {
+    padding: 0.85rem;
+    border-radius: 20px;
+  }
+
+  .playlistPickerActions {
+    flex-direction: column-reverse;
+  }
+
+  .playlistPickerPrimary,
+  .playlistPickerSecondary {
+    width: 100%;
   }
 
   .storyHistoryCard {

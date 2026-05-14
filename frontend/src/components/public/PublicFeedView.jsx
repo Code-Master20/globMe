@@ -49,6 +49,13 @@ export const PublicFeedView = ({
   const [loading, setLoading] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [watchLaterBusyId, setWatchLaterBusyId] = useState("");
+  const [ownerPlaylists, setOwnerPlaylists] = useState([]);
+  const [playlistsLoading, setPlaylistsLoading] = useState(false);
+  const [playlistPickerPost, setPlaylistPickerPost] = useState(null);
+  const [playlistPickerIds, setPlaylistPickerIds] = useState([]);
+  const [playlistPickerSaving, setPlaylistPickerSaving] = useState(false);
+  const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
+  const [newPlaylistDescription, setNewPlaylistDescription] = useState("");
 
   usePageMetadata({
     title: seoTitle || title,
@@ -90,6 +97,27 @@ export const PublicFeedView = ({
     };
   }, [filterType]);
 
+  useEffect(() => {
+    if (!playlistPickerPost) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !playlistPickerSaving) {
+        setPlaylistPickerPost(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [playlistPickerPost, playlistPickerSaving]);
+
   const handleProtectedAction = () => {
     if (isAuthenticated) {
       toast.info("This action will be wired next.");
@@ -126,6 +154,124 @@ export const PublicFeedView = ({
       toast.error(error.response?.data?.message || "Watch later update failed");
     } finally {
       setWatchLaterBusyId("");
+    }
+  };
+
+  const handlePlaylistToggle = (playlistId) => {
+    setPlaylistPickerIds((prev) =>
+      prev.includes(playlistId)
+        ? prev.filter((item) => item !== playlistId)
+        : [...prev, playlistId],
+    );
+  };
+
+  const handleOpenPlaylistPicker = async (post) => {
+    if (!post?._id) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    try {
+      setPlaylistPickerPost(post);
+      setPlaylistsLoading(true);
+      const response = await api.get("/user/playlists");
+      const nextPlaylists = Array.isArray(response.data?.data) ? response.data.data : [];
+      const nextSelectedIds = nextPlaylists
+        .filter((playlist) =>
+          Array.isArray(playlist.videos) &&
+          playlist.videos.some((video) => video?._id === post._id),
+        )
+        .map((playlist) => playlist._id);
+
+      setOwnerPlaylists(nextPlaylists);
+      setPlaylistPickerIds(nextSelectedIds);
+      setNewPlaylistTitle("");
+      setNewPlaylistDescription("");
+    } catch (error) {
+      setPlaylistPickerPost(null);
+      toast.error(error.response?.data?.message || "Playlists could not be loaded");
+    } finally {
+      setPlaylistsLoading(false);
+    }
+  };
+
+  const handlePlaylistSave = async () => {
+    if (!playlistPickerPost?._id) {
+      return;
+    }
+
+    const targetPostId = playlistPickerPost._id;
+    const normalizedNewTitle = newPlaylistTitle.trim().toLowerCase();
+    const normalizedNewDescription = newPlaylistDescription.trim();
+    const updates = ownerPlaylists.reduce((items, playlist) => {
+      const currentVideoIds = Array.isArray(playlist.videos)
+        ? playlist.videos.map((video) => video._id)
+        : [];
+      const currentlyLinked = currentVideoIds.includes(targetPostId);
+      const shouldBeLinked = playlistPickerIds.includes(playlist._id);
+
+      if (currentlyLinked === shouldBeLinked) {
+        return items;
+      }
+
+      items.push({
+        playlistId: playlist._id,
+        payload: {
+          title: `${playlist.title || ""}`.trim().toLowerCase(),
+          description: playlist.description || "",
+          videoPostIds: shouldBeLinked
+            ? Array.from(new Set([...currentVideoIds, targetPostId]))
+            : currentVideoIds.filter((item) => item !== targetPostId),
+        },
+      });
+
+      return items;
+    }, []);
+
+    if (!updates.length && !normalizedNewTitle) {
+      setPlaylistPickerPost(null);
+      return;
+    }
+
+    try {
+      setPlaylistPickerSaving(true);
+      const responses = await Promise.all(
+        updates.map(({ playlistId, payload }) =>
+          api.patch(`/user/playlists/${playlistId}`, payload),
+        ),
+      );
+      const createResponse = normalizedNewTitle
+        ? await api.post("/user/playlists", {
+          title: normalizedNewTitle,
+          description: normalizedNewDescription,
+          videoPostIds: [targetPostId],
+        })
+        : null;
+      const updatedMap = new Map(
+        responses
+          .map((response) => response.data?.data)
+          .filter(Boolean)
+          .map((playlist) => [playlist._id, playlist]),
+      );
+
+      setOwnerPlaylists((prev) =>
+        [
+          ...(createResponse?.data?.data ? [createResponse.data.data] : []),
+          ...prev.map((playlist) => updatedMap.get(playlist._id) || playlist),
+        ],
+      );
+      setPlaylistPickerPost(null);
+      setNewPlaylistTitle("");
+      setNewPlaylistDescription("");
+      toast.success("Playlist selections updated");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Playlist update failed");
+    } finally {
+      setPlaylistPickerSaving(false);
     }
   };
 
@@ -226,6 +372,13 @@ export const PublicFeedView = ({
                     <button
                       type="button"
                       className={styles.actionBtn}
+                      onClick={() => handleOpenPlaylistPicker(post)}
+                    >
+                      Add to playlist
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.actionBtn}
                       onClick={handleProtectedAction}
                     >
                       <MdOutlineFavoriteBorder />
@@ -254,6 +407,111 @@ export const PublicFeedView = ({
           </section>
         )}
       </main>
+
+      {playlistPickerPost ? (
+        <div
+          className={styles.playlistPickerOverlay}
+          onClick={() => {
+            if (!playlistPickerSaving) {
+              setPlaylistPickerPost(null);
+            }
+          }}
+        >
+          <div
+            className={styles.playlistPickerDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add public post to playlists"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.playlistPickerHeader}>
+              <div>
+                <p>Add to playlist</p>
+                <h2>{formatDisplayValue(playlistPickerPost.title) || "Public post"}</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.playlistPickerClose}
+                onClick={() => setPlaylistPickerPost(null)}
+                disabled={playlistPickerSaving}
+                aria-label="Close playlist picker"
+              >
+                x
+              </button>
+            </div>
+
+            {playlistsLoading ? (
+              <div className={styles.playlistPickerEmpty}>Loading your playlists...</div>
+            ) : ownerPlaylists.length === 0 ? (
+              <div className={styles.playlistPickerEmpty}>
+                You have not created any playlists yet.
+              </div>
+            ) : (
+              <div className={styles.playlistPickerList}>
+                {ownerPlaylists.map((playlist) => (
+                  <label key={playlist._id} className={styles.playlistPickerOption}>
+                    <input
+                      type="checkbox"
+                      checked={playlistPickerIds.includes(playlist._id)}
+                      onChange={() => handlePlaylistToggle(playlist._id)}
+                      disabled={playlistPickerSaving}
+                    />
+                    <div>
+                      <strong>{formatDisplayValue(playlist.title) || "Untitled playlist"}</strong>
+                      <small>{playlist.postCount || playlist.videoCount || 0} posts</small>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <div className={styles.playlistPickerCreate}>
+              <label className={styles.playlistPickerField}>
+                <span>Create new playlist</span>
+                <input
+                  type="text"
+                  value={newPlaylistTitle}
+                  onChange={(event) => setNewPlaylistTitle(event.target.value)}
+                  placeholder="travel reels, portraits, tutorials..."
+                  disabled={playlistPickerSaving}
+                />
+              </label>
+              <label className={styles.playlistPickerField}>
+                <span>Description</span>
+                <textarea
+                  value={newPlaylistDescription}
+                  onChange={(event) => setNewPlaylistDescription(event.target.value)}
+                  placeholder="Tell people what belongs in this playlist"
+                  disabled={playlistPickerSaving}
+                />
+              </label>
+            </div>
+
+            <div className={styles.playlistPickerActions}>
+              <button
+                type="button"
+                className={styles.playlistPickerSecondary}
+                onClick={() => setPlaylistPickerPost(null)}
+                disabled={playlistPickerSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.playlistPickerPrimary}
+                onClick={handlePlaylistSave}
+                disabled={
+                  playlistPickerSaving ||
+                  playlistsLoading ||
+                  (ownerPlaylists.length === 0 && !newPlaylistTitle.trim())
+                }
+              >
+                {playlistPickerSaving ? "Saving..." : "Save playlists"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <AuthAccessPrompt
         open={showAuthPrompt}

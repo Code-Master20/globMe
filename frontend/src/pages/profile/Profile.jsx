@@ -12,6 +12,7 @@ import {
   MdOutlineCalendarMonth,
   MdOutlineFavoriteBorder,
   MdOutlineWorkOutline,
+  MdPlayArrow,
   MdOutlineWc,
 } from "react-icons/md";
 import { toast } from "react-toastify";
@@ -175,6 +176,7 @@ export const Profile = () => {
   const [playlists, setPlaylists] = useState([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [playlistsError, setPlaylistsError] = useState("");
+  const [playlistRefreshNonce, setPlaylistRefreshNonce] = useState(0);
   const [selectedContentView, setSelectedContentView] = useState("all");
   const [selectedPhotoView, setSelectedPhotoView] = useState("all");
   const [selectedVideoView, setSelectedVideoView] = useState("all");
@@ -182,6 +184,12 @@ export const Profile = () => {
   const [hasChosenPhotoView, setHasChosenPhotoView] = useState(false);
   const [hasChosenVideoView, setHasChosenVideoView] = useState(false);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState("");
+  const [activeInlineVideoPost, setActiveInlineVideoPost] = useState(null);
+  const [playlistPickerPost, setPlaylistPickerPost] = useState(null);
+  const [playlistPickerIds, setPlaylistPickerIds] = useState([]);
+  const [playlistPickerSaving, setPlaylistPickerSaving] = useState(false);
+  const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
+  const [newPlaylistDescription, setNewPlaylistDescription] = useState("");
   const pendingStoryAudioRef = useRef(null);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
@@ -392,6 +400,60 @@ export const Profile = () => {
   }, [showInfo, width]);
 
   useEffect(() => {
+    if (!activeInlineVideoPost) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setActiveInlineVideoPost(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeInlineVideoPost]);
+
+  useEffect(() => {
+    setActiveInlineVideoPost(null);
+  }, [profileContentKey]);
+
+  useEffect(() => {
+    if (!playlistPickerPost) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !playlistPickerSaving) {
+        setPlaylistPickerPost(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [playlistPickerPost, playlistPickerSaving]);
+
+  useEffect(() => {
+    setPlaylistPickerPost(null);
+    setPlaylistPickerIds([]);
+    setPlaylistPickerSaving(false);
+    setNewPlaylistTitle("");
+    setNewPlaylistDescription("");
+  }, [profileContentKey]);
+
+  useEffect(() => {
     if (!storyComposerOpen || !isOwner || !user?._id) {
       return undefined;
     }
@@ -515,7 +577,7 @@ export const Profile = () => {
     return () => {
       ignore = true;
     };
-  }, [isOwner, user?._id, userId]);
+  }, [isOwner, playlistRefreshNonce, user?._id, userId]);
 
   useEffect(() => {
     const profileId = isOwner ? user?._id : userId;
@@ -1222,6 +1284,285 @@ export const Profile = () => {
     );
   };
 
+  const handleUploadedPostSelect = (post) => {
+    if (!post?._id) {
+      return;
+    }
+
+    if (isOwner && post.postType === "video") {
+      setActiveInlineVideoPost(post);
+      return;
+    }
+
+    navigate(`/posts/${post._id}`);
+  };
+
+  const handleOpenPlaylistPicker = (post) => {
+    if (!isOwner || !post?._id) {
+      return;
+    }
+
+    const linkedPlaylistIds = playlists
+      .filter((playlist) =>
+        Array.isArray(playlist.videos) &&
+        playlist.videos.some((video) => video?._id === post._id),
+      )
+      .map((playlist) => playlist._id);
+
+    setPlaylistPickerPost(post);
+    setPlaylistPickerIds(linkedPlaylistIds);
+    setNewPlaylistTitle("");
+    setNewPlaylistDescription("");
+  };
+
+  const handlePlaylistPickerToggle = (playlistId) => {
+    setPlaylistPickerIds((prev) =>
+      prev.includes(playlistId)
+        ? prev.filter((item) => item !== playlistId)
+        : [...prev, playlistId],
+    );
+  };
+
+  const handlePlaylistPickerSave = async () => {
+    if (!playlistPickerPost?._id) {
+      return;
+    }
+
+    const targetPostId = playlistPickerPost._id;
+    const normalizedNewTitle = newPlaylistTitle.trim().toLowerCase();
+    const normalizedNewDescription = newPlaylistDescription.trim();
+    const updates = playlists.reduce((items, playlist) => {
+      const currentVideoIds = Array.isArray(playlist.videos)
+        ? playlist.videos.map((video) => video._id)
+        : [];
+      const currentlyLinked = currentVideoIds.includes(targetPostId);
+      const shouldBeLinked = playlistPickerIds.includes(playlist._id);
+
+      if (currentlyLinked === shouldBeLinked) {
+        return items;
+      }
+
+      items.push({
+        playlistId: playlist._id,
+        payload: {
+          title: `${playlist.title || ""}`.trim().toLowerCase(),
+          description: playlist.description || "",
+          videoPostIds: shouldBeLinked
+            ? Array.from(new Set([...currentVideoIds, targetPostId]))
+            : currentVideoIds.filter((item) => item !== targetPostId),
+        },
+      });
+
+      return items;
+    }, []);
+
+    if (!updates.length && !normalizedNewTitle) {
+      setPlaylistPickerPost(null);
+      return;
+    }
+
+    try {
+      setPlaylistPickerSaving(true);
+      const responses = await Promise.all(
+        updates.map(({ playlistId, payload }) =>
+          api.patch(`/user/playlists/${playlistId}`, payload),
+        ),
+      );
+      const createResponse = normalizedNewTitle
+        ? await api.post("/user/playlists", {
+          title: normalizedNewTitle,
+          description: normalizedNewDescription,
+          videoPostIds: [targetPostId],
+        })
+        : null;
+
+      const updatedMap = new Map(
+        responses
+          .map((response) => response.data?.data)
+          .filter(Boolean)
+          .map((playlist) => [playlist._id, playlist]),
+      );
+
+      setPlaylists((prev) =>
+        [
+          ...(createResponse?.data?.data ? [createResponse.data.data] : []),
+          ...prev.map((playlist) => updatedMap.get(playlist._id) || playlist),
+        ],
+      );
+      setPlaylistPickerPost(null);
+      setNewPlaylistTitle("");
+      setNewPlaylistDescription("");
+      setPlaylistRefreshNonce((prev) => prev + 1);
+      toast.success("Playlist selections updated");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Playlist update failed");
+    } finally {
+      setPlaylistPickerSaving(false);
+    }
+  };
+
+  const activeInlineVideoOverlay = activeInlineVideoPost ? (
+    <div
+      className={styles.inlineVideoOverlay}
+      onClick={() => setActiveInlineVideoPost(null)}
+    >
+      <div
+        className={styles.inlineVideoDialog}
+        role="dialog"
+        aria-modal="true"
+        aria-label={activeInlineVideoPost.title || "Profile video"}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className={styles.inlineVideoClose}
+          onClick={() => setActiveInlineVideoPost(null)}
+          aria-label="Close video player"
+        >
+          <MdClose />
+        </button>
+
+        <div className={styles.inlineVideoFrame}>
+          <video
+            src={activeInlineVideoPost.url}
+            className={styles.inlineVideoPlayer}
+            controls
+            autoPlay
+            playsInline
+            preload="metadata"
+          />
+        </div>
+
+        <div className={styles.inlineVideoMeta}>
+          <p className={styles.inlineVideoKicker}>
+            {formatDisplayValue(activeInlineVideoPost.postType) || "Video"}
+            {activeInlineVideoPost.contentFormat
+              ? ` | ${formatDisplayValue(activeInlineVideoPost.contentFormat)}`
+              : ""}
+          </p>
+          <h2>
+            {formatDisplayValue(activeInlineVideoPost.title) || "Untitled video"}
+          </h2>
+          <p>
+            {formatDisplayValue(activeInlineVideoPost.category) || "Uploaded from your profile"}
+          </p>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const playlistPickerOverlay = playlistPickerPost ? (
+    <div
+      className={styles.playlistPickerOverlay}
+      onClick={() => {
+        if (!playlistPickerSaving) {
+          setPlaylistPickerPost(null);
+        }
+      }}
+    >
+      <div
+        className={styles.playlistPickerDialog}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add post to playlists"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className={styles.playlistPickerHeader}>
+          <div>
+            <p>Add to playlist</p>
+            <h2>
+              {formatDisplayValue(playlistPickerPost.title) || "Untitled post"}
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            className={styles.playlistPickerClose}
+            onClick={() => setPlaylistPickerPost(null)}
+            disabled={playlistPickerSaving}
+            aria-label="Close playlist picker"
+          >
+            <MdClose />
+          </button>
+        </div>
+
+        {playlistsLoading ? (
+          <div className={styles.playlistPickerEmpty}>Loading your playlists...</div>
+        ) : playlists.length === 0 ? (
+          <div className={styles.playlistPickerEmpty}>
+            You have not created any playlists yet.
+          </div>
+        ) : (
+          <div className={styles.playlistPickerList}>
+            {playlists.map((playlist) => {
+              const checked = playlistPickerIds.includes(playlist._id);
+
+              return (
+                <label key={playlist._id} className={styles.playlistPickerOption}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => handlePlaylistPickerToggle(playlist._id)}
+                    disabled={playlistPickerSaving}
+                  />
+                  <div>
+                    <strong>{formatDisplayValue(playlist.title) || "Untitled playlist"}</strong>
+                    <small>{playlist.postCount || playlist.videoCount || 0} posts</small>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        )}
+
+        <div className={styles.playlistPickerCreate}>
+          <label className={styles.playlistPickerField}>
+            <span>Create new playlist</span>
+            <input
+              type="text"
+              value={newPlaylistTitle}
+              onChange={(event) => setNewPlaylistTitle(event.target.value)}
+              placeholder="travel reels, portraits, tutorials..."
+              disabled={playlistPickerSaving}
+            />
+          </label>
+          <label className={styles.playlistPickerField}>
+            <span>Description</span>
+            <textarea
+              value={newPlaylistDescription}
+              onChange={(event) => setNewPlaylistDescription(event.target.value)}
+              placeholder="Tell people what belongs in this playlist"
+              disabled={playlistPickerSaving}
+            />
+          </label>
+        </div>
+
+        <div className={styles.playlistPickerActions}>
+          <button
+            type="button"
+            className={styles.playlistPickerSecondary}
+            onClick={() => setPlaylistPickerPost(null)}
+            disabled={playlistPickerSaving}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={styles.playlistPickerPrimary}
+            onClick={handlePlaylistPickerSave}
+            disabled={
+              playlistPickerSaving ||
+              playlistsLoading ||
+              (playlists.length === 0 && !newPlaylistTitle.trim())
+            }
+          >
+            {playlistPickerSaving ? "Saving..." : "Save playlists"}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const storyComposerOverlay = isOwner && storyComposerOpen ? (
     <div
       className={styles.storyComposerOverlay}
@@ -1841,7 +2182,7 @@ export const Profile = () => {
             </section>
           ) : null}
 
-          {hasActiveStory || isOwner ? (
+          {hasActiveStory || (isOwner && ownerStoryCards.length > 0) ? (
             <section className={styles.storyPanel}>
               <div className={styles.storyPanelHeader}>
                 <div>
@@ -1866,14 +2207,6 @@ export const Profile = () => {
                     This story stays visible until {storyExpiryLabel} and then
                     disappears automatically.
                   </p>
-                </div>
-              ) : null}
-
-              {isOwner && ownerStoryCards.length === 0 ? (
-                <div className={styles.storyPlaceholder}>
-                  Upload a photo or video story, add music if you want, or reuse one
-                  of your posts. It stays live for 36 hours and then expires
-                  automatically.
                 </div>
               ) : null}
 
@@ -2139,7 +2472,7 @@ export const Profile = () => {
                 </div>
               ) : selectedContentView === "playlists" && playlistVideos.length === 0 ? (
                 <div className={styles.storyPlaceholder}>
-                  This playlist does not have any videos yet.
+                  This playlist does not have any posts yet.
                 </div>
                   ) : (
                     <div className={styles.uploadsGrid}>
@@ -2163,16 +2496,29 @@ export const Profile = () => {
                           type="button"
                           key={post._id}
                           className={styles.uploadPostCard}
-                          onClick={() => navigate(`/posts/${post._id}`)}
+                          onClick={() => handleUploadedPostSelect(post)}
                         >
                           <div className={styles.uploadPostFrame}>
                             {post.postType === "video" ? (
-                              <video
-                                src={post.url}
-                                className={styles.uploadPostThumb}
-                                muted
-                                preload="metadata"
-                              />
+                              <>
+                                <video
+                                  src={post.url}
+                                  className={styles.uploadPostThumb}
+                                  muted
+                                  preload="metadata"
+                                />
+                                <button
+                                  type="button"
+                                  className={styles.uploadPostPlayButton}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleUploadedPostSelect(post);
+                                  }}
+                                  aria-label={`Play ${post.title || "uploaded video"}`}
+                                >
+                                  <MdPlayArrow size={26} />
+                                </button>
+                              </>
                             ) : (
                               <img
                                 src={post.url}
@@ -2192,6 +2538,25 @@ export const Profile = () => {
                             </div>
                             <strong>{formatDisplayValue(post.title) || "Untitled post"}</strong>
                             <p>{formatDisplayValue(post.category) || "No category"}</p>
+                            <div className={styles.uploadPostStats}>
+                              <span>{post.likeCount || 0} likes</span>
+                              <span>{post.commentCount || 0} comments</span>
+                              <span>{post.shareCount || 0} shares</span>
+                            </div>
+                            {isOwner ? (
+                              <div className={styles.uploadPostActions}>
+                                <button
+                                  type="button"
+                                  className={styles.uploadPostActionButton}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleOpenPlaylistPicker(post);
+                                  }}
+                                >
+                                  Add to playlist
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
                         </button>
                       ))}
@@ -2390,6 +2755,10 @@ export const Profile = () => {
       </main>
 
       {storyComposerOverlay}
+
+      {activeInlineVideoOverlay}
+
+      {playlistPickerOverlay}
 
       <AuthAccessPrompt
         open={showAuthPrompt}

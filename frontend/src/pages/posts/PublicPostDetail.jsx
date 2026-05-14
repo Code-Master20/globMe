@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { MdOutlineChatBubbleOutline, MdOutlineFavoriteBorder } from "react-icons/md";
+import {
+  MdOutlineBookmarkBorder,
+  MdOutlineChatBubbleOutline,
+  MdOutlineFavoriteBorder,
+  MdOutlinePlaylistPlay,
+} from "react-icons/md";
 import { PiShareFatLight } from "react-icons/pi";
 import { toast } from "react-toastify";
 import api from "../../lib/api";
@@ -20,6 +25,39 @@ const formatDisplayValue = (value) => {
     .join(" ");
 };
 
+const formatRelativeTime = (value) => {
+  if (!value) {
+    return "Just now";
+  }
+
+  const timestamp = new Date(value).getTime();
+
+  if (Number.isNaN(timestamp)) {
+    return "Recently";
+  }
+
+  const diffMs = Date.now() - timestamp;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  const week = 7 * day;
+
+  if (diffMs < hour) {
+    const minutes = Math.max(1, Math.floor(diffMs / minute));
+    return `${minutes}m ago`;
+  }
+
+  if (diffMs < day) {
+    return `${Math.floor(diffMs / hour)}h ago`;
+  }
+
+  if (diffMs < week) {
+    return `${Math.floor(diffMs / day)}d ago`;
+  }
+
+  return `${Math.floor(diffMs / week)}w ago`;
+};
+
 export const PublicPostDetail = () => {
   const { postId } = useParams();
   const navigate = useNavigate();
@@ -29,6 +67,13 @@ export const PublicPostDetail = () => {
   const [error, setError] = useState("");
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [watchLaterLoading, setWatchLaterLoading] = useState(false);
+  const [ownerPlaylists, setOwnerPlaylists] = useState([]);
+  const [playlistsLoading, setPlaylistsLoading] = useState(false);
+  const [playlistPickerIds, setPlaylistPickerIds] = useState([]);
+  const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
+  const [playlistPickerSaving, setPlaylistPickerSaving] = useState(false);
+  const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
+  const [newPlaylistDescription, setNewPlaylistDescription] = useState("");
 
   usePageMetadata({
     title: post?.title ? formatDisplayValue(post.title) : "Public post",
@@ -67,6 +112,27 @@ export const PublicPostDetail = () => {
       ignore = true;
     };
   }, [postId]);
+
+  useEffect(() => {
+    if (!playlistPickerOpen) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !playlistPickerSaving) {
+        setPlaylistPickerOpen(false);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [playlistPickerOpen, playlistPickerSaving]);
 
   const handleProtectedAction = () => {
     if (isAuthenticated) {
@@ -109,6 +175,129 @@ export const PublicPostDetail = () => {
     }
   };
 
+  const loadOwnerPlaylists = async () => {
+    setPlaylistsLoading(true);
+
+    try {
+      const response = await api.get("/user/playlists");
+      const nextPlaylists = Array.isArray(response.data?.data) ? response.data.data : [];
+      const nextSelectedIds = post?._id
+        ? nextPlaylists
+          .filter((playlist) =>
+            Array.isArray(playlist.videos) &&
+            playlist.videos.some((video) => video?._id === post._id),
+          )
+          .map((playlist) => playlist._id)
+        : [];
+
+      setOwnerPlaylists(nextPlaylists);
+      setPlaylistPickerIds(nextSelectedIds);
+      setNewPlaylistTitle("");
+      setNewPlaylistDescription("");
+      setPlaylistPickerOpen(true);
+    } catch (loadError) {
+      toast.error(loadError.response?.data?.message || "Playlists could not be loaded");
+    } finally {
+      setPlaylistsLoading(false);
+    }
+  };
+
+  const handleOpenPlaylistPicker = async () => {
+    if (!post?._id) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    await loadOwnerPlaylists();
+  };
+
+  const handlePlaylistToggle = (playlistId) => {
+    setPlaylistPickerIds((prev) =>
+      prev.includes(playlistId)
+        ? prev.filter((item) => item !== playlistId)
+        : [...prev, playlistId],
+    );
+  };
+
+  const handlePlaylistSave = async () => {
+    if (!post?._id) {
+      return;
+    }
+
+    const normalizedNewTitle = newPlaylistTitle.trim().toLowerCase();
+    const normalizedNewDescription = newPlaylistDescription.trim();
+    const updates = ownerPlaylists.reduce((items, playlist) => {
+      const currentVideoIds = Array.isArray(playlist.videos)
+        ? playlist.videos.map((video) => video._id)
+        : [];
+      const currentlyLinked = currentVideoIds.includes(post._id);
+      const shouldBeLinked = playlistPickerIds.includes(playlist._id);
+
+      if (currentlyLinked === shouldBeLinked) {
+        return items;
+      }
+
+      items.push({
+        playlistId: playlist._id,
+        payload: {
+          title: `${playlist.title || ""}`.trim().toLowerCase(),
+          description: playlist.description || "",
+          videoPostIds: shouldBeLinked
+            ? Array.from(new Set([...currentVideoIds, post._id]))
+            : currentVideoIds.filter((item) => item !== post._id),
+        },
+      });
+
+      return items;
+    }, []);
+
+    if (!updates.length && !normalizedNewTitle) {
+      setPlaylistPickerOpen(false);
+      return;
+    }
+
+    try {
+      setPlaylistPickerSaving(true);
+      const responses = await Promise.all(
+        updates.map(({ playlistId, payload }) =>
+          api.patch(`/user/playlists/${playlistId}`, payload),
+        ),
+      );
+      const createResponse = normalizedNewTitle
+        ? await api.post("/user/playlists", {
+          title: normalizedNewTitle,
+          description: normalizedNewDescription,
+          videoPostIds: [post._id],
+        })
+        : null;
+      const updatedMap = new Map(
+        responses
+          .map((response) => response.data?.data)
+          .filter(Boolean)
+          .map((playlist) => [playlist._id, playlist]),
+      );
+
+      setOwnerPlaylists((prev) =>
+        [
+          ...(createResponse?.data?.data ? [createResponse.data.data] : []),
+          ...prev.map((playlist) => updatedMap.get(playlist._id) || playlist),
+        ],
+      );
+      setPlaylistPickerOpen(false);
+      setNewPlaylistTitle("");
+      setNewPlaylistDescription("");
+      toast.success("Playlist selections updated");
+    } catch (saveError) {
+      toast.error(saveError.response?.data?.message || "Playlist update failed");
+    } finally {
+      setPlaylistPickerSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className={styles.page}>
@@ -128,86 +317,305 @@ export const PublicPostDetail = () => {
     );
   }
 
+  const isVideoPost = post.postType === "video";
+  const creatorLabel =
+    formatDisplayValue(post.user?.profession) || "globMe creator";
+  const publishedLabel = formatRelativeTime(post.createdAt || post.postDate);
+
   return (
     <>
-      <main className={styles.page}>
-        <article className={styles.card}>
-          <button
-            type="button"
-            className={styles.profileRow}
-            onClick={() => navigate(`/profile/${post.user?._id}`)}
-          >
-            <img
-              src={post.user?.avatar || noProfile}
-              alt={post.user?.username || "Profile"}
-              className={styles.avatar}
-            />
-            <div>
-              <strong>{post.user?.username || "globMe member"}</strong>
-              <span>
-                {formatDisplayValue(post.user?.profession) || "Public profile"}
-              </span>
-            </div>
-          </button>
-
-          <div className={styles.mediaFrame}>
-            {post.postType === "video" ? (
+      <main className={`${styles.page} ${isVideoPost ? styles.videoPage : ""}`}>
+        {isVideoPost ? (
+          <article className={styles.videoShell}>
+            <div className={styles.videoHero}>
               <video
                 src={post.url}
-                className={styles.media}
+                className={styles.videoPlayer}
                 controls
+                autoPlay
                 playsInline
                 preload="metadata"
               />
-            ) : (
+            </div>
+
+            <section className={styles.videoContent}>
+              <button
+                type="button"
+                className={styles.videoCreatorRow}
+                onClick={() => navigate(`/profile/${post.user?._id}`)}
+              >
+                <img
+                  src={post.user?.avatar || noProfile}
+                  alt={post.user?.username || "Profile"}
+                  className={styles.videoAvatar}
+                />
+                <div className={styles.videoCreatorMeta}>
+                  <strong>{post.user?.username || "globMe member"}</strong>
+                  <span>{creatorLabel}</span>
+                </div>
+              </button>
+
+              <div className={styles.videoTitleBlock}>
+                <p className={styles.videoHandle}>
+                  @{post.user?.username || "globme"}
+                </p>
+                <h1>{formatDisplayValue(post.title) || "Public video"}</h1>
+                <div className={styles.videoMetaRow}>
+                  <span>{creatorLabel}</span>
+                  <span>{publishedLabel}</span>
+                  <span>{post.likeCount || 0} likes</span>
+                </div>
+              </div>
+
+              <div className={styles.videoActionRail}>
+                <button
+                  type="button"
+                  className={styles.videoChipPrimary}
+                  onClick={() => navigate(`/profile/${post.user?._id}`)}
+                >
+                  Open profile
+                </button>
+                <button
+                  type="button"
+                  className={styles.videoChip}
+                  onClick={handleWatchLaterToggle}
+                >
+                  <MdOutlineBookmarkBorder />
+                  {watchLaterLoading
+                    ? "Saving..."
+                    : post.savedToWatchLater
+                      ? "Saved"
+                      : "Watch later"}
+                </button>
+                <button
+                  type="button"
+                  className={styles.videoChip}
+                  onClick={handleOpenPlaylistPicker}
+                >
+                  <MdOutlinePlaylistPlay />
+                  Add to playlist
+                </button>
+                <button
+                  type="button"
+                  className={styles.videoChip}
+                  onClick={handleProtectedAction}
+                >
+                  <MdOutlineFavoriteBorder />
+                  Like
+                </button>
+                <button
+                  type="button"
+                  className={styles.videoChip}
+                  onClick={handleProtectedAction}
+                >
+                  <MdOutlineChatBubbleOutline />
+                  Comment
+                </button>
+                <button
+                  type="button"
+                  className={styles.videoChip}
+                  onClick={handleProtectedAction}
+                >
+                  <PiShareFatLight />
+                  Share
+                </button>
+              </div>
+
+              <section className={styles.videoPanel}>
+                <div className={styles.videoPanelHeader}>
+                  <strong>About this video</strong>
+                  <span>
+                    {post.commentCount || 0} comments • {post.shareCount || 0} shares
+                  </span>
+                </div>
+                <p>
+                  {post.description ||
+                    "This video is publicly visible on globMe."}
+                </p>
+              </section>
+
+              <section className={styles.videoPanel}>
+                <div className={styles.videoPanelHeader}>
+                  <strong>Comments</strong>
+                  <span>{post.commentCount || 0} total</span>
+                </div>
+                <p>
+                  Reactions and comment threads will expand here as this route
+                  grows.
+                </p>
+              </section>
+            </section>
+          </article>
+        ) : (
+          <article className={styles.card}>
+            <button
+              type="button"
+              className={styles.profileRow}
+              onClick={() => navigate(`/profile/${post.user?._id}`)}
+            >
+              <img
+                src={post.user?.avatar || noProfile}
+                alt={post.user?.username || "Profile"}
+                className={styles.avatar}
+              />
+              <div>
+                <strong>{post.user?.username || "globMe member"}</strong>
+                <span>{creatorLabel}</span>
+              </div>
+            </button>
+
+            <div className={styles.mediaFrame}>
               <img
                 src={post.url}
                 alt={post.title || "Public post"}
                 className={styles.media}
               />
-            )}
-          </div>
+            </div>
 
-          <div className={styles.copy}>
-            <p className={styles.kicker}>
-              {formatDisplayValue(post.postType) || "Post"}
-              {post.contentFormat ? ` | ${formatDisplayValue(post.contentFormat)}` : ""}
-            </p>
-            <h1>{formatDisplayValue(post.title) || "Public post"}</h1>
-            <p>{post.description || "This post is publicly visible on globMe."}</p>
-          </div>
+            <div className={styles.copy}>
+              <p className={styles.kicker}>
+                {formatDisplayValue(post.postType) || "Post"}
+                {post.contentFormat ? ` | ${formatDisplayValue(post.contentFormat)}` : ""}
+              </p>
+              <h1>{formatDisplayValue(post.title) || "Public post"}</h1>
+              <p>{post.description || "This post is publicly visible on globMe."}</p>
+            </div>
 
-          <div className={styles.statGroup}>
-            <span>{post.likeCount || 0} likes</span>
-            <span>{post.commentCount || 0} comments</span>
-            <span>{post.shareCount || 0} shares</span>
-          </div>
+            <div className={styles.statGroup}>
+              <span>{post.likeCount || 0} likes</span>
+              <span>{post.commentCount || 0} comments</span>
+              <span>{post.shareCount || 0} shares</span>
+            </div>
 
-          <div className={styles.actionGroup}>
-            {post.postType === "video" ? (
-              <button type="button" className={styles.actionBtn} onClick={handleWatchLaterToggle}>
-                {watchLaterLoading
-                  ? "Saving..."
-                  : post.savedToWatchLater
-                    ? "Saved"
-                    : "Watch later"}
+            <div className={styles.actionGroup}>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                onClick={handleOpenPlaylistPicker}
+              >
+                Add to playlist
               </button>
-            ) : null}
-            <button type="button" className={styles.actionBtn} onClick={handleProtectedAction}>
-              <MdOutlineFavoriteBorder />
-              Like
-            </button>
-            <button type="button" className={styles.actionBtn} onClick={handleProtectedAction}>
-              <MdOutlineChatBubbleOutline />
-              Comment
-            </button>
-            <button type="button" className={styles.actionBtn} onClick={handleProtectedAction}>
-              <PiShareFatLight />
-              Share
-            </button>
-          </div>
-        </article>
+              <button type="button" className={styles.actionBtn} onClick={handleProtectedAction}>
+                <MdOutlineFavoriteBorder />
+                Like
+              </button>
+              <button type="button" className={styles.actionBtn} onClick={handleProtectedAction}>
+                <MdOutlineChatBubbleOutline />
+                Comment
+              </button>
+              <button type="button" className={styles.actionBtn} onClick={handleProtectedAction}>
+                <PiShareFatLight />
+                Share
+              </button>
+            </div>
+          </article>
+        )}
       </main>
+
+      {playlistPickerOpen ? (
+        <div
+          className={styles.playlistPickerOverlay}
+          onClick={() => {
+            if (!playlistPickerSaving) {
+              setPlaylistPickerOpen(false);
+            }
+          }}
+        >
+          <div
+            className={styles.playlistPickerDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add public post to playlists"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.playlistPickerHeader}>
+              <div>
+                <p>Add to playlist</p>
+                <h2>{formatDisplayValue(post.title) || "Public post"}</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.playlistPickerClose}
+                onClick={() => setPlaylistPickerOpen(false)}
+                disabled={playlistPickerSaving}
+                aria-label="Close playlist picker"
+              >
+                x
+              </button>
+            </div>
+
+            {playlistsLoading ? (
+              <div className={styles.playlistPickerEmpty}>Loading your playlists...</div>
+            ) : ownerPlaylists.length === 0 ? (
+              <div className={styles.playlistPickerEmpty}>
+                You have not created any playlists yet.
+              </div>
+            ) : (
+              <div className={styles.playlistPickerList}>
+                {ownerPlaylists.map((playlist) => (
+                  <label key={playlist._id} className={styles.playlistPickerOption}>
+                    <input
+                      type="checkbox"
+                      checked={playlistPickerIds.includes(playlist._id)}
+                      onChange={() => handlePlaylistToggle(playlist._id)}
+                      disabled={playlistPickerSaving}
+                    />
+                    <div>
+                      <strong>{formatDisplayValue(playlist.title) || "Untitled playlist"}</strong>
+                      <small>{playlist.postCount || playlist.videoCount || 0} posts</small>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <div className={styles.playlistPickerCreate}>
+              <label className={styles.playlistPickerField}>
+                <span>Create new playlist</span>
+                <input
+                  type="text"
+                  value={newPlaylistTitle}
+                  onChange={(event) => setNewPlaylistTitle(event.target.value)}
+                  placeholder="travel reels, portraits, tutorials..."
+                  disabled={playlistPickerSaving}
+                />
+              </label>
+              <label className={styles.playlistPickerField}>
+                <span>Description</span>
+                <textarea
+                  value={newPlaylistDescription}
+                  onChange={(event) => setNewPlaylistDescription(event.target.value)}
+                  placeholder="Tell people what belongs in this playlist"
+                  disabled={playlistPickerSaving}
+                />
+              </label>
+            </div>
+
+            <div className={styles.playlistPickerActions}>
+              <button
+                type="button"
+                className={styles.playlistPickerSecondary}
+                onClick={() => setPlaylistPickerOpen(false)}
+                disabled={playlistPickerSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.playlistPickerPrimary}
+                onClick={handlePlaylistSave}
+                disabled={
+                  playlistPickerSaving ||
+                  playlistsLoading ||
+                  (ownerPlaylists.length === 0 && !newPlaylistTitle.trim())
+                }
+              >
+                {playlistPickerSaving ? "Saving..." : "Save playlists"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <AuthAccessPrompt
         open={showAuthPrompt}
