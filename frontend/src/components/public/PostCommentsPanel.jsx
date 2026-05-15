@@ -154,6 +154,7 @@ const useDesktopEmojiAccess = () => {
 const CommentComposer = ({
   title = "",
   subtitle = "",
+  contextPreview = "",
   value,
   onChange,
   onEmojiPick,
@@ -338,14 +339,18 @@ const CommentComposer = ({
             <div>
               {title ? <strong>{title}</strong> : null}
               {subtitle ? <span>{subtitle}</span> : null}
+              {contextPreview ? (
+                <p className={styles.composerContextPreview}>{contextPreview}</p>
+              ) : null}
             </div>
-            {onCancel && !inlineReply ? (
+            {onCancel ? (
               <button
                 type="button"
-                className={styles.inlineGhostButton}
+                className={styles.composerCloseButton}
                 onClick={onCancel}
+                aria-label="Close reply mode"
               >
-                Cancel
+                <MdClose />
               </button>
             ) : null}
           </div>
@@ -532,11 +537,14 @@ export const PostCommentsPanel = ({
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [commentLikeBusyId, setCommentLikeBusyId] = useState("");
   const [activeReplyCommentId, setActiveReplyCommentId] = useState("");
+  const [activeReplyUsername, setActiveReplyUsername] = useState("");
+  const [activeReplyCommentText, setActiveReplyCommentText] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
   const [replyImageFile, setReplyImageFile] = useState(null);
   const [replyImagePreview, setReplyImagePreview] = useState("");
   const [replySubmitting, setReplySubmitting] = useState(false);
   const onCommentCountChangeRef = useRef(onCommentCountChange);
+  const composerDockRef = useRef(null);
 
   useEffect(() => {
     onCommentCountChangeRef.current = onCommentCountChange;
@@ -612,6 +620,17 @@ export const PostCommentsPanel = ({
     };
   }, [replyImageFile]);
 
+  useEffect(() => {
+    if (!activeReplyCommentId) {
+      return;
+    }
+
+    composerDockRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }, [activeReplyCommentId]);
+
   const requestAuth = () => {
     if (isAuthenticated) {
       return true;
@@ -628,6 +647,8 @@ export const PostCommentsPanel = ({
 
   const clearReplyComposer = () => {
     setActiveReplyCommentId("");
+    setActiveReplyUsername("");
+    setActiveReplyCommentText("");
     setReplyDraft("");
     setReplyImageFile(null);
   };
@@ -736,12 +757,14 @@ export const PostCommentsPanel = ({
     }
   };
 
-  const handleReplyOpen = (commentId) => {
+  const handleReplyOpen = (commentId, username = "", commentText = "") => {
     if (!requestAuth()) {
       return;
     }
 
     setActiveReplyCommentId(commentId);
+    setActiveReplyUsername(username);
+    setActiveReplyCommentText(commentText);
     setReplyDraft("");
     setReplyImageFile(null);
   };
@@ -798,7 +821,9 @@ export const PostCommentsPanel = ({
         <button
           type="button"
           className={styles.commentActionButton}
-          onClick={() => handleReplyOpen(item._id)}
+          onClick={() =>
+            handleReplyOpen(item._id, item.user?.username || "", item.comment || "")
+          }
         >
           <MdReply />
           Reply
@@ -815,28 +840,6 @@ export const PostCommentsPanel = ({
           {item.likeCount || 0}
         </button>
       </div>
-
-      {activeReplyCommentId === item._id ? (
-        <div className={styles.replyComposerWrap}>
-          <CommentComposer
-            title={`Reply${item.user?.username ? ` @${item.user.username}` : ""}`}
-            value={replyDraft}
-            onChange={setReplyDraft}
-            onEmojiPick={(emoji) => setReplyDraft((prev) => `${prev}${emoji}`)}
-            onMediaPick={(event) => setReplyImageFile(event.target.files?.[0] || null)}
-            onCameraCapture={(file) => setReplyImageFile(file)}
-            imagePreview={replyImagePreview}
-            imageFileName={replyImageFile?.name || ""}
-            onImageRemove={() => setReplyImageFile(null)}
-            onSubmit={handleReplySubmit}
-            submitLabel="Reply"
-            submitting={replySubmitting}
-            compact
-            inlineReply
-            onCancel={clearReplyComposer}
-          />
-        </div>
-      ) : null}
 
       {Array.isArray(item.replies) && item.replies.length > 0 ? (
         <div className={styles.repliesList}>
@@ -862,19 +865,35 @@ export const PostCommentsPanel = ({
         )}
       </div>
 
-      <div className={styles.composerDock}>
+      <div ref={composerDockRef} className={styles.composerDock}>
         <CommentComposer
-          value={commentDraft}
-          onChange={setCommentDraft}
-          onEmojiPick={(emoji) => setCommentDraft((prev) => `${prev}${emoji}`)}
-          onMediaPick={(event) => setCommentImageFile(event.target.files?.[0] || null)}
-          onCameraCapture={(file) => setCommentImageFile(file)}
-          imagePreview={commentImagePreview}
-          imageFileName={commentImageFile?.name || ""}
-          onImageRemove={() => setCommentImageFile(null)}
-          onSubmit={handleRootSubmit}
-          submitLabel="Comment"
-          submitting={commentSubmitting}
+          title={activeReplyCommentId ? "Reply" : ""}
+          subtitle={activeReplyCommentId && activeReplyUsername ? `@${activeReplyUsername}` : ""}
+          contextPreview={activeReplyCommentId ? activeReplyCommentText : ""}
+          value={activeReplyCommentId ? replyDraft : commentDraft}
+          onChange={activeReplyCommentId ? setReplyDraft : setCommentDraft}
+          onEmojiPick={(emoji) =>
+            activeReplyCommentId
+              ? setReplyDraft((prev) => `${prev}${emoji}`)
+              : setCommentDraft((prev) => `${prev}${emoji}`)
+          }
+          onMediaPick={(event) =>
+            activeReplyCommentId
+              ? setReplyImageFile(event.target.files?.[0] || null)
+              : setCommentImageFile(event.target.files?.[0] || null)
+          }
+          onCameraCapture={(file) =>
+            activeReplyCommentId ? setReplyImageFile(file) : setCommentImageFile(file)
+          }
+          imagePreview={activeReplyCommentId ? replyImagePreview : commentImagePreview}
+          imageFileName={activeReplyCommentId ? replyImageFile?.name || "" : commentImageFile?.name || ""}
+          onImageRemove={() =>
+            activeReplyCommentId ? setReplyImageFile(null) : setCommentImageFile(null)
+          }
+          onSubmit={activeReplyCommentId ? handleReplySubmit : handleRootSubmit}
+          submitLabel={activeReplyCommentId ? "Reply" : "Comment"}
+          submitting={activeReplyCommentId ? replySubmitting : commentSubmitting}
+          onCancel={activeReplyCommentId ? clearReplyComposer : undefined}
         />
       </div>
     </section>

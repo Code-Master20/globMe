@@ -11,6 +11,7 @@ import {
 import { toast } from "react-toastify";
 import { InvalidInputTracker } from "../../components/auth/InvalidInputTracker";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
+import { consumePostAuthRedirect } from "../../utils/authRedirect";
 import globMe from "../../assets/globme.png";
 
 const readStoredUser = () => {
@@ -99,6 +100,11 @@ export const OtpVerification = () => {
     localStorage.removeItem("runCount");
   }
 
+  const completeAuthRedirect = () => {
+    const rememberedPath = consumePostAuthRedirect();
+    navigate(rememberedPath || "/home-feed", { replace: true });
+  };
+
   function onSubmitHelper(resultAction) {
     setLoading(false);
     const error = resultAction.payload?.message;
@@ -156,6 +162,7 @@ export const OtpVerification = () => {
         setLoading(false);
         clearOtpFlowState();
         toast.success(resultAction.payload?.message);
+        completeAuthRedirect();
       }
     }
 
@@ -173,6 +180,7 @@ export const OtpVerification = () => {
         setLoading(false);
         toast.success(resultAction.payload?.message);
         clearOtpFlowState();
+        completeAuthRedirect();
       }
     }
 
@@ -190,6 +198,7 @@ export const OtpVerification = () => {
         setLoading(false);
         clearOtpFlowState();
         toast.success("Password reset complete. You are now signed in.");
+        completeAuthRedirect();
       }
     }
   }

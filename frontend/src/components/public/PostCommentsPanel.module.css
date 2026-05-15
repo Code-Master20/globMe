@@ -53,15 +53,33 @@
   font-size: 1.12rem;
 }
 
-.inlineGhostButton {
-  padding: 0.4rem 0.7rem;
+.composerContextPreview {
+  margin-top: 0.45rem;
+  max-width: min(52rem, 100%);
+  padding: 0.65rem 0.8rem;
+  border-radius: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 1.02rem;
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composerCloseButton {
+  width: 3.2rem;
+  height: 3.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  background: transparent;
-  color: #64748b;
-  font: inherit;
-  font-size: 1.1rem;
-  font-weight: 700;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
   cursor: pointer;
+  font-size: 1.4rem;
 }
 
 .composerTextarea {
