@@ -217,10 +217,6 @@ const toggleCommentLike = async (req, res) => {
       return new ErrorHandler(404, "Comment not found").send(res);
     }
 
-    if (`${comment.user}` === `${req.user.id}`) {
-      return new ErrorHandler(400, "You cannot like your own comment").send(res);
-    }
-
     const existingLike = await CommentLike.findOne({
       comment: commentId,
       user: req.user.id,

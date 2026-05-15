@@ -71,6 +71,34 @@ const updateCommentTree = (items, commentId, updater) =>
     };
   });
 
+const insertCommentIntoTree = (items, nextComment) => {
+  if (!nextComment?._id) {
+    return items;
+  }
+
+  if (!nextComment.parentCommentId) {
+    return [nextComment, ...items];
+  }
+
+  return items.map((item) => {
+    if (item._id === nextComment.parentCommentId) {
+      return {
+        ...item,
+        replies: [nextComment, ...(Array.isArray(item.replies) ? item.replies : [])],
+      };
+    }
+
+    if (!Array.isArray(item.replies) || item.replies.length === 0) {
+      return item;
+    }
+
+    return {
+      ...item,
+      replies: insertCommentIntoTree(item.replies, nextComment),
+    };
+  });
+};
+
 const buildCommentFormData = ({ comment, imageFile, parentCommentId }) => {
   const formData = new FormData();
   const normalizedComment = comment.trim();
@@ -138,6 +166,7 @@ const CommentComposer = ({
   submitLabel,
   submitting = false,
   compact = false,
+  inlineReply = false,
   onCancel,
 }) => {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -299,7 +328,9 @@ const CommentComposer = ({
   return (
     <>
       <form
-        className={`${styles.composerCard} ${compact ? styles.composerCardCompact : ""}`}
+        className={`${styles.composerCard} ${compact ? styles.composerCardCompact : ""} ${
+          inlineReply ? styles.composerCardInlineReply : ""
+        }`}
         onSubmit={onSubmit}
       >
         {title || subtitle || onCancel ? (
@@ -308,7 +339,7 @@ const CommentComposer = ({
               {title ? <strong>{title}</strong> : null}
               {subtitle ? <span>{subtitle}</span> : null}
             </div>
-            {onCancel ? (
+            {onCancel && !inlineReply ? (
               <button
                 type="button"
                 className={styles.inlineGhostButton}
@@ -323,8 +354,10 @@ const CommentComposer = ({
         <textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className={styles.composerTextarea}
-          placeholder="Comment"
+          className={`${styles.composerTextarea} ${
+            inlineReply ? styles.composerTextareaInlineReply : ""
+          }`}
+          placeholder={inlineReply ? "Write a reply..." : "Comment"}
           disabled={submitting}
         />
 
@@ -342,7 +375,11 @@ const CommentComposer = ({
         ) : null}
 
         <div className={styles.composerToolbar}>
-          <div className={styles.uploadActions}>
+          <div
+            className={`${styles.uploadActions} ${
+              inlineReply ? styles.uploadActionsInlineReply : ""
+            }`}
+          >
             {hasDesktopEmojiAccess ? (
               <button
                 type="button"
@@ -374,14 +411,26 @@ const CommentComposer = ({
               <span>{cameraBusy ? "Opening..." : "Camera"}</span>
             </button>
           </div>
-          <button
-            type="submit"
-            className={styles.primaryButton}
-            onClick={() => setEmojiPickerOpen(false)}
-            disabled={submitting}
-          >
-            {submitting ? "Posting..." : submitLabel}
-          </button>
+          <div className={styles.composerSubmitActions}>
+            {inlineReply && onCancel ? (
+              <button
+                type="button"
+                className={styles.replyCancelButton}
+                onClick={onCancel}
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+            ) : null}
+            <button
+              type="submit"
+              className={styles.primaryButton}
+              onClick={() => setEmojiPickerOpen(false)}
+              disabled={submitting}
+            >
+              {submitting ? "Posting..." : submitLabel}
+            </button>
+          </div>
         </div>
 
         {imagePreview ? (
@@ -473,11 +522,10 @@ export const PostCommentsPanel = ({
   onRequireAuth,
 }) => {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const { isAuthenticated } = useSelector((state) => state.auth);
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [commentsError, setCommentsError] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentImageFile, setCommentImageFile] = useState(null);
   const [commentImagePreview, setCommentImagePreview] = useState("");
@@ -534,7 +582,7 @@ export const PostCommentsPanel = ({
     return () => {
       ignore = true;
     };
-  }, [postId, refreshKey]);
+  }, [postId]);
 
   useEffect(() => {
     if (!commentImageFile) {
@@ -606,10 +654,13 @@ export const PostCommentsPanel = ({
         }),
       );
 
+      const nextComment = response.data?.data?.comment || null;
       const nextCommentCount = Number(response.data?.data?.commentCount ?? commentCount + 1);
       syncCommentCount(nextCommentCount);
+      if (nextComment) {
+        setComments((prev) => insertCommentIntoTree(prev, nextComment));
+      }
       clearRootComposer();
-      setRefreshKey((value) => value + 1);
       toast.success("Comment added");
     } catch (error) {
       toast.error(error.response?.data?.message || "Comment could not be added");
@@ -645,10 +696,13 @@ export const PostCommentsPanel = ({
         }),
       );
 
+      const nextComment = response.data?.data?.comment || null;
       const nextCommentCount = Number(response.data?.data?.commentCount ?? commentCount + 1);
       syncCommentCount(nextCommentCount);
+      if (nextComment) {
+        setComments((prev) => insertCommentIntoTree(prev, nextComment));
+      }
       clearReplyComposer();
-      setRefreshKey((value) => value + 1);
       toast.success("Reply added");
     } catch (error) {
       toast.error(error.response?.data?.message || "Reply could not be added");
@@ -749,21 +803,17 @@ export const PostCommentsPanel = ({
           <MdReply />
           Reply
         </button>
-        {`${item.user?._id || ""}` !== `${user?._id || ""}` ? (
-          <button
-            type="button"
-            className={`${styles.commentActionButton} ${
-              item.likedByViewer ? styles.commentActionButtonActive : ""
-            }`}
-            onClick={() => handleCommentLikeToggle(item._id)}
-            disabled={commentLikeBusyId === item._id}
-          >
-            {item.likedByViewer ? <MdFavorite /> : <MdOutlineFavoriteBorder />}
-            {item.likeCount || 0}
-          </button>
-        ) : (
-          <span className={styles.commentLikeCount}>{item.likeCount || 0} likes</span>
-        )}
+        <button
+          type="button"
+          className={`${styles.commentActionButton} ${
+            item.likedByViewer ? styles.commentActionButtonActive : ""
+          }`}
+          onClick={() => handleCommentLikeToggle(item._id)}
+          disabled={commentLikeBusyId === item._id}
+        >
+          {item.likedByViewer ? <MdFavorite /> : <MdOutlineFavoriteBorder />}
+          {item.likeCount || 0}
+        </button>
       </div>
 
       {activeReplyCommentId === item._id ? (
@@ -782,6 +832,7 @@ export const PostCommentsPanel = ({
             submitLabel="Reply"
             submitting={replySubmitting}
             compact
+            inlineReply
             onCancel={clearReplyComposer}
           />
         </div>

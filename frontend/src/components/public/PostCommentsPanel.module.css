@@ -28,6 +28,11 @@
   border-top: 1px solid #eef2f7;
 }
 
+.composerCardInlineReply {
+  padding-top: 0.35rem;
+  border-top: none;
+}
+
 .composerHeader {
   display: flex;
   justify-content: space-between;
@@ -72,6 +77,12 @@
   resize: vertical;
 }
 
+.composerTextareaInlineReply {
+  min-height: 4.8rem;
+  border-radius: 1rem;
+  background: #f8fafc;
+}
+
 .emojiPickerWrap {
   margin-top: 0.75rem;
   border: 1px solid #dbe4ef;
@@ -114,6 +125,10 @@
   gap: 0.7rem;
 }
 
+.uploadActionsInlineReply {
+  gap: 0.5rem;
+}
+
 .uploadChip {
   position: relative;
   display: inline-flex;
@@ -147,6 +162,25 @@
   color: #f8fafc;
   font: inherit;
   font-size: 1.12rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.composerSubmitActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.replyCancelButton {
+  min-height: 3.6rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font: inherit;
+  font-size: 1.04rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -440,7 +474,11 @@
 }
 
 .replyComposerWrap {
-  margin-top: 0.75rem;
+  margin-top: 0.6rem;
+  margin-left: 0.9rem;
+  padding: 0.75rem 0 0.2rem 0.9rem;
+  border-left: 2px solid rgba(31, 107, 82, 0.12);
+  background: linear-gradient(90deg, rgba(31, 107, 82, 0.04), transparent 45%);
 }
 
 .repliesList {
@@ -478,6 +516,15 @@
   .uploadChip,
   .primaryButton {
     justify-content: center;
+  }
+
+  .composerSubmitActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .composerSubmitActions button {
+    flex: 1;
   }
 
   .cameraOverlay {
