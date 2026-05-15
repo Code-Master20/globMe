@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import EmojiPicker from "emoji-picker-react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -20,6 +20,7 @@ import noProfile from "../../assets/noProfile.png";
 import styles from "./PostCommentsPanel.module.css";
 
 const URL_MATCHER = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
+const DESKTOP_EMOJI_MEDIA_QUERY = "(hover: hover) and (pointer: fine)";
 
 const formatRelativeTime = (value) => {
   if (!value) {
@@ -94,6 +95,34 @@ const buildCommentFormData = ({ comment, imageFile, parentCommentId }) => {
   return formData;
 };
 
+const useDesktopEmojiAccess = () => {
+  const subscribe = (onStoreChange) => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return () => {};
+    }
+
+    const mediaQuery = window.matchMedia(DESKTOP_EMOJI_MEDIA_QUERY);
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", onStoreChange);
+      return () => mediaQuery.removeEventListener("change", onStoreChange);
+    }
+
+    mediaQuery.addListener(onStoreChange);
+    return () => mediaQuery.removeListener(onStoreChange);
+  };
+
+  const getSnapshot = () => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return false;
+    }
+
+    return window.matchMedia(DESKTOP_EMOJI_MEDIA_QUERY).matches;
+  };
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
+};
+
 const CommentComposer = ({
   title = "",
   subtitle = "",
@@ -112,6 +141,7 @@ const CommentComposer = ({
   onCancel,
 }) => {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const hasDesktopEmojiAccess = useDesktopEmojiAccess();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraFacingMode, setCameraFacingMode] = useState("environment");
   const [cameraBusy, setCameraBusy] = useState(false);
@@ -260,6 +290,12 @@ const CommentComposer = ({
     videoPreviewRef.current.play().catch(() => {});
   }, [cameraOpen]);
 
+  useEffect(() => {
+    if (!hasDesktopEmojiAccess && emojiPickerOpen) {
+      setEmojiPickerOpen(false);
+    }
+  }, [emojiPickerOpen, hasDesktopEmojiAccess]);
+
   return (
     <>
       <form
@@ -292,7 +328,7 @@ const CommentComposer = ({
           disabled={submitting}
         />
 
-        {emojiPickerOpen ? (
+        {hasDesktopEmojiAccess && emojiPickerOpen ? (
           <div className={styles.emojiPickerWrap}>
             <EmojiPicker
               width="100%"
@@ -307,15 +343,17 @@ const CommentComposer = ({
 
         <div className={styles.composerToolbar}>
           <div className={styles.uploadActions}>
-            <button
-              type="button"
-              className={styles.uploadChip}
-              onClick={() => setEmojiPickerOpen((open) => !open)}
-              disabled={submitting}
-            >
-              <MdOutlineEmojiEmotions />
-              <span>Emoji</span>
-            </button>
+            {hasDesktopEmojiAccess ? (
+              <button
+                type="button"
+                className={styles.uploadChip}
+                onClick={() => setEmojiPickerOpen((open) => !open)}
+                disabled={submitting}
+              >
+                <MdOutlineEmojiEmotions />
+                <span>Emoji</span>
+              </button>
+            ) : null}
             <label className={styles.uploadChip}>
               <MdImage />
               <span>{imagePreview ? "Change media" : "Media"}</span>
