@@ -99,6 +99,24 @@ const insertCommentIntoTree = (items, nextComment) => {
   });
 };
 
+const findCommentInTree = (items, commentId) => {
+  for (const item of items) {
+    if (item._id === commentId) {
+      return item;
+    }
+
+    if (Array.isArray(item.replies) && item.replies.length > 0) {
+      const nestedMatch = findCommentInTree(item.replies, commentId);
+
+      if (nestedMatch) {
+        return nestedMatch;
+      }
+    }
+  }
+
+  return null;
+};
+
 const buildCommentFormData = ({ comment, imageFile, parentCommentId }) => {
   const formData = new FormData();
   const normalizedComment = comment.trim();
@@ -152,9 +170,8 @@ const useDesktopEmojiAccess = () => {
 };
 
 const CommentComposer = ({
-  title = "",
-  subtitle = "",
-  contextPreview = "",
+  contextLabel = "",
+  contextPreviewLines = [],
   value,
   onChange,
   onEmojiPick,
@@ -171,6 +188,7 @@ const CommentComposer = ({
   onCancel,
 }) => {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [activeContextIndex, setActiveContextIndex] = useState(0);
   const hasDesktopEmojiAccess = useDesktopEmojiAccess();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraFacingMode, setCameraFacingMode] = useState("environment");
@@ -326,6 +344,13 @@ const CommentComposer = ({
     }
   }, [emojiPickerOpen, hasDesktopEmojiAccess]);
 
+  useEffect(() => {
+    setActiveContextIndex(0);
+  }, [contextPreviewLines]);
+
+  const activeContextPreview =
+    contextPreviewLines[activeContextIndex] || contextPreviewLines[0] || null;
+
   return (
     <>
       <form
@@ -334,37 +359,55 @@ const CommentComposer = ({
         }`}
         onSubmit={onSubmit}
       >
-        {title || subtitle || onCancel ? (
+        {onCancel ? (
           <div className={styles.composerHeader}>
-            <div>
-              {title ? <strong>{title}</strong> : null}
-              {subtitle ? <span>{subtitle}</span> : null}
-              {contextPreview ? (
-                <p className={styles.composerContextPreview}>{contextPreview}</p>
-              ) : null}
-            </div>
-            {onCancel ? (
-              <button
-                type="button"
-                className={styles.composerCloseButton}
-                onClick={onCancel}
-                aria-label="Close reply mode"
-              >
-                <MdClose />
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className={styles.composerCloseButton}
+              onClick={onCancel}
+              aria-label="Close reply mode"
+            >
+              <MdClose />
+            </button>
           </div>
         ) : null}
 
-        <textarea
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={`${styles.composerTextarea} ${
-            inlineReply ? styles.composerTextareaInlineReply : ""
-          }`}
-          placeholder={inlineReply ? "Write a reply..." : "Comment"}
-          disabled={submitting}
-        />
+        <div className={styles.composerInputShell}>
+          {contextLabel ? (
+            <p className={styles.composerContextLabel}>{contextLabel}</p>
+          ) : null}
+          {contextPreviewLines.length > 0 ? (
+            <div className={styles.composerContextSelector}>
+              {contextPreviewLines.map((line, index) => (
+                <button
+                  key={`${line.label}-${index}`}
+                  type="button"
+                  className={`${styles.composerContextButton} ${
+                    activeContextIndex === index ? styles.composerContextButtonActive : ""
+                  }`}
+                  onClick={() => setActiveContextIndex(index)}
+                >
+                  {line.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {activeContextPreview ? (
+            <div className={styles.composerContextPreview}>
+              <strong>{activeContextPreview.label}</strong>
+              <span>{activeContextPreview.text}</span>
+            </div>
+          ) : null}
+          <textarea
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className={`${styles.composerTextarea} ${
+              inlineReply ? styles.composerTextareaInlineReply : ""
+            }`}
+            placeholder={inlineReply ? "Write a reply..." : "Comment"}
+            disabled={submitting}
+          />
+        </div>
 
         {hasDesktopEmojiAccess && emojiPickerOpen ? (
           <div className={styles.emojiPickerWrap}>
@@ -527,7 +570,7 @@ export const PostCommentsPanel = ({
   onRequireAuth,
 }) => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [commentsError, setCommentsError] = useState("");
@@ -537,14 +580,18 @@ export const PostCommentsPanel = ({
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [commentLikeBusyId, setCommentLikeBusyId] = useState("");
   const [activeReplyCommentId, setActiveReplyCommentId] = useState("");
+  const [activeReplyUserId, setActiveReplyUserId] = useState("");
   const [activeReplyUsername, setActiveReplyUsername] = useState("");
-  const [activeReplyCommentText, setActiveReplyCommentText] = useState("");
+  const [activeReplyParentUserId, setActiveReplyParentUserId] = useState("");
+  const [activeReplyParentUsername, setActiveReplyParentUsername] = useState("");
+  const [activeReplyContextLines, setActiveReplyContextLines] = useState([]);
   const [replyDraft, setReplyDraft] = useState("");
   const [replyImageFile, setReplyImageFile] = useState(null);
   const [replyImagePreview, setReplyImagePreview] = useState("");
   const [replySubmitting, setReplySubmitting] = useState(false);
   const onCommentCountChangeRef = useRef(onCommentCountChange);
   const composerDockRef = useRef(null);
+  const isReplyMode = Boolean(activeReplyCommentId);
 
   useEffect(() => {
     onCommentCountChangeRef.current = onCommentCountChange;
@@ -647,8 +694,11 @@ export const PostCommentsPanel = ({
 
   const clearReplyComposer = () => {
     setActiveReplyCommentId("");
+    setActiveReplyUserId("");
     setActiveReplyUsername("");
-    setActiveReplyCommentText("");
+    setActiveReplyParentUserId("");
+    setActiveReplyParentUsername("");
+    setActiveReplyContextLines([]);
     setReplyDraft("");
     setReplyImageFile(null);
   };
@@ -757,17 +807,65 @@ export const PostCommentsPanel = ({
     }
   };
 
-  const handleReplyOpen = (commentId, username = "", commentText = "") => {
+  const handleReplyOpen = (commentItem) => {
     if (!requestAuth()) {
       return;
     }
 
-    setActiveReplyCommentId(commentId);
-    setActiveReplyUsername(username);
-    setActiveReplyCommentText(commentText);
+    const parentComment = commentItem?.parentCommentId
+      ? findCommentInTree(comments, commentItem.parentCommentId)
+      : null;
+    const nextContextLines = [];
+
+    if (commentItem?.comment) {
+      nextContextLines.push({
+        label: `${
+          `${commentItem.user?._id || ""}` === `${user?._id || ""}`
+            ? "@my_comment"
+            : `@${commentItem.user?.username || "comment"}`
+        }`,
+        text: commentItem.comment,
+      });
+    }
+
+    if (parentComment?.comment) {
+      nextContextLines.push({
+        label: `${
+          `${parentComment.user?._id || ""}` === `${user?._id || ""}`
+            ? "@my_comment"
+            : `@${parentComment.user?.username || "comment"}`
+        }`,
+        text: parentComment.comment,
+      });
+    }
+
+    setActiveReplyCommentId(commentItem?._id || "");
+    setActiveReplyUserId(commentItem?.user?._id || "");
+    setActiveReplyUsername(commentItem?.user?.username || "");
+    setActiveReplyParentUserId(parentComment?.user?._id || "");
+    setActiveReplyParentUsername(parentComment?.user?.username || "");
+    setActiveReplyContextLines(nextContextLines);
     setReplyDraft("");
     setReplyImageFile(null);
   };
+
+  const activeReplyTargetLabel =
+    activeReplyUserId && `${activeReplyUserId}` === `${user?._id || ""}`
+      ? "my_comment"
+      : activeReplyUsername;
+
+  const activeReplyChainLabel =
+    isReplyMode && activeReplyTargetLabel
+      ? `Replying to @${activeReplyTargetLabel}${
+        activeReplyParentUsername
+          ? ` > @${
+            activeReplyParentUserId && `${activeReplyParentUserId}` === `${user?._id || ""}`
+              ? "my_comment"
+              : activeReplyParentUsername
+          }`
+          : ""
+      }`
+      : "";
 
   const renderCommentItem = (item, depth = 0) => (
     <article
@@ -820,13 +918,13 @@ export const PostCommentsPanel = ({
       <div className={styles.commentActions}>
         <button
           type="button"
-          className={styles.commentActionButton}
-          onClick={() =>
-            handleReplyOpen(item._id, item.user?.username || "", item.comment || "")
-          }
+          className={`${styles.commentActionButton} ${
+            activeReplyCommentId === item._id ? styles.commentReplyButtonActive : ""
+          }`}
+          onClick={() => handleReplyOpen(item)}
         >
           <MdReply />
-          Reply
+          {activeReplyCommentId === item._id ? "Being replied" : "Reply"}
         </button>
         <button
           type="button"
@@ -867,33 +965,33 @@ export const PostCommentsPanel = ({
 
       <div ref={composerDockRef} className={styles.composerDock}>
         <CommentComposer
-          title={activeReplyCommentId ? "Reply" : ""}
-          subtitle={activeReplyCommentId && activeReplyUsername ? `@${activeReplyUsername}` : ""}
-          contextPreview={activeReplyCommentId ? activeReplyCommentText : ""}
-          value={activeReplyCommentId ? replyDraft : commentDraft}
-          onChange={activeReplyCommentId ? setReplyDraft : setCommentDraft}
+          key={isReplyMode ? `reply-${activeReplyCommentId}` : "comment"}
+          contextLabel={activeReplyChainLabel}
+          contextPreviewLines={isReplyMode ? activeReplyContextLines : []}
+          value={isReplyMode ? replyDraft : commentDraft}
+          onChange={isReplyMode ? setReplyDraft : setCommentDraft}
           onEmojiPick={(emoji) =>
-            activeReplyCommentId
+            isReplyMode
               ? setReplyDraft((prev) => `${prev}${emoji}`)
               : setCommentDraft((prev) => `${prev}${emoji}`)
           }
           onMediaPick={(event) =>
-            activeReplyCommentId
+            isReplyMode
               ? setReplyImageFile(event.target.files?.[0] || null)
               : setCommentImageFile(event.target.files?.[0] || null)
           }
           onCameraCapture={(file) =>
-            activeReplyCommentId ? setReplyImageFile(file) : setCommentImageFile(file)
+            isReplyMode ? setReplyImageFile(file) : setCommentImageFile(file)
           }
-          imagePreview={activeReplyCommentId ? replyImagePreview : commentImagePreview}
-          imageFileName={activeReplyCommentId ? replyImageFile?.name || "" : commentImageFile?.name || ""}
+          imagePreview={isReplyMode ? replyImagePreview : commentImagePreview}
+          imageFileName={isReplyMode ? replyImageFile?.name || "" : commentImageFile?.name || ""}
           onImageRemove={() =>
-            activeReplyCommentId ? setReplyImageFile(null) : setCommentImageFile(null)
+            isReplyMode ? setReplyImageFile(null) : setCommentImageFile(null)
           }
-          onSubmit={activeReplyCommentId ? handleReplySubmit : handleRootSubmit}
-          submitLabel={activeReplyCommentId ? "Reply" : "Comment"}
-          submitting={activeReplyCommentId ? replySubmitting : commentSubmitting}
-          onCancel={activeReplyCommentId ? clearReplyComposer : undefined}
+          onSubmit={isReplyMode ? handleReplySubmit : handleRootSubmit}
+          submitLabel={isReplyMode ? "Reply" : "Comment"}
+          submitting={isReplyMode ? replySubmitting : commentSubmitting}
+          onCancel={isReplyMode ? clearReplyComposer : undefined}
         />
       </div>
     </section>

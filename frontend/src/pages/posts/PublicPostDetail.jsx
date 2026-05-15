@@ -724,6 +724,7 @@ export const PublicPostDetail = () => {
             <PostCommentsPanel
               postId={post._id}
               postOwnerId={post.user?._id}
+              postOwnerUsername={post.user?.username || ""}
               commentCount={post.commentCount || 0}
               onCommentCountChange={handleCommentCountChange}
               onRequireAuth={() => setShowAuthPrompt(true)}
