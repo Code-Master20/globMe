@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 
+const BRAND_NAME = "globMe";
 const defaultDescription =
-  "globMe is a private social app and should not be indexed by search engines.";
-const defaultRobots =
-  "noindex, nofollow, noarchive, nosnippet, noimageindex";
+  "globMe helps people discover public posts, profiles, and social updates in one place.";
+const defaultRobots = "index, follow";
 
 const ensureMetaTag = (selector, attributeName, attributeValue) => {
   let tag = document.querySelector(selector);
@@ -24,7 +24,12 @@ export const usePageMetadata = ({
 }) => {
   useEffect(() => {
     const previousTitle = document.title;
-    const resolvedTitle = title ? `${title} | globMe` : "globMe";
+    const trimmedTitle = `${title || ""}`.trim();
+    const resolvedTitle = !trimmedTitle
+      ? BRAND_NAME
+      : trimmedTitle.toLowerCase().includes(BRAND_NAME.toLowerCase())
+        ? trimmedTitle
+        : `${trimmedTitle} | ${BRAND_NAME}`;
     document.title = resolvedTitle;
 
     let descriptionTag = document.querySelector('meta[name="description"]');

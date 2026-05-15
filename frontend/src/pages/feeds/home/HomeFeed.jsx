@@ -9,8 +9,8 @@ export const HomeFeed = () => {
       showStoryTray
       emptyHeading="No public posts yet"
       emptyCopy="Explore public profiles and community discovery on globMe as fresh posts begin to appear."
-      seoTitle="Public Posts, Profiles, and Social Discovery"
-      seoDescription="Discover public globMe posts, browse member profiles, and explore social discovery before signing up."
+      seoTitle="globMe"
+      seoDescription="Discover public posts, browse member profiles, and explore social discovery on globMe."
     />
   );
 };
