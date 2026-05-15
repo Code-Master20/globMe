@@ -14,6 +14,7 @@ const {
 const {
   createPostComment,
   toggleCommentLike,
+  toggleCommentDislike,
 } = require("../controllers/comment.controller");
 const {
   uploadAvatar,
@@ -231,6 +232,7 @@ router.get("/posts/:postId/likes", isMeMiddleware, getPostLikes);
 router.post("/stories/:userId/like", isMeMiddleware, toggleStoryLike);
 router.post("/posts/:postId/like", isMeMiddleware, togglePostLike);
 router.post("/comments/:commentId/like", isMeMiddleware, toggleCommentLike);
+router.post("/comments/:commentId/dislike", isMeMiddleware, toggleCommentDislike);
 router.post("/stories/:userId/comments", isMeMiddleware, addStoryComment);
 router.post(
   "/posts/:postId/comments",

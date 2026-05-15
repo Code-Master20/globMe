@@ -6,7 +6,7 @@ const CommentLike = require("../models/commentLike.model");
 const Post = require("../models/post.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
-const { getViewerLikedCommentIdSet } = require("../utils/comments/commentLike.util");
+const { getViewerCommentReactionSets } = require("../utils/comments/commentLike.util");
 const { buildCommentThreadPayload } = require("../utils/comments/commentThread.util");
 
 const COMMENT_IMAGE_FOLDER = "seekFi/comments/images";
@@ -82,7 +82,7 @@ const getPublicPostComments = async (req, res) => {
         "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt",
       )
       .sort({ createdAt: -1 });
-    const likedCommentIdSet = await getViewerLikedCommentIdSet(
+    const { likedCommentIdSet, dislikedCommentIdSet } = await getViewerCommentReactionSets(
       viewerId,
       comments.map((item) => item?._id),
     );
@@ -93,6 +93,7 @@ const getPublicPostComments = async (req, res) => {
         viewerId,
         ownerId: post.user,
         likedCommentIdSet,
+        dislikedCommentIdSet,
       }),
     }).send(res);
   } catch (error) {
@@ -176,6 +177,7 @@ const createPostComment = async (req, res) => {
       viewerId: req.user.id,
       ownerId: updatedPost?.user || post.user,
       likedCommentIdSet: new Set(),
+      dislikedCommentIdSet: new Set(),
     });
 
     return new SuccessHandler(201, "Comment added", {
@@ -203,7 +205,7 @@ const createPostComment = async (req, res) => {
   }
 };
 
-const toggleCommentLike = async (req, res) => {
+const toggleCommentReaction = async (req, res, reaction) => {
   try {
     const { commentId } = req.params;
 
@@ -211,51 +213,104 @@ const toggleCommentLike = async (req, res) => {
       return new ErrorHandler(400, "Invalid comment selected").send(res);
     }
 
-    const comment = await Comment.findById(commentId).select("user likeCount");
+    const comment = await Comment.findById(commentId).select("user likeCount dislikeCount");
 
     if (!comment) {
       return new ErrorHandler(404, "Comment not found").send(res);
     }
 
-    const existingLike = await CommentLike.findOne({
+    const existingReaction = await CommentLike.findOne({
       comment: commentId,
       user: req.user.id,
     });
 
     let liked = false;
+    let disliked = false;
 
-    if (existingLike) {
-      await existingLike.deleteOne();
-      comment.likeCount = Math.max(0, Number(comment.likeCount || 0) - 1);
+    if (existingReaction) {
+      const existingReactionType =
+        existingReaction.reaction === "dislike" ? "dislike" : "like";
+
+      if (existingReactionType === reaction) {
+        await existingReaction.deleteOne();
+
+        if (reaction === "dislike") {
+          comment.dislikeCount = Math.max(0, Number(comment.dislikeCount || 0) - 1);
+        } else {
+          comment.likeCount = Math.max(0, Number(comment.likeCount || 0) - 1);
+        }
+      } else {
+        existingReaction.reaction = reaction;
+        await existingReaction.save();
+
+        if (reaction === "dislike") {
+          comment.likeCount = Math.max(0, Number(comment.likeCount || 0) - 1);
+          comment.dislikeCount = Number(comment.dislikeCount || 0) + 1;
+          disliked = true;
+        } else {
+          comment.dislikeCount = Math.max(0, Number(comment.dislikeCount || 0) - 1);
+          comment.likeCount = Number(comment.likeCount || 0) + 1;
+          liked = true;
+        }
+      }
     } else {
       await CommentLike.create({
         comment: commentId,
         user: req.user.id,
+        reaction,
       });
-      comment.likeCount = Number(comment.likeCount || 0) + 1;
-      liked = true;
+
+      if (reaction === "dislike") {
+        comment.dislikeCount = Number(comment.dislikeCount || 0) + 1;
+        disliked = true;
+      } else {
+        comment.likeCount = Number(comment.likeCount || 0) + 1;
+        liked = true;
+      }
     }
 
     await comment.save();
 
-    return new SuccessHandler(200, liked ? "Comment liked" : "Comment like removed", {
-      commentId: `${comment._id}`,
-      liked,
-      likeCount: Number(comment.likeCount) || 0,
-    }).send(res);
+    return new SuccessHandler(
+      200,
+      reaction === "dislike"
+        ? disliked
+          ? "Comment disliked"
+          : "Comment dislike removed"
+        : liked
+          ? "Comment liked"
+          : "Comment like removed",
+      {
+        commentId: `${comment._id}`,
+        liked,
+        disliked,
+        likeCount: Number(comment.likeCount) || 0,
+        dislikeCount: Number(comment.dislikeCount) || 0,
+      },
+    ).send(res);
   } catch (error) {
     if (error?.code === 11000) {
-      return new ErrorHandler(409, "You already liked this comment").send(res);
+      return new ErrorHandler(409, "You already reacted to this comment").send(res);
     }
 
-    return new ErrorHandler(500, "Comment like could not be updated")
-      .log("comment like toggle error", error)
+    return new ErrorHandler(
+      500,
+      reaction === "dislike"
+        ? "Comment dislike could not be updated"
+        : "Comment like could not be updated",
+    )
+      .log("comment reaction toggle error", error)
       .send(res);
   }
 };
+
+const toggleCommentLike = async (req, res) => toggleCommentReaction(req, res, "like");
+
+const toggleCommentDislike = async (req, res) => toggleCommentReaction(req, res, "dislike");
 
 module.exports = {
   getPublicPostComments,
   createPostComment,
   toggleCommentLike,
+  toggleCommentDislike,
 };

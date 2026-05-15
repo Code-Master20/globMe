@@ -1,11 +1,14 @@
 const mongoose = require("mongoose");
 const CommentLike = require("../../models/commentLike.model");
 
-const getViewerLikedCommentIdSet = async (viewerId, commentIds = []) => {
+const getViewerCommentReactionSets = async (viewerId, commentIds = []) => {
   const normalizedViewerId = `${viewerId ?? ""}`.trim();
 
   if (!normalizedViewerId || !mongoose.isValidObjectId(normalizedViewerId)) {
-    return new Set();
+    return {
+      likedCommentIdSet: new Set(),
+      dislikedCommentIdSet: new Set(),
+    };
   }
 
   const normalizedCommentIds = Array.from(
@@ -17,17 +20,37 @@ const getViewerLikedCommentIdSet = async (viewerId, commentIds = []) => {
   );
 
   if (!normalizedCommentIds.length) {
-    return new Set();
+    return {
+      likedCommentIdSet: new Set(),
+      dislikedCommentIdSet: new Set(),
+    };
   }
 
   const likes = await CommentLike.find({
     user: normalizedViewerId,
     comment: { $in: normalizedCommentIds },
-  }).select("comment");
+  }).select("comment reaction");
 
-  return new Set(likes.map((item) => `${item.comment}`));
+  const likedCommentIdSet = new Set();
+  const dislikedCommentIdSet = new Set();
+
+  likes.forEach((item) => {
+    const reaction = item.reaction === "dislike" ? "dislike" : "like";
+
+    if (reaction === "dislike") {
+      dislikedCommentIdSet.add(`${item.comment}`);
+      return;
+    }
+
+    likedCommentIdSet.add(`${item.comment}`);
+  });
+
+  return {
+    likedCommentIdSet,
+    dislikedCommentIdSet,
+  };
 };
 
 module.exports = {
-  getViewerLikedCommentIdSet,
+  getViewerCommentReactionSets,
 };

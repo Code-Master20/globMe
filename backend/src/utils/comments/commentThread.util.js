@@ -22,6 +22,7 @@ const buildCommentThreadPayload = (commentDocs, options = {}) => {
     viewerId = null,
     ownerId = null,
     likedCommentIdSet = new Set(),
+    dislikedCommentIdSet = new Set(),
   } = options;
   const rootComments = [];
   const commentNodeMap = new Map();
@@ -40,7 +41,9 @@ const buildCommentThreadPayload = (commentDocs, options = {}) => {
         imageUrl: comment.imageUrl || null,
         linkUrl: comment.linkUrl || null,
         likeCount: Number(comment.likeCount) || 0,
+        dislikeCount: Number(comment.dislikeCount) || 0,
         likedByViewer: likedCommentIdSet.has(`${comment._id}`),
+        dislikedByViewer: dislikedCommentIdSet.has(`${comment._id}`),
         isOwnerComment: `${comment.user?._id || ""}` === `${ownerId || ""}`,
         createdAt: comment.createdAt,
         updatedAt: comment.updatedAt,
