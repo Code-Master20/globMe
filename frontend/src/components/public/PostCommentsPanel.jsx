@@ -3,6 +3,7 @@ import EmojiPicker from "emoji-picker-react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
+  MdChevronRight,
   MdClose,
   MdFlipCameraAndroid,
   MdFavorite,
@@ -11,8 +12,10 @@ import {
   MdLink,
   MdOutlineFavoriteBorder,
   MdOutlineEmojiEmotions,
+  MdOutlineThumbDown,
   MdPhotoCamera,
   MdReply,
+  MdThumbDown,
 } from "react-icons/md";
 import { toast } from "react-toastify";
 import api from "../../lib/api";
@@ -169,6 +172,32 @@ const useDesktopEmojiAccess = () => {
   return useSyncExternalStore(subscribe, getSnapshot, () => false);
 };
 
+const CommentSkeletonCard = ({ nested = false }) => (
+  <article className={`${styles.commentCard} ${nested ? styles.replyCard : ""}`}>
+    <div className={styles.commentHeader}>
+      <div className={styles.commentIdentity}>
+        <span className={`${styles.skeletonBlock} ${styles.skeletonAvatar}`} />
+        <div className={styles.commentSkeletonMeta}>
+          <span className={`${styles.skeletonBlock} ${styles.skeletonName}`} />
+          <span className={`${styles.skeletonBlock} ${styles.skeletonTime}`} />
+        </div>
+      </div>
+      <span className={`${styles.skeletonBlock} ${styles.skeletonBadge}`} />
+    </div>
+
+    <div className={styles.commentSkeletonLines}>
+      <span className={`${styles.skeletonBlock} ${styles.skeletonLineFull}`} />
+      <span className={`${styles.skeletonBlock} ${styles.skeletonLineShort}`} />
+    </div>
+
+    <div className={styles.commentActions}>
+      <span className={`${styles.skeletonBlock} ${styles.skeletonActionChip}`} />
+      <span className={`${styles.skeletonBlock} ${styles.skeletonActionChip}`} />
+      <span className={`${styles.skeletonBlock} ${styles.skeletonActionChipWide}`} />
+    </div>
+  </article>
+);
+
 const CommentComposer = ({
   contextLabel = "",
   contextPreviewLines = [],
@@ -185,6 +214,7 @@ const CommentComposer = ({
   submitting = false,
   compact = false,
   inlineReply = false,
+  closing = false,
   onCancel,
 }) => {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -356,7 +386,7 @@ const CommentComposer = ({
       <form
         className={`${styles.composerCard} ${compact ? styles.composerCardCompact : ""} ${
           inlineReply ? styles.composerCardInlineReply : ""
-        }`}
+        } ${closing ? styles.composerCardClosing : ""}`}
         onSubmit={onSubmit}
       >
         {onCancel ? (
@@ -589,13 +619,27 @@ export const PostCommentsPanel = ({
   const [replyImageFile, setReplyImageFile] = useState(null);
   const [replyImagePreview, setReplyImagePreview] = useState("");
   const [replySubmitting, setReplySubmitting] = useState(false);
+  const [expandedThreadIds, setExpandedThreadIds] = useState({});
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerClosing, setComposerClosing] = useState(false);
   const onCommentCountChangeRef = useRef(onCommentCountChange);
   const composerDockRef = useRef(null);
+  const composerCloseTimeoutRef = useRef(null);
   const isReplyMode = Boolean(activeReplyCommentId);
+  const isComposerVisible = composerOpen || isReplyMode || composerClosing;
 
   useEffect(() => {
     onCommentCountChangeRef.current = onCommentCountChange;
   }, [onCommentCountChange]);
+
+  useEffect(
+    () => () => {
+      if (composerCloseTimeoutRef.current) {
+        window.clearTimeout(composerCloseTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const syncCommentCount = (nextCommentCount) => {
     onCommentCountChangeRef.current?.(nextCommentCount);
@@ -692,6 +736,21 @@ export const PostCommentsPanel = ({
     setCommentImageFile(null);
   };
 
+  const closeRootComposer = () => {
+    clearRootComposer();
+    setComposerOpen(false);
+    setComposerClosing(true);
+
+    if (composerCloseTimeoutRef.current) {
+      window.clearTimeout(composerCloseTimeoutRef.current);
+    }
+
+    composerCloseTimeoutRef.current = window.setTimeout(() => {
+      setComposerClosing(false);
+      composerCloseTimeoutRef.current = null;
+    }, 180);
+  };
+
   const clearReplyComposer = () => {
     setActiveReplyCommentId("");
     setActiveReplyUserId("");
@@ -701,6 +760,7 @@ export const PostCommentsPanel = ({
     setActiveReplyContextLines([]);
     setReplyDraft("");
     setReplyImageFile(null);
+    setComposerOpen(false);
   };
 
   const handleRootSubmit = async (event) => {
@@ -732,6 +792,8 @@ export const PostCommentsPanel = ({
         setComments((prev) => insertCommentIntoTree(prev, nextComment));
       }
       clearRootComposer();
+      setComposerOpen(false);
+      setComposerClosing(false);
       toast.success("Comment added");
     } catch (error) {
       toast.error(error.response?.data?.message || "Comment could not be added");
@@ -772,6 +834,10 @@ export const PostCommentsPanel = ({
       syncCommentCount(nextCommentCount);
       if (nextComment) {
         setComments((prev) => insertCommentIntoTree(prev, nextComment));
+        setExpandedThreadIds((prev) => ({
+          ...prev,
+          [activeReplyCommentId]: true,
+        }));
       }
       clearReplyComposer();
       toast.success("Reply added");
@@ -791,13 +857,17 @@ export const PostCommentsPanel = ({
       setCommentLikeBusyId(commentId);
       const response = await api.post(`/user/comments/${commentId}/like`);
       const liked = Boolean(response.data?.data?.liked);
+      const disliked = Boolean(response.data?.data?.disliked);
       const likeCount = Number(response.data?.data?.likeCount ?? 0);
+      const dislikeCount = Number(response.data?.data?.dislikeCount ?? 0);
 
       setComments((prev) =>
         updateCommentTree(prev, commentId, (item) => ({
           ...item,
           likedByViewer: liked,
+          dislikedByViewer: disliked,
           likeCount,
+          dislikeCount,
         })),
       );
     } catch (error) {
@@ -805,6 +875,42 @@ export const PostCommentsPanel = ({
     } finally {
       setCommentLikeBusyId("");
     }
+  };
+
+  const handleCommentDislikeToggle = async (commentId) => {
+    if (!requestAuth()) {
+      return;
+    }
+
+    try {
+      setCommentLikeBusyId(commentId);
+      const response = await api.post(`/user/comments/${commentId}/dislike`);
+      const liked = Boolean(response.data?.data?.liked);
+      const disliked = Boolean(response.data?.data?.disliked);
+      const likeCount = Number(response.data?.data?.likeCount ?? 0);
+      const dislikeCount = Number(response.data?.data?.dislikeCount ?? 0);
+
+      setComments((prev) =>
+        updateCommentTree(prev, commentId, (item) => ({
+          ...item,
+          likedByViewer: liked,
+          dislikedByViewer: disliked,
+          likeCount,
+          dislikeCount,
+        })),
+      );
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Comment dislike could not be updated");
+    } finally {
+      setCommentLikeBusyId("");
+    }
+  };
+
+  const toggleRepliesVisibility = (commentId) => {
+    setExpandedThreadIds((prev) => ({
+      ...prev,
+      [commentId]: !prev[commentId],
+    }));
   };
 
   const handleReplyOpen = (commentItem) => {
@@ -847,6 +953,12 @@ export const PostCommentsPanel = ({
     setActiveReplyContextLines(nextContextLines);
     setReplyDraft("");
     setReplyImageFile(null);
+    if (composerCloseTimeoutRef.current) {
+      window.clearTimeout(composerCloseTimeoutRef.current);
+      composerCloseTimeoutRef.current = null;
+    }
+    setComposerClosing(false);
+    setComposerOpen(true);
   };
 
   const activeReplyTargetLabel =
@@ -867,91 +979,127 @@ export const PostCommentsPanel = ({
       }`
       : "";
 
-  const renderCommentItem = (item, depth = 0) => (
-    <article
-      key={item._id}
-      className={`${styles.commentCard} ${depth > 0 ? styles.replyCard : ""}`}
-    >
-      <div className={styles.commentHeader}>
-        <button
-          type="button"
-          className={styles.commentIdentity}
-          onClick={() => item.user?._id && navigate(`/profile/${item.user._id}`)}
-        >
-          <img
-            src={item.user?.avatar || noProfile}
-            alt={item.user?.username || "Comment author"}
-            className={styles.commentAvatar}
-          />
-          <div>
-            <strong>{item.user?.username || "globMe member"}</strong>
-            <span>{formatRelativeTime(item.createdAt)}</span>
-          </div>
-        </button>
-        {item.isOwnerComment || `${item.user?._id || ""}` === `${postOwnerId || ""}` ? (
-          <span className={styles.ownerBadge}>Owner</span>
-        ) : null}
-      </div>
+  const renderCommentItem = (item, depth = 0) => {
+    const replyCount = Array.isArray(item.replies) ? item.replies.length : 0;
+    const hasReplies = replyCount > 0;
+    const repliesExpanded = Boolean(expandedThreadIds[item._id]);
 
-      {item.comment ? <p className={styles.commentBody}>{item.comment}</p> : null}
-
-      {item.imageUrl ? (
-        <img
-          src={item.imageUrl}
-          alt="Comment attachment"
-          className={styles.commentImage}
-        />
-      ) : null}
-
-      {item.linkUrl ? (
-        <a
-          href={item.linkUrl}
-          target="_blank"
-          rel="noreferrer"
-          className={styles.commentLink}
-        >
-          <MdLink />
-          <span>{item.linkUrl}</span>
-        </a>
-      ) : null}
-
-      <div className={styles.commentActions}>
-        <button
-          type="button"
-          className={`${styles.commentActionButton} ${
-            activeReplyCommentId === item._id ? styles.commentReplyButtonActive : ""
-          }`}
-          onClick={() => handleReplyOpen(item)}
-        >
-          <MdReply />
-          {activeReplyCommentId === item._id ? "Being replied" : "Reply"}
-        </button>
-        <button
-          type="button"
-          className={`${styles.commentActionButton} ${
-            item.likedByViewer ? styles.commentActionButtonActive : ""
-          }`}
-          onClick={() => handleCommentLikeToggle(item._id)}
-          disabled={commentLikeBusyId === item._id}
-        >
-          {item.likedByViewer ? <MdFavorite /> : <MdOutlineFavoriteBorder />}
-          {item.likeCount || 0}
-        </button>
-      </div>
-
-      {Array.isArray(item.replies) && item.replies.length > 0 ? (
-        <div className={styles.repliesList}>
-          {item.replies.map((reply) => renderCommentItem(reply, depth + 1))}
+    return (
+      <article
+        key={item._id}
+        className={`${styles.commentCard} ${depth > 0 ? styles.replyCard : ""}`}
+      >
+        <div className={styles.commentHeader}>
+          <button
+            type="button"
+            className={styles.commentIdentity}
+            onClick={() => item.user?._id && navigate(`/profile/${item.user._id}`)}
+          >
+            <img
+              src={item.user?.avatar || noProfile}
+              alt={item.user?.username || "Comment author"}
+              className={styles.commentAvatar}
+            />
+            <div>
+              <strong>{item.user?.username || "globMe member"}</strong>
+              <span>{formatRelativeTime(item.createdAt)}</span>
+            </div>
+          </button>
+          {item.isOwnerComment || `${item.user?._id || ""}` === `${postOwnerId || ""}` ? (
+            <span className={styles.ownerBadge}>Owner</span>
+          ) : null}
         </div>
-      ) : null}
-    </article>
-  );
+
+        {item.comment ? <p className={styles.commentBody}>{item.comment}</p> : null}
+
+        {item.imageUrl ? (
+          <img
+            src={item.imageUrl}
+            alt="Comment attachment"
+            className={styles.commentImage}
+          />
+        ) : null}
+
+        {item.linkUrl ? (
+          <a
+            href={item.linkUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={styles.commentLink}
+          >
+            <MdLink />
+            <span>{item.linkUrl}</span>
+          </a>
+        ) : null}
+
+        <div className={styles.commentActions}>
+          <button
+            type="button"
+            className={`${styles.commentActionButton} ${
+              activeReplyCommentId === item._id ? styles.commentReplyButtonActive : ""
+            }`}
+            onClick={() => handleReplyOpen(item)}
+          >
+            <MdReply />
+            {activeReplyCommentId === item._id ? "Being replied" : "Reply"}
+          </button>
+          <button
+            type="button"
+            className={`${styles.commentActionButton} ${
+              item.likedByViewer ? styles.commentActionButtonActive : ""
+            }`}
+            onClick={() => handleCommentLikeToggle(item._id)}
+            disabled={commentLikeBusyId === item._id}
+          >
+            {item.likedByViewer ? <MdFavorite /> : <MdOutlineFavoriteBorder />}
+            {item.likeCount || 0}
+          </button>
+          <button
+            type="button"
+            className={`${styles.commentActionButton} ${
+              item.dislikedByViewer ? styles.commentActionButtonActive : ""
+            }`}
+            onClick={() => handleCommentDislikeToggle(item._id)}
+            disabled={commentLikeBusyId === item._id}
+          >
+            {item.dislikedByViewer ? <MdThumbDown /> : <MdOutlineThumbDown />}
+            {item.dislikeCount || 0}
+          </button>
+          {hasReplies ? (
+            <button
+              type="button"
+              className={`${styles.commentActionButton} ${styles.threadToggleButton} ${
+                repliesExpanded ? styles.threadToggleButtonExpanded : ""
+              }`}
+              onClick={() => toggleRepliesVisibility(item._id)}
+              aria-expanded={repliesExpanded}
+            >
+              <MdChevronRight className={styles.threadToggleIcon} />
+              {repliesExpanded ? "Hide replies" : `${replyCount} ${replyCount === 1 ? "reply" : "replies"}`}
+            </button>
+          ) : null}
+        </div>
+
+        {hasReplies && repliesExpanded ? (
+          <div className={styles.repliesList}>
+            {item.replies.map((reply) => renderCommentItem(reply, depth + 1))}
+          </div>
+        ) : null}
+      </article>
+    );
+  };
 
   return (
     <section id="post-comments-panel" className={styles.panel}>
       <div className={styles.commentsBody}>
         {commentsLoading ? (
-          <div className={styles.stateCard}>Loading comments...</div>
+          <div className={styles.commentsList} aria-hidden="true">
+            <CommentSkeletonCard />
+            <CommentSkeletonCard />
+            <div className={styles.repliesList}>
+              <CommentSkeletonCard nested />
+            </div>
+          </div>
         ) : commentsError ? (
           <div className={styles.stateCard}>{commentsError}</div>
         ) : comments.length === 0 ? (
@@ -963,36 +1111,63 @@ export const PostCommentsPanel = ({
         )}
       </div>
 
-      <div ref={composerDockRef} className={styles.composerDock}>
-        <CommentComposer
-          key={isReplyMode ? `reply-${activeReplyCommentId}` : "comment"}
-          contextLabel={activeReplyChainLabel}
-          contextPreviewLines={isReplyMode ? activeReplyContextLines : []}
-          value={isReplyMode ? replyDraft : commentDraft}
-          onChange={isReplyMode ? setReplyDraft : setCommentDraft}
-          onEmojiPick={(emoji) =>
-            isReplyMode
-              ? setReplyDraft((prev) => `${prev}${emoji}`)
-              : setCommentDraft((prev) => `${prev}${emoji}`)
-          }
-          onMediaPick={(event) =>
-            isReplyMode
-              ? setReplyImageFile(event.target.files?.[0] || null)
-              : setCommentImageFile(event.target.files?.[0] || null)
-          }
-          onCameraCapture={(file) =>
-            isReplyMode ? setReplyImageFile(file) : setCommentImageFile(file)
-          }
-          imagePreview={isReplyMode ? replyImagePreview : commentImagePreview}
-          imageFileName={isReplyMode ? replyImageFile?.name || "" : commentImageFile?.name || ""}
-          onImageRemove={() =>
-            isReplyMode ? setReplyImageFile(null) : setCommentImageFile(null)
-          }
-          onSubmit={isReplyMode ? handleReplySubmit : handleRootSubmit}
-          submitLabel={isReplyMode ? "Reply" : "Comment"}
-          submitting={isReplyMode ? replySubmitting : commentSubmitting}
-          onCancel={isReplyMode ? clearReplyComposer : undefined}
-        />
+      <div
+        ref={composerDockRef}
+        className={`${styles.composerDock} ${
+          !isComposerVisible ? styles.composerDockCollapsed : ""
+        }`}
+      >
+        {isComposerVisible ? (
+          <CommentComposer
+            key={isReplyMode ? `reply-${activeReplyCommentId}` : "comment"}
+            contextLabel={activeReplyChainLabel}
+            contextPreviewLines={isReplyMode ? activeReplyContextLines : []}
+            value={isReplyMode ? replyDraft : commentDraft}
+            onChange={isReplyMode ? setReplyDraft : setCommentDraft}
+            onEmojiPick={(emoji) =>
+              isReplyMode
+                ? setReplyDraft((prev) => `${prev}${emoji}`)
+                : setCommentDraft((prev) => `${prev}${emoji}`)
+            }
+            onMediaPick={(event) =>
+              isReplyMode
+                ? setReplyImageFile(event.target.files?.[0] || null)
+                : setCommentImageFile(event.target.files?.[0] || null)
+            }
+            onCameraCapture={(file) =>
+              isReplyMode ? setReplyImageFile(file) : setCommentImageFile(file)
+            }
+            imagePreview={isReplyMode ? replyImagePreview : commentImagePreview}
+            imageFileName={isReplyMode ? replyImageFile?.name || "" : commentImageFile?.name || ""}
+            onImageRemove={() =>
+              isReplyMode ? setReplyImageFile(null) : setCommentImageFile(null)
+            }
+            onSubmit={isReplyMode ? handleReplySubmit : handleRootSubmit}
+            submitLabel={isReplyMode ? "Reply" : "Comment"}
+            submitting={isReplyMode ? replySubmitting : commentSubmitting}
+            closing={!isReplyMode && composerClosing}
+            onCancel={
+              isReplyMode
+                ? clearReplyComposer
+                : closeRootComposer
+            }
+          />
+        ) : (
+          <button
+            type="button"
+            className={styles.composerLauncher}
+            onClick={() => {
+              if (composerCloseTimeoutRef.current) {
+                window.clearTimeout(composerCloseTimeoutRef.current);
+                composerCloseTimeoutRef.current = null;
+              }
+              setComposerClosing(false);
+              setComposerOpen(true);
+            }}
+          >
+            Comment
+          </button>
+        )}
       </div>
     </section>
   );

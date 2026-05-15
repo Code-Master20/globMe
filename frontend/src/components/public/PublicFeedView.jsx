@@ -14,6 +14,7 @@ import { toast } from "react-toastify";
 import { useSelector } from "react-redux";
 import api from "../../lib/api";
 import { AuthAccessPrompt } from "../auth/AuthAccessPrompt";
+import { PublicShareSheet } from "./PublicShareSheet";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import noProfile from "../../assets/noProfile.png";
 import { StoryTray } from "../story/StoryTray";
@@ -65,6 +66,7 @@ export const PublicFeedView = ({
   const [ownerPlaylists, setOwnerPlaylists] = useState([]);
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [playlistPickerPost, setPlaylistPickerPost] = useState(null);
+  const [playlistPickerClosingPost, setPlaylistPickerClosingPost] = useState(null);
   const [playlistPickerIds, setPlaylistPickerIds] = useState([]);
   const [playlistPickerSaving, setPlaylistPickerSaving] = useState(false);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
@@ -73,6 +75,7 @@ export const PublicFeedView = ({
   const [likesViewerLoading, setLikesViewerLoading] = useState(false);
   const [likesViewerItems, setLikesViewerItems] = useState([]);
   const [likesViewerError, setLikesViewerError] = useState("");
+  const [shareSheetPost, setShareSheetPost] = useState(null);
   const [desktopHoverPreview, setDesktopHoverPreview] = useState(false);
   const [activePreviewPostId, setActivePreviewPostId] = useState("");
   const [previewControlPostId, setPreviewControlPostId] = useState("");
@@ -82,6 +85,7 @@ export const PublicFeedView = ({
   const activeAutoplayVideoIdRef = useRef("");
   const hoverPreviewPostIdRef = useRef("");
   const previewAutoplayTimeoutRef = useRef(null);
+  const playlistPickerCloseTimeoutRef = useRef(null);
 
   usePageMetadata({
     title: seoTitle || title,
@@ -333,15 +337,28 @@ export const PublicFeedView = ({
     playPreviewVideo(postId, { muted: !shouldEnableSound });
   };
 
+  const activePlaylistPickerPost = playlistPickerPost || playlistPickerClosingPost;
+  const playlistPickerClosing = Boolean(!playlistPickerPost && playlistPickerClosingPost);
+
   useEffect(() => {
-    if (!playlistPickerPost) {
+    if (!activePlaylistPickerPost) {
       return undefined;
     }
 
     const previousBodyOverflow = document.body.style.overflow;
     const handleKeyDown = (event) => {
       if (event.key === "Escape" && !playlistPickerSaving) {
+        setPlaylistPickerClosingPost((prev) => prev || playlistPickerPost || activePlaylistPickerPost);
         setPlaylistPickerPost(null);
+
+        if (playlistPickerCloseTimeoutRef.current) {
+          window.clearTimeout(playlistPickerCloseTimeoutRef.current);
+        }
+
+        playlistPickerCloseTimeoutRef.current = window.setTimeout(() => {
+          setPlaylistPickerClosingPost(null);
+          playlistPickerCloseTimeoutRef.current = null;
+        }, 220);
       }
     };
 
@@ -352,7 +369,7 @@ export const PublicFeedView = ({
       document.body.style.overflow = previousBodyOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [playlistPickerPost, playlistPickerSaving]);
+  }, [activePlaylistPickerPost, playlistPickerPost, playlistPickerSaving]);
 
   useEffect(() => {
     if (!likesViewerPost) {
@@ -375,16 +392,24 @@ export const PublicFeedView = ({
     };
   }, [likesViewerPost]);
 
+  useEffect(
+    () => () => {
+      if (playlistPickerCloseTimeoutRef.current) {
+        window.clearTimeout(playlistPickerCloseTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   const isOwnerOfPost = (post) =>
     Boolean(user?._id && post?.user?._id && `${user._id}` === `${post.user._id}`);
 
-  const handleProtectedAction = () => {
-    if (isAuthenticated) {
-      toast.info("This action will be wired next.");
+  const handleShareOpen = (post) => {
+    if (!post?._id) {
       return;
     }
 
-    setShowAuthPrompt(true);
+    setShareSheetPost(post);
   };
 
   const handleOpenComments = (postId) => {
@@ -484,6 +509,26 @@ export const PublicFeedView = ({
     );
   };
 
+  const handleClosePlaylistPicker = () => {
+    const nextClosingPost = playlistPickerPost || playlistPickerClosingPost;
+
+    if (!nextClosingPost) {
+      return;
+    }
+
+    setPlaylistPickerClosingPost(nextClosingPost);
+    setPlaylistPickerPost(null);
+
+    if (playlistPickerCloseTimeoutRef.current) {
+      window.clearTimeout(playlistPickerCloseTimeoutRef.current);
+    }
+
+    playlistPickerCloseTimeoutRef.current = window.setTimeout(() => {
+      setPlaylistPickerClosingPost(null);
+      playlistPickerCloseTimeoutRef.current = null;
+    }, 220);
+  };
+
   const handleOpenPlaylistPicker = async (post) => {
     if (!post?._id) {
       return;
@@ -495,6 +540,11 @@ export const PublicFeedView = ({
     }
 
     try {
+      if (playlistPickerCloseTimeoutRef.current) {
+        window.clearTimeout(playlistPickerCloseTimeoutRef.current);
+        playlistPickerCloseTimeoutRef.current = null;
+      }
+      setPlaylistPickerClosingPost(null);
       setPlaylistPickerPost(post);
       setPlaylistsLoading(true);
       const response = await api.get("/user/playlists");
@@ -552,7 +602,7 @@ export const PublicFeedView = ({
     }, []);
 
     if (!updates.length && !normalizedNewTitle) {
-      setPlaylistPickerPost(null);
+      handleClosePlaylistPicker();
       return;
     }
 
@@ -583,7 +633,7 @@ export const PublicFeedView = ({
           ...prev.map((playlist) => updatedMap.get(playlist._id) || playlist),
         ],
       );
-      setPlaylistPickerPost(null);
+      handleClosePlaylistPicker();
       setNewPlaylistTitle("");
       setNewPlaylistDescription("");
       toast.success("Playlist selections updated");
@@ -769,7 +819,7 @@ export const PublicFeedView = ({
                     <button
                       type="button"
                       className={`${styles.actionBtn} ${styles.iconOnlyBtn}`}
-                      onClick={handleProtectedAction}
+                      onClick={() => handleShareOpen(post)}
                       aria-label="Share"
                     >
                       <PiShareFatLight />
@@ -782,17 +832,21 @@ export const PublicFeedView = ({
         )}
       </main>
 
-      {playlistPickerPost ? (
+      {activePlaylistPickerPost ? (
         <div
-          className={styles.playlistPickerOverlay}
+          className={`${styles.playlistPickerOverlay} ${
+            playlistPickerClosing ? styles.playlistPickerOverlayClosing : ""
+          }`}
           onClick={() => {
             if (!playlistPickerSaving) {
-              setPlaylistPickerPost(null);
+              handleClosePlaylistPicker();
             }
           }}
         >
           <div
-            className={styles.playlistPickerDialog}
+            className={`${styles.playlistPickerDialog} ${
+              playlistPickerClosing ? styles.playlistPickerDialogClosing : ""
+            }`}
             role="dialog"
             aria-modal="true"
             aria-label="Add public post to playlists"
@@ -801,12 +855,12 @@ export const PublicFeedView = ({
             <div className={styles.playlistPickerHeader}>
               <div>
                 <p>Add to playlist</p>
-                <h2>{formatDisplayValue(playlistPickerPost.title) || "Public post"}</h2>
+                <h2>{formatDisplayValue(activePlaylistPickerPost.title) || "Public post"}</h2>
               </div>
               <button
                 type="button"
                 className={styles.playlistPickerClose}
-                onClick={() => setPlaylistPickerPost(null)}
+                onClick={handleClosePlaylistPicker}
                 disabled={playlistPickerSaving}
                 aria-label="Close playlist picker"
               >
@@ -865,7 +919,7 @@ export const PublicFeedView = ({
               <button
                 type="button"
                 className={styles.playlistPickerSecondary}
-                onClick={() => setPlaylistPickerPost(null)}
+                onClick={handleClosePlaylistPicker}
                 disabled={playlistPickerSaving}
               >
                 Cancel
@@ -953,6 +1007,21 @@ export const PublicFeedView = ({
         onClose={() => setShowAuthPrompt(false)}
         title="Log in to interact with posts"
         description="Guests can browse posts and profiles publicly. Create an account when you want to react, comment, share, or connect with people."
+      />
+
+      <PublicShareSheet
+        open={Boolean(shareSheetPost)}
+        onClose={() => setShareSheetPost(null)}
+        title={formatDisplayValue(shareSheetPost?.title) || "globMe post"}
+        description={
+          shareSheetPost?.description ||
+          `See this post from @${shareSheetPost?.user?.username || "globme"}.`
+        }
+        shareUrl={
+          shareSheetPost?._id && typeof window !== "undefined"
+            ? new URL(`/posts/${shareSheetPost._id}`, window.location.origin).toString()
+            : ""
+        }
       />
     </>
   );

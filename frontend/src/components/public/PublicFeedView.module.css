@@ -203,21 +203,30 @@
   inset: 0;
   z-index: 10000;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   padding: 1.2rem;
-  background: rgba(15, 23, 42, 0.72);
-  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.46);
+  animation: playlistPickerFadeIn 220ms ease;
 }
 
 .playlistPickerDialog {
-  width: min(52rem, 100%);
-  max-height: calc(100vh - 2.4rem);
+  width: min(56rem, 100%);
+  max-height: min(78vh, calc(100vh - 2.4rem));
   overflow: auto;
-  padding: 1rem;
-  border-radius: 2.4rem;
+  padding: 1rem 1rem 1.2rem;
+  border-radius: 2.4rem 2.4rem 0 0;
   background: #ffffff;
   box-shadow: 0 2.4rem 5.6rem rgba(15, 23, 42, 0.24);
+  animation: playlistPickerSheetIn 220ms ease;
+}
+
+.playlistPickerOverlayClosing {
+  animation: playlistPickerFadeOut 220ms ease forwards;
+}
+
+.playlistPickerDialogClosing {
+  animation: playlistPickerSheetOut 220ms ease forwards;
 }
 
 .playlistPickerHeader {
@@ -378,6 +387,50 @@
   color: #475569;
 }
 
+@keyframes playlistPickerFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes playlistPickerFadeOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes playlistPickerSheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes playlistPickerSheetOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
 @media (max-width: 640px) {
   .page {
     padding: 0.9rem 0.75rem 2.4rem;
@@ -416,8 +469,10 @@
   }
 
   .playlistPickerDialog {
-    padding: 0.85rem;
-    border-radius: 2rem;
+    width: 100%;
+    padding: 0.85rem 0.85rem 1rem;
+    border-radius: 2rem 2rem 0 0;
+    max-height: min(82vh, calc(100vh - 1.5rem));
   }
 
   .playlistPickerActions {

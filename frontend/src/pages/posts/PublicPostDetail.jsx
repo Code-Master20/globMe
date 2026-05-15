@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
@@ -14,6 +14,7 @@ import api from "../../lib/api";
 import noProfile from "../../assets/noProfile.png";
 import { AuthAccessPrompt } from "../../components/auth/AuthAccessPrompt";
 import { PostCommentsPanel } from "../../components/public/PostCommentsPanel";
+import { PublicShareSheet } from "../../components/public/PublicShareSheet";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import styles from "./PublicPostDetail.module.css";
 
@@ -78,6 +79,7 @@ export const PublicPostDetail = () => {
   const [playlistPickerIds, setPlaylistPickerIds] = useState([]);
   const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
   const [playlistPickerSaving, setPlaylistPickerSaving] = useState(false);
+  const [playlistPickerClosing, setPlaylistPickerClosing] = useState(false);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
   const [newPlaylistDescription, setNewPlaylistDescription] = useState("");
   const [likesViewerOpen, setLikesViewerOpen] = useState(false);
@@ -85,6 +87,10 @@ export const PublicPostDetail = () => {
   const [likesViewerItems, setLikesViewerItems] = useState([]);
   const [likesViewerError, setLikesViewerError] = useState("");
   const [commentsOverlayOpen, setCommentsOverlayOpen] = useState(false);
+  const [commentsOverlayClosing, setCommentsOverlayClosing] = useState(false);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  const commentsOverlayCloseTimeoutRef = useRef(null);
+  const playlistPickerCloseTimeoutRef = useRef(null);
 
   usePageMetadata({
     title: post?.title ? formatDisplayValue(post.title) : "Public post",
@@ -154,8 +160,10 @@ export const PublicPostDetail = () => {
     };
   }, [postId]);
 
+  const isPlaylistPickerVisible = playlistPickerOpen || playlistPickerClosing;
+
   useEffect(() => {
-    if (!playlistPickerOpen) {
+    if (!isPlaylistPickerVisible) {
       return undefined;
     }
 
@@ -173,7 +181,7 @@ export const PublicPostDetail = () => {
       document.body.style.overflow = previousBodyOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [playlistPickerOpen, playlistPickerSaving]);
+  }, [isPlaylistPickerVisible, playlistPickerSaving]);
 
   useEffect(() => {
     if (!likesViewerOpen) {
@@ -196,8 +204,10 @@ export const PublicPostDetail = () => {
     };
   }, [likesViewerOpen]);
 
+  const isCommentsOverlayVisible = commentsOverlayOpen || commentsOverlayClosing;
+
   useEffect(() => {
-    if (!commentsOverlayOpen) {
+    if (!isCommentsOverlayVisible) {
       return undefined;
     }
 
@@ -215,18 +225,23 @@ export const PublicPostDetail = () => {
       document.body.style.overflow = previousBodyOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [commentsOverlayOpen]);
+  }, [isCommentsOverlayVisible]);
+
+  useEffect(
+    () => () => {
+      if (commentsOverlayCloseTimeoutRef.current) {
+        window.clearTimeout(commentsOverlayCloseTimeoutRef.current);
+      }
+      if (playlistPickerCloseTimeoutRef.current) {
+        window.clearTimeout(playlistPickerCloseTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const isOwnerOfPost = Boolean(user?._id && post?.user?._id && `${user._id}` === `${post.user._id}`);
 
-  const handleProtectedAction = () => {
-    if (isAuthenticated) {
-      toast.info("This action will be wired next.");
-      return;
-    }
-
-    setShowAuthPrompt(true);
-  };
+  const handleShareOpen = () => setShareSheetOpen(true);
 
   const handleWatchLaterToggle = async () => {
     if (!post?._id) {
@@ -332,6 +347,11 @@ export const PublicPostDetail = () => {
       setPlaylistPickerIds(nextSelectedIds);
       setNewPlaylistTitle("");
       setNewPlaylistDescription("");
+      if (playlistPickerCloseTimeoutRef.current) {
+        window.clearTimeout(playlistPickerCloseTimeoutRef.current);
+        playlistPickerCloseTimeoutRef.current = null;
+      }
+      setPlaylistPickerClosing(false);
       setPlaylistPickerOpen(true);
     } catch (loadError) {
       toast.error(loadError.response?.data?.message || "Playlists could not be loaded");
@@ -351,6 +371,20 @@ export const PublicPostDetail = () => {
     }
 
     await loadOwnerPlaylists();
+  };
+
+  const handleClosePlaylistPicker = () => {
+    setPlaylistPickerOpen(false);
+    setPlaylistPickerClosing(true);
+
+    if (playlistPickerCloseTimeoutRef.current) {
+      window.clearTimeout(playlistPickerCloseTimeoutRef.current);
+    }
+
+    playlistPickerCloseTimeoutRef.current = window.setTimeout(() => {
+      setPlaylistPickerClosing(false);
+      playlistPickerCloseTimeoutRef.current = null;
+    }, 220);
   };
 
   const handlePlaylistToggle = (playlistId) => {
@@ -394,7 +428,7 @@ export const PublicPostDetail = () => {
     }, []);
 
     if (!updates.length && !normalizedNewTitle) {
-      setPlaylistPickerOpen(false);
+      handleClosePlaylistPicker();
       return;
     }
 
@@ -425,7 +459,7 @@ export const PublicPostDetail = () => {
           ...prev.map((playlist) => updatedMap.get(playlist._id) || playlist),
         ],
       );
-      setPlaylistPickerOpen(false);
+      handleClosePlaylistPicker();
       setNewPlaylistTitle("");
       setNewPlaylistDescription("");
       toast.success("Playlist selections updated");
@@ -469,8 +503,29 @@ export const PublicPostDetail = () => {
         : prev,
     );
   };
-  const handleOpenComments = () => setCommentsOverlayOpen(true);
-  const handleCloseComments = () => setCommentsOverlayOpen(false);
+  const handleOpenComments = () => {
+    if (commentsOverlayCloseTimeoutRef.current) {
+      window.clearTimeout(commentsOverlayCloseTimeoutRef.current);
+      commentsOverlayCloseTimeoutRef.current = null;
+    }
+
+    setCommentsOverlayClosing(false);
+    setCommentsOverlayOpen(true);
+  };
+
+  const handleCloseComments = () => {
+    setCommentsOverlayOpen(false);
+    setCommentsOverlayClosing(true);
+
+    if (commentsOverlayCloseTimeoutRef.current) {
+      window.clearTimeout(commentsOverlayCloseTimeoutRef.current);
+    }
+
+    commentsOverlayCloseTimeoutRef.current = window.setTimeout(() => {
+      setCommentsOverlayClosing(false);
+      commentsOverlayCloseTimeoutRef.current = null;
+    }, 220);
+  };
 
   return (
     <>
@@ -578,7 +633,7 @@ export const PublicPostDetail = () => {
                 <button
                   type="button"
                   className={`${styles.videoChip} ${styles.videoIconOnly}`}
-                  onClick={handleProtectedAction}
+                  onClick={handleShareOpen}
                   aria-label="Share"
                 >
                   <PiShareFatLight />
@@ -683,7 +738,7 @@ export const PublicPostDetail = () => {
               <button
                 type="button"
                 className={`${styles.actionBtn} ${styles.iconOnlyBtn}`}
-                onClick={handleProtectedAction}
+                onClick={handleShareOpen}
                 aria-label="Share"
               >
                 <PiShareFatLight />
@@ -694,13 +749,17 @@ export const PublicPostDetail = () => {
         )}
       </main>
 
-      {commentsOverlayOpen ? (
+      {isCommentsOverlayVisible ? (
         <div
-          className={`${styles.commentsOverlay} ${isVideoPost ? styles.commentsOverlayVideo : ""}`}
+          className={`${styles.commentsOverlay} ${isVideoPost ? styles.commentsOverlayVideo : ""} ${
+            commentsOverlayClosing ? styles.commentsOverlayClosing : ""
+          }`}
           onClick={handleCloseComments}
         >
           <div
-            className={`${styles.commentsOverlayCard} ${isVideoPost ? styles.commentsOverlayCardVideo : ""}`}
+            className={`${styles.commentsOverlayCard} ${isVideoPost ? styles.commentsOverlayCardVideo : ""} ${
+              commentsOverlayClosing ? styles.commentsOverlayCardClosing : ""
+            }`}
             role="dialog"
             aria-modal="true"
             aria-label="Post comments"
@@ -708,7 +767,6 @@ export const PublicPostDetail = () => {
           >
             <div className={styles.commentsOverlayHeader}>
               <div>
-                <p>Comments</p>
                 <h2>{formatDisplayValue(post.title) || "Public post"}</h2>
               </div>
               <button
@@ -733,17 +791,21 @@ export const PublicPostDetail = () => {
         </div>
       ) : null}
 
-      {playlistPickerOpen ? (
+      {isPlaylistPickerVisible ? (
         <div
-          className={styles.playlistPickerOverlay}
+          className={`${styles.playlistPickerOverlay} ${
+            playlistPickerClosing ? styles.playlistPickerOverlayClosing : ""
+          }`}
           onClick={() => {
             if (!playlistPickerSaving) {
-              setPlaylistPickerOpen(false);
+              handleClosePlaylistPicker();
             }
           }}
         >
           <div
-            className={styles.playlistPickerDialog}
+            className={`${styles.playlistPickerDialog} ${
+              playlistPickerClosing ? styles.playlistPickerDialogClosing : ""
+            }`}
             role="dialog"
             aria-modal="true"
             aria-label="Add public post to playlists"
@@ -757,7 +819,7 @@ export const PublicPostDetail = () => {
               <button
                 type="button"
                 className={styles.playlistPickerClose}
-                onClick={() => setPlaylistPickerOpen(false)}
+                onClick={handleClosePlaylistPicker}
                 disabled={playlistPickerSaving}
                 aria-label="Close playlist picker"
               >
@@ -816,7 +878,7 @@ export const PublicPostDetail = () => {
               <button
                 type="button"
                 className={styles.playlistPickerSecondary}
-                onClick={() => setPlaylistPickerOpen(false)}
+                onClick={handleClosePlaylistPicker}
                 disabled={playlistPickerSaving}
               >
                 Cancel
@@ -904,6 +966,18 @@ export const PublicPostDetail = () => {
         onClose={() => setShowAuthPrompt(false)}
         title="Log in to interact with this post"
         description="Guests can browse public posts, but reactions, comments, and shares need an account so your actions can be tracked."
+      />
+
+      <PublicShareSheet
+        open={shareSheetOpen}
+        onClose={() => setShareSheetOpen(false)}
+        title={formatDisplayValue(post.title) || "globMe post"}
+        description={post.description || `See this post from @${post.user?.username || "globme"}.`}
+        shareUrl={
+          typeof window !== "undefined"
+            ? new URL(`/posts/${post._id}`, window.location.origin).toString()
+            : ""
+        }
       />
     </>
   );
