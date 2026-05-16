@@ -42,6 +42,10 @@ const {
   updatePlaylist,
   getPublicProfilePlaylists,
 } = require("../controllers/userMedia.controller");
+const {
+  createGameHistoryEntry,
+  getMyGameHistory,
+} = require("../controllers/game.controller");
 
 const handleSingleImageUpload = (fieldName) => (req, res, next) => {
   bannerAvatarUpload.single(fieldName)(req, res, (error) => {
@@ -228,6 +232,7 @@ router.get("/posts", isMeMiddleware, getOwnerPosts);
 router.get("/videos", isMeMiddleware, getOwnerVideoLibrary);
 router.get("/playlists", isMeMiddleware, getOwnerPlaylists);
 router.get("/watch-later", isMeMiddleware, getWatchLaterVideos);
+router.get("/game-history", isMeMiddleware, getMyGameHistory);
 router.get("/posts/:postId/likes", isMeMiddleware, getPostLikes);
 router.post("/stories/:userId/like", isMeMiddleware, toggleStoryLike);
 router.post("/posts/:postId/like", isMeMiddleware, togglePostLike);
@@ -241,6 +246,7 @@ router.post(
   createPostComment,
 );
 router.post("/watch-later/:postId", isMeMiddleware, toggleWatchLater);
+router.post("/game-history", isMeMiddleware, createGameHistoryEntry);
 router.post("/posts/upload", isMeMiddleware, handleOwnerPostUpload, createOwnerPost);
 router.post("/playlists", isMeMiddleware, createPlaylist);
 router.get("/story-history/:storyHistoryId/comments", isMeMiddleware, getOwnerStoryComments);

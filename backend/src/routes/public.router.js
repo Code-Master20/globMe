@@ -11,6 +11,7 @@ const {
   getPublicStoryByUserId,
 } = require("../controllers/story.controller");
 const { getDynamicSitemap } = require("../controllers/public.controller");
+const { getPublicGames } = require("../controllers/game.controller");
 
 router.get("/posts", optionalAuthMiddleware, getPublicPosts);
 router.get("/posts/:postId", optionalAuthMiddleware, getPublicPostById);
@@ -18,6 +19,7 @@ router.get("/posts/:postId/comments", optionalAuthMiddleware, getPublicPostComme
 router.post("/posts/:postId/view", optionalAuthMiddleware, incrementPublicPostView);
 router.get("/stories", optionalAuthMiddleware, getPublicStories);
 router.get("/stories/:userId", optionalAuthMiddleware, getPublicStoryByUserId);
+router.get("/games", getPublicGames);
 router.get("/sitemap.xml", getDynamicSitemap);
 
 module.exports = router;
