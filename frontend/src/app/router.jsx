@@ -16,6 +16,7 @@ import { HomeFeed } from "../pages/feeds/home/HomeFeed.jsx";
 import { PhotoFeed } from "../pages/feeds/photo/PhotoFeed.jsx";
 import { PostFeed } from "../pages/feeds/post/PostFeed.jsx";
 import { VideoFeed } from "../pages/feeds/video/VideoFeed.jsx";
+import { GameArena } from "../pages/games/GameArena.jsx";
 import { NotificationCenter } from "../pages/network/notifications/NotificationCenter.jsx";
 import { PeopleHub } from "../pages/network/people/PeopleHub.jsx";
 import { PublicPostDetail } from "../pages/posts/PublicPostDetail.jsx";
@@ -83,6 +84,7 @@ export const router = createBrowserRouter(
         path="post-feed"
         element={<PostFeed />}
       />
+      <Route path="games/:gameKey" element={<GameArena />} />
       <Route path="posts/:postId" element={<PublicPostDetail />} />
       <Route
         path="people"

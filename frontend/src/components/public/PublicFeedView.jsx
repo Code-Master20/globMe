@@ -50,6 +50,7 @@ export const PublicFeedView = ({
   description,
   filterType = "all",
   showStoryTray = false,
+  afterStoryContent = null,
   autoPlayVisibleVideos = false,
   emptyHeading,
   emptyCopy,
@@ -650,6 +651,7 @@ export const PublicFeedView = ({
         {showStoryTray ? (
           <StoryTray onRequireAuth={() => setShowAuthPrompt(true)} />
         ) : null}
+        {afterStoryContent}
 
         {loading ? (
           <section className={styles.placeholder}>Loading public posts...</section>
