@@ -680,6 +680,11 @@
   color: #334155;
 }
 
+.mobileResetWrap,
+.mobileResetButton {
+  display: none;
+}
+
 .primaryAction:disabled,
 .secondaryAction:disabled {
   opacity: 0.7;
@@ -1093,6 +1098,20 @@
 
   .statusPanel {
     display: none;
+  }
+
+  .desktopResetButton {
+    display: none;
+  }
+
+  .mobileResetWrap {
+    display: block;
+    margin-top: 0.85rem;
+  }
+
+  .mobileResetButton {
+    display: inline-flex;
+    width: 100%;
   }
 }
 

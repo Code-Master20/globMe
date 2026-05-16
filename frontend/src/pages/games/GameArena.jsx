@@ -1832,7 +1832,7 @@ export const GameArena = () => {
                         </button>
                         <button
                           type="button"
-                          className={styles.secondaryAction}
+                          className={`${styles.secondaryAction} ${styles.desktopResetButton}`}
                           onClick={resetToBeginning}
                           disabled={isRolling}
                         >
@@ -1845,6 +1845,20 @@ export const GameArena = () => {
 
                 </div>
               </div>
+
+              {gameStarted ? (
+                <div className={styles.mobileResetWrap}>
+                  <button
+                    type="button"
+                    className={`${styles.secondaryAction} ${styles.mobileResetButton}`}
+                    onClick={resetToBeginning}
+                    disabled={isRolling}
+                  >
+                    <MdReplay />
+                    Reset
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <aside className={styles.historyCard}>
