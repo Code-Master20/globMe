@@ -37,39 +37,35 @@ export const HomeGamesHub = () => {
 
   return (
     <section className={styles.shell}>
-      <div className={styles.heroCopy}>
-        <h1>Pick a game card and jump into its own page.</h1>
-        <p>
-          This top homepage card now works like a launcher. Each inner card sends the
-          visitor to a dedicated game route.
-        </p>
-      </div>
+      <div className={styles.hubCard}>
+        <p className={styles.sectionTitle}>Choose a game and start playing</p>
 
-      <div className={styles.catalogGrid}>
-        {games.map((game) => (
-          <button
-            key={game.key}
-            type="button"
-            className={styles.catalogCard}
-            onClick={() => navigate(getGameRoute(game.key))}
-          >
-            {game.imageSrc ? (
-              <div className={styles.catalogImageFrame}>
-                <img
-                  src={game.imageSrc}
-                  alt={game.imageAlt || game.name}
-                  className={styles.catalogImage}
-                />
+        <div className={styles.catalogGrid}>
+          {games.map((game) => (
+            <button
+              key={game.key}
+              type="button"
+              className={styles.catalogCard}
+              onClick={() => navigate(getGameRoute(game.key))}
+            >
+              {game.imageSrc ? (
+                <div className={styles.catalogImageFrame}>
+                  <img
+                    src={game.imageSrc}
+                    alt={game.imageAlt || game.name}
+                    className={styles.catalogImage}
+                  />
+                </div>
+              ) : null}
+              <div className={styles.catalogHeader}>
+                <span>{game.badge || "Game"}</span>
+                <strong>{game.category || "Mini game"}</strong>
               </div>
-            ) : null}
-            <div className={styles.catalogHeader}>
-              <span>{game.badge || "Game"}</span>
-              <strong>{game.category || "Mini game"}</strong>
-            </div>
-            <h2>{game.name}</h2>
-            <p>{game.description}</p>
-          </button>
-        ))}
+              <h2>{game.name}</h2>
+              <p>{game.description}</p>
+            </button>
+          ))}
+        </div>
       </div>
     </section>
   );

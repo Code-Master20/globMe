@@ -21,6 +21,13 @@ const wait = (duration) =>
     window.setTimeout(resolve, duration);
   });
 
+const waitForPaint = () =>
+  new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(resolve);
+    });
+  });
+
 const buildBoardCells = () => {
   const cells = [];
   const rows = BOARD_SIZE / BOARD_COLUMNS;
@@ -193,9 +200,86 @@ const getBoardCellPoint = (stageMetrics, cell, anchor = { x: 0.5, y: 0.5 }) => {
   };
 };
 
+const getResponsiveAnchorScale = (stageMetrics) => {
+  const boardWidth = Number(stageMetrics?.width) || 0;
+
+  if (boardWidth > 0 && boardWidth <= 360) {
+    return 0.68;
+  }
+
+  if (boardWidth > 0 && boardWidth <= 460) {
+    return 0.82;
+  }
+
+  return 1;
+};
+
+const getResponsiveCellAnchor = (anchor, stageMetrics) => {
+  const normalizedAnchor = anchor || { x: 0.5, y: 0.5 };
+  const scale = getResponsiveAnchorScale(stageMetrics);
+
+  if (scale === 1) {
+    return normalizedAnchor;
+  }
+
+  return {
+    x: 0.5 + (normalizedAnchor.x - 0.5) * scale,
+    y: 0.5 + (normalizedAnchor.y - 0.5) * scale,
+  };
+};
+
+const getSnakeDirectionalAnchor = (stageMetrics, fromCell, toCell, endpoint) => {
+  const boardWidth = Number(stageMetrics?.width) || 0;
+
+  if (!boardWidth || boardWidth > 460) {
+    return null;
+  }
+
+  const fromCellMetrics = stageMetrics?.cells?.[fromCell];
+  const toCellMetrics = stageMetrics?.cells?.[toCell];
+
+  if (!fromCellMetrics || !toCellMetrics) {
+    return null;
+  }
+
+  const fromCenter = {
+    x: fromCellMetrics.left + fromCellMetrics.width / 2,
+    y: fromCellMetrics.top + fromCellMetrics.height / 2,
+  };
+  const toCenter = {
+    x: toCellMetrics.left + toCellMetrics.width / 2,
+    y: toCellMetrics.top + toCellMetrics.height / 2,
+  };
+  const dx = toCenter.x - fromCenter.x;
+  const dy = toCenter.y - fromCenter.y;
+  const length = Math.hypot(dx, dy);
+
+  if (!length) {
+    return null;
+  }
+
+  const anchorOffset = boardWidth <= 360 ? 0.2 : 0.17;
+  const directionX = dx / length;
+  const directionY = dy / length;
+  const directionMultiplier = endpoint === "from" ? 1 : -1;
+
+  return {
+    x: Math.min(0.8, Math.max(0.2, 0.5 + directionX * anchorOffset * directionMultiplier)),
+    y: Math.min(0.8, Math.max(0.2, 0.5 + directionY * anchorOffset * directionMultiplier)),
+  };
+};
+
 const buildLadderGeometry = (route, stageMetrics) => {
-  const from = getBoardCellPoint(stageMetrics, route.from, route.fromAnchor);
-  const to = getBoardCellPoint(stageMetrics, route.to, route.toAnchor);
+  const from = getBoardCellPoint(
+    stageMetrics,
+    route.from,
+    getResponsiveCellAnchor(route.fromAnchor, stageMetrics),
+  );
+  const to = getBoardCellPoint(
+    stageMetrics,
+    route.to,
+    getResponsiveCellAnchor(route.toAnchor, stageMetrics),
+  );
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const length = Math.hypot(dx, dy);
@@ -208,7 +292,7 @@ const buildLadderGeometry = (route, stageMetrics) => {
   const unitY = dy / length;
   const normalX = -unitY;
   const normalY = unitX;
-  const railOffset = 11;
+  const railOffset = 11 * getLadderRailOffsetScale(stageMetrics);
   const inset = 10;
   const rungCount = Math.max(4, Math.floor(length / 48));
   const rungSpacing = (length - inset * 2) / rungCount;
@@ -253,8 +337,22 @@ const buildLadderGeometry = (route, stageMetrics) => {
 };
 
 const buildSnakeGeometry = (route, stageMetrics) => {
-  const from = getBoardCellPoint(stageMetrics, route.from, route.fromAnchor);
-  const to = getBoardCellPoint(stageMetrics, route.to, route.toAnchor);
+  const fromAnchor =
+    getSnakeDirectionalAnchor(stageMetrics, route.from, route.to, "from") ||
+    getResponsiveCellAnchor(route.fromAnchor, stageMetrics);
+  const toAnchor =
+    getSnakeDirectionalAnchor(stageMetrics, route.from, route.to, "to") ||
+    getResponsiveCellAnchor(route.toAnchor, stageMetrics);
+  const from = getBoardCellPoint(
+    stageMetrics,
+    route.from,
+    fromAnchor,
+  );
+  const to = getBoardCellPoint(
+    stageMetrics,
+    route.to,
+    toAnchor,
+  );
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const length = Math.hypot(dx, dy);
@@ -315,6 +413,62 @@ const buildSnakeGeometry = (route, stageMetrics) => {
   };
 };
 
+const getSnakeHeadScale = (stageMetrics) => {
+  const boardWidth = Number(stageMetrics?.width) || 0;
+
+  if (boardWidth > 0 && boardWidth <= 360) {
+    return 0.72;
+  }
+
+  if (boardWidth > 0 && boardWidth <= 460) {
+    return 0.84;
+  }
+
+  return 1;
+};
+
+const getSnakeStrokeScale = (stageMetrics) => {
+  const boardWidth = Number(stageMetrics?.width) || 0;
+
+  if (boardWidth > 0 && boardWidth <= 360) {
+    return 0.7;
+  }
+
+  if (boardWidth > 0 && boardWidth <= 460) {
+    return 0.82;
+  }
+
+  return 1;
+};
+
+const getLadderStrokeScale = (stageMetrics) => {
+  const boardWidth = Number(stageMetrics?.width) || 0;
+
+  if (boardWidth > 0 && boardWidth <= 360) {
+    return 0.58;
+  }
+
+  if (boardWidth > 0 && boardWidth <= 460) {
+    return 0.7;
+  }
+
+  return 1;
+};
+
+const getLadderRailOffsetScale = (stageMetrics) => {
+  const boardWidth = Number(stageMetrics?.width) || 0;
+
+  if (boardWidth > 0 && boardWidth <= 360) {
+    return 0.68;
+  }
+
+  if (boardWidth > 0 && boardWidth <= 460) {
+    return 0.8;
+  }
+
+  return 1;
+};
+
 const BoardSnakesOverlay = ({ stageMetrics }) => {
   if (!stageMetrics.width || !stageMetrics.height) {
     return null;
@@ -355,6 +509,8 @@ const BoardSnakesOverlay = ({ stageMetrics }) => {
         return null;
       }
 
+      const ladderStrokeScale = getLadderStrokeScale(stageMetrics);
+
       return (
         <g key={ladder.key} filter="url(#ladder-shadow)" opacity="0.95">
           <line
@@ -363,7 +519,7 @@ const BoardSnakesOverlay = ({ stageMetrics }) => {
             x2={geometry.railOneEnd.x}
             y2={geometry.railOneEnd.y}
             stroke={ladder.rail}
-            strokeWidth="4.5"
+            strokeWidth={4.5 * ladderStrokeScale}
             strokeLinecap="round"
           />
           <line
@@ -372,7 +528,7 @@ const BoardSnakesOverlay = ({ stageMetrics }) => {
             x2={geometry.railTwoEnd.x}
             y2={geometry.railTwoEnd.y}
             stroke={ladder.rail}
-            strokeWidth="4.5"
+            strokeWidth={4.5 * ladderStrokeScale}
             strokeLinecap="round"
           />
           {geometry.rungs.map((rung, index) => (
@@ -383,7 +539,7 @@ const BoardSnakesOverlay = ({ stageMetrics }) => {
               x2={rung.x2}
               y2={rung.y2}
               stroke={ladder.rung}
-              strokeWidth="3.5"
+              strokeWidth={3.5 * ladderStrokeScale}
               strokeLinecap="round"
             />
           ))}
@@ -398,13 +554,16 @@ const BoardSnakesOverlay = ({ stageMetrics }) => {
         return null;
       }
 
+      const headScale = getSnakeHeadScale(stageMetrics);
+      const strokeScale = getSnakeStrokeScale(stageMetrics);
+
       return (
         <g key={snake.key} filter="url(#snake-shadow)">
           <path
             d={geometry.path}
             fill="none"
             stroke={`url(#${snake.key}-gradient)`}
-            strokeWidth="10"
+            strokeWidth={10 * strokeScale}
             strokeLinecap="round"
             strokeLinejoin="round"
             opacity="0.95"
@@ -413,17 +572,19 @@ const BoardSnakesOverlay = ({ stageMetrics }) => {
             d={geometry.path}
             fill="none"
             stroke="rgba(255,255,255,0.36)"
-            strokeWidth="2.2"
+            strokeWidth={2.2 * strokeScale}
             strokeLinecap="round"
             strokeDasharray="1 16"
             opacity="0.75"
           />
-          <g transform={`translate(${geometry.from.x}, ${geometry.from.y}) rotate(${geometry.headAngle})`}>
-            <ellipse cx="0" cy="0" rx="12" ry="10" fill={snake.colorEnd} />
-            <ellipse cx="5" cy="-1.5" rx="5.5" ry="4.2" fill={snake.colorStart} opacity="0.82" />
-            <circle cx="5" cy="-3.2" r="1.5" fill="#0f172a" />
-            <circle cx="5" cy="3.2" r="1.5" fill="#0f172a" />
-            <path d="M 11 0 L 18 -2.2 L 18 2.2 Z" fill="#ef4444" />
+          <g
+            transform={`translate(${geometry.from.x}, ${geometry.from.y}) rotate(${geometry.headAngle}) scale(${headScale})`}
+          >
+            <ellipse cx="0" cy="0" rx="10" ry="8.2" fill={snake.colorEnd} />
+            <ellipse cx="4.2" cy="-1.2" rx="4.5" ry="3.5" fill={snake.colorStart} opacity="0.82" />
+            <circle cx="4.2" cy="-2.6" r="1.2" fill="#0f172a" />
+            <circle cx="4.2" cy="2.6" r="1.2" fill="#0f172a" />
+            <path d="M 9.2 0 L 15.2 -1.8 L 15.2 1.8 Z" fill="#ef4444" />
           </g>
           <g transform={`translate(${geometry.to.x}, ${geometry.to.y}) rotate(${geometry.tailAngle})`}>
             <ellipse cx="0" cy="0" rx="5.5" ry="3.6" fill={snake.colorStart} opacity="0.95" />
@@ -450,40 +611,40 @@ const formatHistoryTime = (value) => {
 const MODE_DEFINITIONS = [
   {
     id: "cpu-duel",
-    label: "Computer, You",
+    label: "2 players",
     category: "computer",
     requireNames: false,
     players: [
-      { slotId: "computer", defaultName: "Computer", type: "computer" },
+      { slotId: "computer", defaultName: "C1", type: "computer" },
       { slotId: "you", defaultName: "You", type: "human", primary: true },
     ],
   },
   {
     id: "cpu-trio",
-    label: "You, Computer 1, Computer 2",
+    label: "3 players",
     category: "computer",
     requireNames: false,
     players: [
       { slotId: "you", defaultName: "You", type: "human", primary: true },
-      { slotId: "computer-1", defaultName: "Computer 1", type: "computer" },
-      { slotId: "computer-2", defaultName: "Computer 2", type: "computer" },
+      { slotId: "computer-1", defaultName: "C1", type: "computer" },
+      { slotId: "computer-2", defaultName: "C2", type: "computer" },
     ],
   },
   {
     id: "cpu-quad",
-    label: "You, Computer 1, Computer 2, Computer 3",
+    label: "4 players",
     category: "computer",
     requireNames: false,
     players: [
       { slotId: "you", defaultName: "You", type: "human", primary: true },
-      { slotId: "computer-1", defaultName: "Computer 1", type: "computer" },
-      { slotId: "computer-2", defaultName: "Computer 2", type: "computer" },
-      { slotId: "computer-3", defaultName: "Computer 3", type: "computer" },
+      { slotId: "computer-1", defaultName: "C1", type: "computer" },
+      { slotId: "computer-2", defaultName: "C2", type: "computer" },
+      { slotId: "computer-3", defaultName: "C3", type: "computer" },
     ],
   },
   {
     id: "real-duel",
-    label: "You and Player 1",
+    label: "2 players",
     category: "real",
     requireNames: true,
     players: [
@@ -493,7 +654,7 @@ const MODE_DEFINITIONS = [
   },
   {
     id: "real-trio",
-    label: "You, Player 1, Player 2",
+    label: "3 players",
     category: "real",
     requireNames: true,
     players: [
@@ -504,7 +665,7 @@ const MODE_DEFINITIONS = [
   },
   {
     id: "real-quad",
-    label: "You, Player 1, Player 2, Player 3",
+    label: "4 players",
     category: "real",
     requireNames: true,
     players: [
@@ -542,7 +703,83 @@ const createPlayersFromMode = (mode, drafts = {}) =>
     laddersHit: 0,
   }));
 
-const getPlayerInitial = (name) => `${name ?? ""}`.trim().charAt(0).toUpperCase() || "?";
+const getPlayerInitial = (name) => {
+  const normalizedName = `${name ?? ""}`.trim();
+
+  if (!normalizedName) {
+    return "?";
+  }
+
+  if (/^c\d+$/i.test(normalizedName)) {
+    return normalizedName.toUpperCase();
+  }
+
+  return normalizedName.charAt(0).toUpperCase();
+};
+
+const getRollFlashLabel = (player) => {
+  if (!player) {
+    return "Player";
+  }
+
+  if (player.type === "computer") {
+    const slotMatch = `${player.slotId ?? ""}`.match(/computer(?:-(\d+))?/i);
+
+    if (slotMatch) {
+      const computerNumber = slotMatch[1] ? Number(slotMatch[1]) : 1;
+      return `Computer ${computerNumber}`;
+    }
+
+    const nameMatch = `${player.name ?? ""}`.trim().match(/^c(\d+)$/i);
+
+    if (nameMatch) {
+      return `Computer ${nameMatch[1]}`;
+    }
+
+    return "Computer";
+  }
+
+  return player.name || "Player";
+};
+
+const getComputerPanelLabel = (player) => {
+  if (!player) {
+    return "Player";
+  }
+
+  if (player.type !== "computer") {
+    return player.name || "Player";
+  }
+
+  const slotMatch = `${player.slotId ?? ""}`.match(/computer(?:-(\d+))?/i);
+
+  if (slotMatch) {
+    const computerNumber = slotMatch[1] ? Number(slotMatch[1]) : 1;
+    return `computer-${computerNumber}`;
+  }
+
+  const nameMatch = `${player.name ?? ""}`.trim().match(/^c(\d+)$/i);
+
+  if (nameMatch) {
+    return `computer-${nameMatch[1]}`;
+  }
+
+  return "computer";
+};
+
+const getSetupMessage = (mode, drafts = {}) => {
+  if (!mode.requireNames) {
+    return "Mode selected. Start the game when you are ready.";
+  }
+
+  const missingName = mode.players.some(
+    (player) => player.type === "human" && !`${drafts[player.slotId] ?? ""}`.trim(),
+  );
+
+  return missingName
+    ? "Add each real player's name before starting the game."
+    : "Names are ready. Start the game when you are ready.";
+};
 
 const getPlacementLabel = (placementIndex) => {
   if (placementIndex === 0) {
@@ -580,23 +817,23 @@ const getWinningPlacementsCount = (playerCount) => Math.max(1, playerCount - 1);
 
 const SOUND_PRESETS = {
   tick: [
-    { frequency: 760, duration: 0.035, type: "square", gain: 0.014 },
+    { frequency: 760, duration: 0.035, type: "square", gain: 0.05 },
   ],
   snake: [
-    { frequency: 430, duration: 0.12, type: "sawtooth", gain: 0.032 },
-    { frequency: 280, duration: 0.16, type: "triangle", gain: 0.04 },
-    { frequency: 180, duration: 0.24, type: "sine", gain: 0.05 },
+    { frequency: 430, duration: 0.12, type: "sawtooth", gain: 0.09 },
+    { frequency: 280, duration: 0.16, type: "triangle", gain: 0.11 },
+    { frequency: 180, duration: 0.24, type: "sine", gain: 0.13 },
   ],
   ladder: [
-    { frequency: 420, duration: 0.1, type: "triangle", gain: 0.03 },
-    { frequency: 560, duration: 0.1, type: "triangle", gain: 0.032 },
-    { frequency: 720, duration: 0.16, type: "sine", gain: 0.04 },
+    { frequency: 420, duration: 0.1, type: "triangle", gain: 0.08 },
+    { frequency: 560, duration: 0.1, type: "triangle", gain: 0.09 },
+    { frequency: 720, duration: 0.16, type: "sine", gain: 0.11 },
   ],
   win: [
-    { frequency: 523.25, duration: 0.11, type: "triangle", gain: 0.03 },
-    { frequency: 659.25, duration: 0.11, type: "triangle", gain: 0.032 },
-    { frequency: 783.99, duration: 0.14, type: "triangle", gain: 0.036 },
-    { frequency: 1046.5, duration: 0.24, type: "sine", gain: 0.045 },
+    { frequency: 523.25, duration: 0.11, type: "triangle", gain: 0.08 },
+    { frequency: 659.25, duration: 0.11, type: "triangle", gain: 0.09 },
+    { frequency: 783.99, duration: 0.14, type: "triangle", gain: 0.105 },
+    { frequency: 1046.5, duration: 0.24, type: "sine", gain: 0.125 },
   ],
 };
 
@@ -620,6 +857,7 @@ export const GameArena = () => {
   );
   const [moveLog, setMoveLog] = useState([]);
   const [isRolling, setIsRolling] = useState(false);
+  const [rollFlash, setRollFlash] = useState(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [recentHistory, setRecentHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -634,19 +872,23 @@ export const GameArena = () => {
   const totalTurnRef = useRef(0);
   const sessionStartedAtRef = useRef(Date.now());
   const historySavedRef = useRef(false);
+  const gameCardRef = useRef(null);
   const boardStageRef = useRef(null);
   const boardCellRefs = useRef(new Map());
   const audioContextRef = useRef(null);
+  const rollFlashTimeoutRef = useRef(null);
 
   const activeGame = games.find((game) => game.key === gameKey) || null;
   const snakeGameActive = gameKey === SNAKE_LADDER_GAME_KEY;
   const selectedMode = getModeById(selectedModeId);
   const activePlayer = players[activePlayerIndex] || null;
+  const turnHandoffDelay = selectedMode.category === "computer" ? 500 : 0;
   const finishOrderIds = finishOrder.map((entry) => entry.playerId);
   const winningPlacementsCount = getWinningPlacementsCount(players.length);
   const placementsComplete =
     players.length > 0 && finishOrder.length >= winningPlacementsCount;
   const activePlayerPosition = activePlayer?.position || 0;
+  const shouldHideUpperContent = gameStarted;
   const missingRequiredNames = selectedMode.requireNames
     ? selectedMode.players.some(
         (player) => !`${playerNameDrafts[player.slotId] ?? ""}`.trim(),
@@ -663,6 +905,29 @@ export const GameArena = () => {
       ? `${nextPlayers[0].name} starts the game. Roll when you are ready.`
       : "Choose a player mode, add names for real players, and start the game.";
 
+  const focusBoardOnSmallScreen = ({ smooth = false } = {}) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!window.matchMedia("(max-width: 768px)").matches) {
+      return;
+    }
+
+    const scrollTarget = boardStageRef.current || gameCardRef.current;
+
+    if (!scrollTarget) {
+      return;
+    }
+
+    const nextTop = scrollTarget.getBoundingClientRect().top + window.scrollY - 12;
+
+    window.scrollTo({
+      top: Math.max(0, nextTop),
+      behavior: smooth ? "smooth" : "auto",
+    });
+  };
+
   const pushMoveLog = (message) => {
     setMoveLog((previous) => [message, ...previous].slice(0, 6));
   };
@@ -675,11 +940,14 @@ export const GameArena = () => {
     setPlayers(nextPlayers);
   };
 
-  const resetRound = (message) => {
-    const nextPlayers = createPlayersFromMode(selectedMode, playerNameDrafts);
+  const clearRoundState = (message, { startGame = false, nextPlayers = [] } = {}) => {
+    if (rollFlashTimeoutRef.current) {
+      window.clearTimeout(rollFlashTimeoutRef.current);
+      rollFlashTimeoutRef.current = null;
+    }
 
     syncPlayers(nextPlayers);
-    setGameStarted(true);
+    setGameStarted(startGame);
     setActivePlayerIndex(0);
     setFinishOrder([]);
     setDiceValue(null);
@@ -687,9 +955,43 @@ export const GameArena = () => {
     setTurnCount(0);
     setMoveLog([]);
     setIsRolling(false);
+    setRollFlash(null);
     sessionStartedAtRef.current = Date.now();
     historySavedRef.current = false;
-    setStatusText(message || getReadyMessage(nextPlayers));
+    setStatusText(message);
+  };
+
+  const resetRound = (message) => {
+    const nextPlayers = createPlayersFromMode(selectedMode, playerNameDrafts);
+
+    clearRoundState(message || getReadyMessage(nextPlayers), {
+      startGame: true,
+      nextPlayers,
+    });
+  };
+
+  const resetToBeginning = () => {
+    clearRoundState(getSetupMessage(selectedMode, playerNameDrafts), {
+      startGame: false,
+      nextPlayers: [],
+    });
+  };
+
+  const clearRollFlash = () => {
+    if (rollFlashTimeoutRef.current) {
+      window.clearTimeout(rollFlashTimeoutRef.current);
+      rollFlashTimeoutRef.current = null;
+    }
+
+    setRollFlash(null);
+  };
+
+  const showRollFlash = (playerName, value) => {
+    clearRollFlash();
+    setRollFlash({
+      playerName,
+      value,
+    });
   };
 
   const registerBoardCellRef = (cell) => (node) => {
@@ -765,23 +1067,14 @@ export const GameArena = () => {
 
   const handleModeChange = (modeId) => {
     const nextMode = getModeById(modeId);
+    const nextDrafts = buildNameDrafts(nextMode);
 
     setSelectedModeId(modeId);
-    setPlayerNameDrafts(buildNameDrafts(nextMode));
-    syncPlayers([]);
-    setGameStarted(false);
-    setActivePlayerIndex(0);
-    setFinishOrder([]);
-    setDiceValue(null);
-    totalTurnRef.current = 0;
-    setTurnCount(0);
-    setMoveLog([]);
-    setIsRolling(false);
-    setStatusText(
-      nextMode.requireNames
-        ? "Add each real player's name before starting the game."
-        : "Mode selected. Start the game when you are ready.",
-    );
+    setPlayerNameDrafts(nextDrafts);
+    clearRoundState(getSetupMessage(nextMode, nextDrafts), {
+      startGame: false,
+      nextPlayers: [],
+    });
   };
 
   const handleNameDraftChange = (slotId, value) => {
@@ -951,6 +1244,44 @@ export const GameArena = () => {
     navigate(getGameRoute(games[0].key), { replace: true });
   }, [activeGame, games, navigate]);
 
+  useEffect(
+    () => () => {
+      if (rollFlashTimeoutRef.current) {
+        window.clearTimeout(rollFlashTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!shouldHideUpperContent || typeof window === "undefined") {
+      return;
+    }
+
+    if (!window.matchMedia("(max-width: 768px)").matches) {
+      return;
+    }
+
+    const scrollTarget = boardStageRef.current || gameCardRef.current;
+
+    if (!scrollTarget) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const nextTop = scrollTarget.getBoundingClientRect().top + window.scrollY - 12;
+
+      window.scrollTo({
+        top: Math.max(0, nextTop),
+        behavior: "smooth",
+      });
+    }, 140);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [shouldHideUpperContent]);
+
   useEffect(() => {
     if (
       !gameStarted ||
@@ -1018,6 +1349,9 @@ export const GameArena = () => {
     }
 
     resetRound();
+    window.setTimeout(() => {
+      focusBoardOnSmallScreen();
+    }, 0);
   };
 
   const handleRollDice = async () => {
@@ -1043,7 +1377,18 @@ export const GameArena = () => {
     const nextTurn = totalTurnRef.current + 1;
 
     setIsRolling(true);
+    setStatusText(`${player.name} is rolling the dice...`);
+    focusBoardOnSmallScreen();
+    await getAudioContext();
+
+    for (let animationStep = 0; animationStep < 7; animationStep += 1) {
+      setDiceValue(Math.floor(Math.random() * 6) + 1);
+      await wait(85);
+    }
+
     setDiceValue(rolledValue);
+    showRollFlash(getRollFlashLabel(player), rolledValue);
+    await wait(420);
     totalTurnRef.current = nextTurn;
     setTurnCount(nextTurn);
     player.rolls.push(rolledValue);
@@ -1052,6 +1397,8 @@ export const GameArena = () => {
       const stayMessage = `Turn ${nextTurn}: ${player.name} rolled ${rolledValue}, but needs an exact finish roll from square ${startingPosition}.`;
       player.path.push(startingPosition);
       syncPlayers(nextPlayers);
+      await wait(180);
+      clearRollFlash();
       const nextIndex = getNextActivePlayerIndex(nextPlayers, activePlayerIndex, finishOrderIds);
       setStatusText(
         nextIndex >= 0
@@ -1060,6 +1407,9 @@ export const GameArena = () => {
       );
       pushMoveLog(stayMessage);
       if (nextIndex >= 0) {
+        if (turnHandoffDelay > 0) {
+          await wait(turnHandoffDelay);
+        }
         setActivePlayerIndex(nextIndex);
       }
       setIsRolling(false);
@@ -1071,7 +1421,8 @@ export const GameArena = () => {
     for (let nextPosition = startingPosition + 1; nextPosition <= startingPosition + rolledValue; nextPosition += 1) {
       player.position = nextPosition;
       syncPlayers(nextPlayers.map((entry) => ({ ...entry })));
-      playEventSound("tick");
+      await waitForPaint();
+      void playEventSound("tick");
       await wait(180);
     }
 
@@ -1104,6 +1455,8 @@ export const GameArena = () => {
 
     player.path.push(landingPosition);
     syncPlayers(nextPlayers.map((entry) => ({ ...entry })));
+    await wait(180);
+    clearRollFlash();
     pushMoveLog(moveMessage);
 
     if (landingPosition === BOARD_SIZE) {
@@ -1142,6 +1495,9 @@ export const GameArena = () => {
       );
 
       if (nextIndex >= 0) {
+        if (turnHandoffDelay > 0) {
+          await wait(turnHandoffDelay);
+        }
         setActivePlayerIndex(nextIndex);
         setStatusText(
           `${player.name} finished ${placementLabel}. ${nextPlayers[nextIndex].name} is next.`,
@@ -1157,6 +1513,9 @@ export const GameArena = () => {
     const nextIndex = getNextActivePlayerIndex(nextPlayers, activePlayerIndex, finishOrderIds);
 
     if (nextIndex >= 0) {
+      if (turnHandoffDelay > 0) {
+        await wait(turnHandoffDelay);
+      }
       setActivePlayerIndex(nextIndex);
       setStatusText(`${player.name} finished on ${landingPosition}. ${nextPlayers[nextIndex].name} is next.`);
     } else {
@@ -1170,11 +1529,11 @@ export const GameArena = () => {
   return (
     <>
       <section className={styles.shell}>
-        <div className={styles.heroCopy}>
-          <div className={styles.kickerRow}>
-            <span className={styles.kicker}>Game Route</span>
-            <span className={styles.guestTag}>Opened from home</span>
-          </div>
+        <div
+          className={`${styles.heroCopy} ${
+            shouldHideUpperContent ? styles.playingFocusHidden : ""
+          }`}
+        >
           <h1>{activeGame?.name || "Play Zone"}</h1>
           <p>
             <NavLink to="/" className={styles.routeBackLink}>
@@ -1184,7 +1543,11 @@ export const GameArena = () => {
           </p>
         </div>
 
-        <div className={styles.catalogGrid}>
+        <div
+          className={`${styles.catalogGrid} ${styles.routeCatalogGrid} ${
+            shouldHideUpperContent ? styles.playingFocusHidden : ""
+          }`}
+        >
           {games.map((game) => (
             <button
               key={game.key}
@@ -1214,7 +1577,7 @@ export const GameArena = () => {
         </div>
 
         {snakeGameActive ? (
-          <div className={styles.gameCard}>
+          <div className={styles.gameCard} ref={gameCardRef}>
             <div className={styles.gameMain}>
               <div className={styles.gameIntro}>
                 <div>
@@ -1236,7 +1599,7 @@ export const GameArena = () => {
                   style={{
                     "--board-columns": BOARD_COLUMNS,
                     "--board-rows": BOARD_SIZE / BOARD_COLUMNS,
-                    "--board-gap": "0.35rem",
+                    "--board-gap": "clamp(0.18rem, 0.7vw, 0.35rem)",
                   }}
                 >
                   <div className={styles.boardBaseGrid}>
@@ -1258,6 +1621,12 @@ export const GameArena = () => {
                     })}
                   </div>
                   <BoardSnakesOverlay stageMetrics={stageMetrics} />
+                  {rollFlash ? (
+                    <div className={styles.rollFlash} aria-live="polite">
+                      <small>{rollFlash.playerName} got</small>
+                      <strong>{rollFlash.value}</strong>
+                    </div>
+                  ) : null}
                   <div className={styles.boardContentGrid}>
                     {BOARD_CELLS.map((cell) => {
                       const hasSnake = Object.prototype.hasOwnProperty.call(SNAKES, cell);
@@ -1364,8 +1733,30 @@ export const GameArena = () => {
                   ) : (
                     <>
                       <div className={styles.diceDisplay}>
-                        <span>{placementsComplete ? "Placements" : activePlayer?.name || "Latest roll"}</span>
+                        <span>
+                          {placementsComplete
+                            ? "Placements"
+                            : getComputerPanelLabel(activePlayer) || "Latest roll"}
+                        </span>
                         <strong>{placementsComplete ? finishOrder.length : diceValue ?? "-"}</strong>
+                        <div className={styles.mobileDiceStats}>
+                          <article>
+                            <span>Turn</span>
+                            <strong>{turnCount}</strong>
+                          </article>
+                          <article>
+                            <span>Active</span>
+                            <strong>{getComputerPanelLabel(activePlayer) || "-"}</strong>
+                          </article>
+                          <article>
+                            <span>Position</span>
+                            <strong>{activePlayer?.position || 0}</strong>
+                          </article>
+                          <article>
+                            <span>Type</span>
+                            <strong>{activePlayer?.type === "computer" ? "CPU" : "Human"}</strong>
+                          </article>
+                        </div>
                       </div>
 
                       <div className={styles.statStrip}>
@@ -1442,11 +1833,11 @@ export const GameArena = () => {
                         <button
                           type="button"
                           className={styles.secondaryAction}
-                          onClick={() => resetRound("Fresh board ready for the same player mode.")}
+                          onClick={resetToBeginning}
                           disabled={isRolling}
                         >
                           <MdReplay />
-                          Reset round
+                          Reset
                         </button>
                       </div>
                     </>
