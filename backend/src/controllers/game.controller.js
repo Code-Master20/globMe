@@ -179,6 +179,7 @@ const createGameHistoryEntry = async (req, res) => {
 
 module.exports = {
   createGameHistoryEntry,
+  GAME_DEFINITIONS,
   getMyGameHistory,
   getPublicGames,
 };

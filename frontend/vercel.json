@@ -5,6 +5,10 @@
       "destination": "https://globme.onrender.com/api/$1"
     },
     {
+      "source": "/sitemap.xml",
+      "destination": "https://globme.onrender.com/api/public/sitemap.xml"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
