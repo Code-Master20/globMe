@@ -15,6 +15,7 @@ import styles from "../../components/games/HomeGamesHub.module.css";
 
 const BOARD_SIZE = 100;
 const BOARD_COLUMNS = 10;
+const GAME_SESSION_STORAGE_KEY = "globme-snake-ladder-session";
 
 const wait = (duration) =>
   new Promise((resolve) => {
@@ -727,19 +728,29 @@ const getRollFlashLabel = (player) => {
 
     if (slotMatch) {
       const computerNumber = slotMatch[1] ? Number(slotMatch[1]) : 1;
-      return `Computer ${computerNumber}`;
+      return `Computer-${computerNumber}`;
     }
 
     const nameMatch = `${player.name ?? ""}`.trim().match(/^c(\d+)$/i);
 
     if (nameMatch) {
-      return `Computer ${nameMatch[1]}`;
+      return `Computer-${nameMatch[1]}`;
     }
 
     return "Computer";
   }
 
   return player.name || "Player";
+};
+
+const getRollingMessage = (player) => {
+  const label = getRollFlashLabel(player);
+  return /^you$/i.test(label) ? "You are rolling" : `${label} is rolling`;
+};
+
+const getRollResultMessage = (player) => {
+  const label = getRollFlashLabel(player);
+  return /^you$/i.test(label) ? "You got" : `${label} got`;
 };
 
 const getComputerPanelLabel = (player) => {
@@ -815,6 +826,92 @@ const getNextActivePlayerIndex = (players, currentIndex, finishOrderIds) => {
 
 const getWinningPlacementsCount = (playerCount) => Math.max(1, playerCount - 1);
 
+const normalizeSavedInteger = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+  const nextValue = Number.parseInt(value, 10);
+
+  if (!Number.isInteger(nextValue)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, nextValue));
+};
+
+const normalizeSavedPlayers = (mode, drafts, savedPlayers) => {
+  const basePlayers = createPlayersFromMode(mode, drafts);
+  const savedPlayersById = new Map(
+    Array.isArray(savedPlayers)
+      ? savedPlayers
+          .filter((player) => player && typeof player.id === "string")
+          .map((player) => [player.id, player])
+      : [],
+  );
+
+  return basePlayers.map((basePlayer) => {
+    const savedPlayer = savedPlayersById.get(basePlayer.id);
+
+    if (!savedPlayer) {
+      return basePlayer;
+    }
+
+    const rolls = Array.isArray(savedPlayer.rolls)
+      ? savedPlayer.rolls
+          .map((item) => Number.parseInt(item, 10))
+          .filter((item) => Number.isInteger(item) && item >= 1 && item <= 6)
+          .slice(0, 200)
+      : [];
+    const path = Array.isArray(savedPlayer.path)
+      ? savedPlayer.path
+          .map((item) => Number.parseInt(item, 10))
+          .filter((item) => Number.isInteger(item) && item >= 0 && item <= BOARD_SIZE)
+          .slice(0, 240)
+      : [0];
+
+    return {
+      ...basePlayer,
+      name:
+        typeof savedPlayer.name === "string" && savedPlayer.name.trim()
+          ? savedPlayer.name.trim()
+          : basePlayer.name,
+      position: normalizeSavedInteger(savedPlayer.position, 0, {
+        min: 0,
+        max: BOARD_SIZE,
+      }),
+      rolls,
+      path: path.length ? path : [0],
+      snakesHit: normalizeSavedInteger(savedPlayer.snakesHit, 0, { min: 0, max: 100 }),
+      laddersHit: normalizeSavedInteger(savedPlayer.laddersHit, 0, { min: 0, max: 100 }),
+    };
+  });
+};
+
+const normalizeSavedFinishOrder = (savedFinishOrder, players) => {
+  if (!Array.isArray(savedFinishOrder) || !players.length) {
+    return [];
+  }
+
+  const validPlayerIds = new Set(players.map((player) => player.id));
+  const seenIds = new Set();
+
+  return savedFinishOrder
+    .filter((entry) => entry && typeof entry.playerId === "string" && validPlayerIds.has(entry.playerId))
+    .filter((entry) => {
+      if (seenIds.has(entry.playerId)) {
+        return false;
+      }
+
+      seenIds.add(entry.playerId);
+      return true;
+    })
+    .map((entry, index) => ({
+      playerId: entry.playerId,
+      name:
+        players.find((player) => player.id === entry.playerId)?.name ||
+        `${entry.name ?? ""}`.trim() ||
+        "Player",
+      placement: index,
+    }));
+};
+
 const SOUND_PRESETS = {
   tick: [
     { frequency: 760, duration: 0.035, type: "square", gain: 0.05 },
@@ -877,6 +974,8 @@ export const GameArena = () => {
   const boardCellRefs = useRef(new Map());
   const audioContextRef = useRef(null);
   const rollFlashTimeoutRef = useRef(null);
+  const restoredSessionRef = useRef(false);
+  const previousGameKeyRef = useRef(gameKey);
 
   const activeGame = games.find((game) => game.key === gameKey) || null;
   const snakeGameActive = gameKey === SNAKE_LADDER_GAME_KEY;
@@ -986,10 +1085,10 @@ export const GameArena = () => {
     setRollFlash(null);
   };
 
-  const showRollFlash = (playerName, value) => {
+  const showRollFlash = ({ message, value = null }) => {
     clearRollFlash();
     setRollFlash({
-      playerName,
+      message,
       value,
     });
   };
@@ -1085,6 +1184,105 @@ export const GameArena = () => {
   };
 
   useEffect(() => {
+    if (restoredSessionRef.current || !snakeGameActive || typeof window === "undefined") {
+      return;
+    }
+
+    restoredSessionRef.current = true;
+
+    const rawSnapshot = window.sessionStorage.getItem(GAME_SESSION_STORAGE_KEY);
+
+    if (!rawSnapshot) {
+      return;
+    }
+
+    try {
+      const snapshot = JSON.parse(rawSnapshot);
+
+      if (!snapshot || snapshot.gameKey !== SNAKE_LADDER_GAME_KEY) {
+        return;
+      }
+
+      const nextMode = getModeById(snapshot.selectedModeId);
+      const nextDrafts = {
+        ...buildNameDrafts(nextMode),
+        ...(snapshot.playerNameDrafts && typeof snapshot.playerNameDrafts === "object"
+          ? snapshot.playerNameDrafts
+          : {}),
+      };
+      const nextPlayers = normalizeSavedPlayers(nextMode, nextDrafts, snapshot.players);
+      const nextFinishOrder = normalizeSavedFinishOrder(snapshot.finishOrder, nextPlayers);
+      const finishOrderIds = new Set(nextFinishOrder.map((entry) => entry.playerId));
+      const activePlayerIndexFromId = nextPlayers.findIndex(
+        (player) => player.id === snapshot.activePlayerId,
+      );
+      const nextActivePlayerIndex = normalizeSavedInteger(
+        activePlayerIndexFromId >= 0 ? activePlayerIndexFromId : snapshot.activePlayerIndex,
+        0,
+        {
+          min: 0,
+          max: Math.max(0, nextPlayers.length - 1),
+        },
+      );
+      const nextTurnCount = normalizeSavedInteger(snapshot.turnCount, 0, { min: 0, max: 1000 });
+      const nextGameStarted = Boolean(snapshot.gameStarted);
+      const nextMoveLog = Array.isArray(snapshot.moveLog)
+        ? snapshot.moveLog
+            .filter((entry) => typeof entry === "string" && entry.trim())
+            .slice(0, 6)
+        : [];
+      const nextStatusText =
+        typeof snapshot.statusText === "string" && snapshot.statusText.trim()
+          ? snapshot.statusText
+          : nextGameStarted
+            ? getReadyMessage(nextPlayers)
+            : getSetupMessage(nextMode, nextDrafts);
+
+      setSelectedModeId(nextMode.id);
+      setPlayerNameDrafts(nextDrafts);
+      syncPlayers(nextPlayers);
+      setGameStarted(nextGameStarted);
+      setActivePlayerIndex(nextActivePlayerIndex);
+      setFinishOrder(nextFinishOrder);
+      setDiceValue(
+        normalizeSavedInteger(snapshot.diceValue, null, {
+          min: 1,
+          max: 6,
+        }),
+      );
+      totalTurnRef.current = nextTurnCount;
+      setTurnCount(nextTurnCount);
+      setStatusText(nextStatusText);
+      setMoveLog(nextMoveLog);
+      setIsRolling(false);
+      setRollFlash(null);
+      setHistorySaving(false);
+      sessionStartedAtRef.current = normalizeSavedInteger(snapshot.sessionStartedAt, Date.now(), {
+        min: 0,
+      });
+      historySavedRef.current = Boolean(snapshot.historySaved);
+
+      if (
+        nextGameStarted &&
+        nextPlayers.length > 0 &&
+        finishOrderIds.has(nextPlayers[nextActivePlayerIndex]?.id)
+      ) {
+        const nextIndex = getNextActivePlayerIndex(
+          nextPlayers,
+          nextActivePlayerIndex,
+          nextFinishOrder.map((entry) => entry.playerId),
+        );
+
+        if (nextIndex >= 0) {
+          setActivePlayerIndex(nextIndex);
+        }
+      }
+    } catch (_error) {
+      window.sessionStorage.removeItem(GAME_SESSION_STORAGE_KEY);
+    }
+  }, [snakeGameActive]);
+
+  useEffect(() => {
     let ignore = false;
 
     const loadGames = async () => {
@@ -1158,17 +1356,25 @@ export const GameArena = () => {
   }, [isAuthenticated, snakeGameActive]);
 
   useEffect(() => {
-    if (snakeGameActive) {
-      syncPlayers([]);
-      setGameStarted(false);
-      setFinishOrder([]);
-      setDiceValue(null);
-      totalTurnRef.current = 0;
-      setTurnCount(0);
-      setMoveLog([]);
-      setIsRolling(false);
-      setStatusText("Choose a player mode, add names for real players, and start the game.");
+    if (!snakeGameActive) {
+      previousGameKeyRef.current = gameKey;
+      return;
     }
+
+    if (previousGameKeyRef.current === gameKey) {
+      return;
+    }
+
+    previousGameKeyRef.current = gameKey;
+    syncPlayers([]);
+    setGameStarted(false);
+    setFinishOrder([]);
+    setDiceValue(null);
+    totalTurnRef.current = 0;
+    setTurnCount(0);
+    setMoveLog([]);
+    setIsRolling(false);
+    setStatusText("Choose a player mode, add names for real players, and start the game.");
   }, [gameKey, snakeGameActive]);
 
   useEffect(() => {
@@ -1303,6 +1509,50 @@ export const GameArena = () => {
     };
   }, [activePlayer, finishOrderIds, gameStarted, isRolling, placementsComplete]);
 
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      !snakeGameActive ||
+      !restoredSessionRef.current ||
+      isRolling
+    ) {
+      return;
+    }
+
+    const snapshot = {
+      gameKey: SNAKE_LADDER_GAME_KEY,
+      selectedModeId,
+      playerNameDrafts,
+      players,
+      gameStarted,
+      activePlayerId: activePlayer?.id || "",
+      activePlayerIndex,
+      finishOrder,
+      diceValue,
+      turnCount,
+      statusText,
+      moveLog,
+      sessionStartedAt: sessionStartedAtRef.current,
+      historySaved: historySavedRef.current,
+    };
+
+    window.sessionStorage.setItem(GAME_SESSION_STORAGE_KEY, JSON.stringify(snapshot));
+  }, [
+    activePlayer?.id,
+    activePlayerIndex,
+    diceValue,
+    finishOrder,
+    gameStarted,
+    isRolling,
+    moveLog,
+    playerNameDrafts,
+    players,
+    selectedModeId,
+    snakeGameActive,
+    statusText,
+    turnCount,
+  ]);
+
   const saveCompletedGame = async (finalPlayers, placedPlayer, placementIndex) => {
     if (!isAuthenticated || historySavedRef.current) {
       return;
@@ -1378,6 +1628,7 @@ export const GameArena = () => {
 
     setIsRolling(true);
     setStatusText(`${player.name} is rolling the dice...`);
+    showRollFlash({ message: getRollingMessage(player) });
     focusBoardOnSmallScreen();
     await getAudioContext();
 
@@ -1387,7 +1638,10 @@ export const GameArena = () => {
     }
 
     setDiceValue(rolledValue);
-    showRollFlash(getRollFlashLabel(player), rolledValue);
+    showRollFlash({
+      message: getRollResultMessage(player),
+      value: rolledValue,
+    });
     await wait(420);
     totalTurnRef.current = nextTurn;
     setTurnCount(nextTurn);
@@ -1528,18 +1782,16 @@ export const GameArena = () => {
 
   return (
     <>
-      <section className={styles.shell}>
+      <section className={`${styles.shell} ${styles.routeShell}`}>
         <div
           className={`${styles.heroCopy} ${
             shouldHideUpperContent ? styles.playingFocusHidden : ""
           }`}
         >
-          <h1>{activeGame?.name || "Play Zone"}</h1>
           <p>
             <NavLink to="/" className={styles.routeBackLink}>
-              Back to homepage
+              Back To Home-Page
             </NavLink>
-            {" "}and choose any other game card whenever you want.
           </p>
         </div>
 
@@ -1566,12 +1818,7 @@ export const GameArena = () => {
                   />
                 </div>
               ) : null}
-              <div className={styles.catalogHeader}>
-                <span>{game.badge || "Game"}</span>
-                <strong>{game.category || "Mini game"}</strong>
-              </div>
-              <h2>{game.name}</h2>
-              <p>{game.description}</p>
+              <h2>{game.cardTitle || game.name}</h2>
             </button>
           ))}
         </div>
@@ -1579,18 +1826,11 @@ export const GameArena = () => {
         {snakeGameActive ? (
           <div className={styles.gameCard} ref={gameCardRef}>
             <div className={styles.gameMain}>
-              <div className={styles.gameIntro}>
-                <div>
-                  <p className={styles.panelKicker}>Game one</p>
-                  <h2>{activeGame?.name || "Snake & Ladder Sprint"}</h2>
+                <div className={styles.gameIntro}>
+                  <div>
+                    <h2>{activeGame?.name || "Snake & Ladder Sprint"}</h2>
+                  </div>
                 </div>
-                <div className={styles.rulePills}>
-                  <span>{selectedMode.label}</span>
-                  <span>Board {BOARD_SIZE}</span>
-                  <span>Exact finish</span>
-                  <span>{gameStarted ? `${players.length} players` : "Pick mode"}</span>
-                </div>
-              </div>
 
               <div className={styles.boardLayout}>
                 <div
@@ -1623,8 +1863,8 @@ export const GameArena = () => {
                   <BoardSnakesOverlay stageMetrics={stageMetrics} />
                   {rollFlash ? (
                     <div className={styles.rollFlash} aria-live="polite">
-                      <small>{rollFlash.playerName} got</small>
-                      <strong>{rollFlash.value}</strong>
+                      <small>{rollFlash.message}</small>
+                      {rollFlash.value !== null ? <strong>{rollFlash.value}</strong> : null}
                     </div>
                   ) : null}
                   <div className={styles.boardContentGrid}>
@@ -1739,7 +1979,7 @@ export const GameArena = () => {
                             : getComputerPanelLabel(activePlayer) || "Latest roll"}
                         </span>
                         <strong>{placementsComplete ? finishOrder.length : diceValue ?? "-"}</strong>
-                        <div className={styles.mobileDiceStats}>
+                        <div className={styles.diceMetaGrid}>
                           <article>
                             <span>Turn</span>
                             <strong>{turnCount}</strong>
@@ -1757,25 +1997,6 @@ export const GameArena = () => {
                             <strong>{activePlayer?.type === "computer" ? "CPU" : "Human"}</strong>
                           </article>
                         </div>
-                      </div>
-
-                      <div className={styles.statStrip}>
-                        <article>
-                          <span>Turn</span>
-                          <strong>{turnCount}</strong>
-                        </article>
-                        <article>
-                          <span>Active</span>
-                          <strong>{activePlayer?.name || "-"}</strong>
-                        </article>
-                        <article>
-                          <span>Position</span>
-                          <strong>{activePlayer?.position || 0}</strong>
-                        </article>
-                        <article>
-                          <span>Type</span>
-                          <strong>{activePlayer?.type === "computer" ? "CPU" : "Human"}</strong>
-                        </article>
                       </div>
 
                       <div className={styles.rosterPanel}>
@@ -1808,10 +2029,6 @@ export const GameArena = () => {
                             </small>
                           </article>
                         ))}
-                      </div>
-
-                      <div className={styles.statusPanel}>
-                        <p>{statusText}</p>
                       </div>
 
                       <div className={styles.actionRow}>

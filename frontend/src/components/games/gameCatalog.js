@@ -1,36 +1,34 @@
-import realSnakeImage from "../../assets/games/real-snake.jpg";
-
 export const SNAKE_LADDER_GAME_KEY = "snake-ladder-sprint";
 
 export const DEFAULT_GAMES = [
   {
     key: SNAKE_LADDER_GAME_KEY,
     name: "Snake & Ladder Sprint",
+    cardTitle: "SNAKE & LADDER GAME",
     status: "available",
     category: "Board game",
     badge: "Live now",
     boardSize: 100,
     historyEnabled: true,
-    imageSrc: realSnakeImage,
-    imageAlt: "Real snake coiled on a branch",
-    description:
-      "Roll the dice on a full 1 to 100 board and try to finish on the final square with an exact roll.",
+    description: "Snake and ladder game",
   },
   {
     key: "word-flip-lab",
     name: "Word Flip Lab",
+    cardTitle: "WORD GAME",
     status: "coming-soon",
     category: "Word game",
     badge: "Coming soon",
-    description: "Quick guest word rounds are planned for the next update.",
+    description: "Word game",
   },
   {
     key: "memory-pair-rush",
     name: "Memory Pair Rush",
+    cardTitle: "MATCHING GAME",
     status: "coming-soon",
     category: "Puzzle game",
     badge: "Coming soon",
-    description: "Fast card matching is reserved for the next expansion of the play zone.",
+    description: "Matching game",
   },
 ];
 

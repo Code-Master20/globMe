@@ -6,13 +6,15 @@ import styles from "./HomeGamesHub.module.css";
 
 export const HomeGamesHub = () => {
   const navigate = useNavigate();
-  const [games, setGames] = useState(DEFAULT_GAMES);
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let ignore = false;
 
     const loadGames = async () => {
       try {
+        setLoading(true);
         const response = await api.get("/public/games");
         const nextGames = Array.isArray(response.data?.data) && response.data.data.length
           ? response.data.data
@@ -25,6 +27,10 @@ export const HomeGamesHub = () => {
         if (!ignore) {
           setGames(DEFAULT_GAMES);
         }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
       }
     };
 
@@ -36,35 +42,42 @@ export const HomeGamesHub = () => {
   }, []);
 
   return (
-    <section className={styles.shell}>
+    <section className={`${styles.shell} ${styles.homeShell}`}>
       <div className={styles.hubCard}>
         <p className={styles.sectionTitle}>Choose a game and start playing</p>
 
         <div className={styles.catalogGrid}>
-          {games.map((game) => (
-            <button
-              key={game.key}
-              type="button"
-              className={styles.catalogCard}
-              onClick={() => navigate(getGameRoute(game.key))}
-            >
-              {game.imageSrc ? (
-                <div className={styles.catalogImageFrame}>
-                  <img
-                    src={game.imageSrc}
-                    alt={game.imageAlt || game.name}
-                    className={styles.catalogImage}
-                  />
+          {loading
+            ? Array.from({ length: 3 }, (_, index) => (
+                <div
+                  key={`game-skeleton-${index}`}
+                  className={`${styles.catalogCard} ${styles.catalogCardSkeleton}`}
+                  aria-hidden="true"
+                >
+                  <div className={`${styles.catalogImageFrame} ${styles.skeletonBlock}`} />
+                  <div className={`${styles.skeletonBlock} ${styles.catalogTitleSkeleton}`} />
+                  <div className={`${styles.skeletonBlock} ${styles.catalogTitleSkeletonShort}`} />
                 </div>
-              ) : null}
-              <div className={styles.catalogHeader}>
-                <span>{game.badge || "Game"}</span>
-                <strong>{game.category || "Mini game"}</strong>
-              </div>
-              <h2>{game.name}</h2>
-              <p>{game.description}</p>
-            </button>
-          ))}
+              ))
+            : games.map((game) => (
+                <button
+                  key={game.key}
+                  type="button"
+                  className={styles.catalogCard}
+                  onClick={() => navigate(getGameRoute(game.key))}
+                >
+                  {game.imageSrc ? (
+                    <div className={styles.catalogImageFrame}>
+                      <img
+                        src={game.imageSrc}
+                        alt={game.imageAlt || game.name}
+                        className={styles.catalogImage}
+                      />
+                    </div>
+                  ) : null}
+                  <h2>{game.cardTitle || game.name}</h2>
+                </button>
+              ))}
         </div>
       </div>
     </section>

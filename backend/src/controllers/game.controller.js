@@ -6,29 +6,31 @@ const GAME_DEFINITIONS = [
   {
     key: "snake-ladder-sprint",
     name: "Snake & Ladder Sprint",
+    cardTitle: "SNAKE & LADDER GAME",
     status: "available",
     category: "Board game",
     badge: "Live now",
     boardSize: 100,
     historyEnabled: true,
-    description:
-      "Roll the dice, move one square at a time, and race across a full 100-step board. Guests can play instantly and signed-in players keep their game history.",
+    description: "Snake and ladder game",
   },
   {
     key: "word-flip-lab",
     name: "Word Flip Lab",
+    cardTitle: "WORD GAME",
     status: "coming-soon",
     category: "Word game",
     badge: "Coming soon",
-    description: "A lightweight word challenge for homepage visitors is queued next.",
+    description: "Word game",
   },
   {
     key: "memory-pair-rush",
     name: "Memory Pair Rush",
+    cardTitle: "MATCHING GAME",
     status: "coming-soon",
     category: "Puzzle game",
     badge: "Coming soon",
-    description: "Fast card matching rounds will join the play zone in a future update.",
+    description: "Matching game",
   },
 ];
 

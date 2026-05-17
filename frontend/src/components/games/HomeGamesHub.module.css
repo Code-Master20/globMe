@@ -3,6 +3,15 @@
   padding: clamp(0.8rem, 1.4vw, 1.2rem) 0 1.1rem;
 }
 
+.homeShell {
+  width: min(100%, calc((100% - 2.4rem) / 3));
+}
+
+.routeShell {
+  box-sizing: border-box;
+  padding-inline: clamp(1rem, 2.6vw, 2.25rem);
+}
+
 .hubCard {
   display: flex;
   flex-direction: column;
@@ -93,8 +102,9 @@
 
 .catalogGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.75rem), 12.75rem));
+  justify-content: start;
+  gap: 0.75rem;
 }
 
 .routeCatalogGrid {
@@ -104,10 +114,11 @@
 .catalogCard {
   display: flex;
   flex-direction: column;
-  padding: clamp(1rem, 1.6vw, 1.25rem);
+  gap: 0.28rem;
+  padding: clamp(0.85rem, 1.2vw, 1rem);
   min-height: 100%;
   border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 2rem;
+  border-radius: 1.55rem;
   background:
     radial-gradient(circle at top right, rgba(125, 211, 252, 0.24), transparent 48%),
     linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(239, 246, 255, 0.94));
@@ -119,9 +130,34 @@
     border-color 160ms ease;
 }
 
+.catalogCardSkeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(226, 232, 240, 0.95), rgba(241, 245, 249, 0.98));
+}
+
+.skeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.72) 45%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: homeGamesHubSkeletonShimmer 1.25s ease-in-out infinite;
+}
+
 .catalogImageFrame {
-  margin: -0.25rem -0.25rem 1rem;
-  border-radius: 1.5rem;
+  margin: -0.1rem -0.1rem 0.55rem;
+  border-radius: 1.15rem;
   overflow: hidden;
   aspect-ratio: 16 / 9;
   background: #dbeafe;
@@ -134,6 +170,18 @@
   object-fit: cover;
 }
 
+.catalogTitleSkeleton {
+  width: 84%;
+  height: 1.2rem;
+  border-radius: 999px;
+}
+
+.catalogTitleSkeletonShort {
+  width: 56%;
+  height: 1.2rem;
+  border-radius: 999px;
+}
+
 .catalogCard:hover {
   transform: translateY(-2px);
   box-shadow: 0 1.4rem 3.2rem rgba(14, 116, 144, 0.14);
@@ -144,21 +192,28 @@
   box-shadow: 0 1.8rem 4rem rgba(14, 116, 144, 0.16);
 }
 
+@keyframes homeGamesHubSkeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .catalogHeader {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.7rem;
   align-items: center;
   flex-wrap: wrap;
 }
 
 .catalogHeader span,
 .catalogHeader strong {
-  font-size: clamp(0.88rem, 1vw, 1.1rem);
+  font-size: clamp(0.76rem, 0.82vw, 0.88rem);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .catalogHeader span {
@@ -169,20 +224,29 @@
   color: #64748b;
 }
 
+.catalogBadge {
+  font-size: clamp(0.76rem, 0.82vw, 0.88rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  color: #0f766e;
+  line-height: 1.2;
+}
+
 .catalogCard h2 {
-  margin: 0.8rem 0 0;
+  margin: 0.08rem 0 0;
   color: #172033;
-  font-size: clamp(1.45rem, 1.8vw, 1.9rem);
-  line-height: 1.15;
+  font-size: clamp(1.15rem, 1.35vw, 1.4rem);
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .catalogCard p {
-  margin: 0.7rem 0 0;
-  color: #475569;
-  font-size: clamp(1rem, 1.3vw, 1.34rem);
-  line-height: 1.6;
-  flex: 1;
+  margin: 0;
+  color: #64748b;
+  font-size: clamp(0.88rem, 0.94vw, 1rem);
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
@@ -553,8 +617,14 @@
 
 .rosterIdentity {
   display: flex;
-  gap: 0.8rem;
-  align-items: center;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.rosterIdentity .tokenBadge {
+  position: static;
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
 }
 
 .rosterIdentity strong {
@@ -576,6 +646,7 @@
   align-items: center;
   justify-content: center;
   min-height: 12rem;
+  padding: 1.2rem 1rem;
   border-radius: 2.2rem;
   background: linear-gradient(135deg, #102036 0%, #1d4ed8 100%);
   color: #f8fafc;
@@ -593,8 +664,39 @@
   line-height: 1;
 }
 
-.mobileDiceStats {
-  display: none;
+.diceMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.diceMetaGrid article {
+  padding: 0.7rem 0.4rem;
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.12);
+  text-align: center;
+}
+
+.diceMetaGrid span,
+.diceMetaGrid strong {
+  display: block;
+  color: #f8fafc;
+}
+
+.diceMetaGrid span {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+
+.diceMetaGrid strong {
+  margin-top: 0.25rem;
+  font-size: 1rem;
+  line-height: 1.15;
 }
 
 .statStrip {
@@ -791,6 +893,10 @@
 }
 
 @media (max-width: 1280px) {
+  .homeShell {
+    width: min(100%, calc((100% - 1.2rem) / 2));
+  }
+
   .gameCard {
     grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.95fr);
   }
@@ -802,7 +908,7 @@
 
 @media (max-width: 1100px) {
   .catalogGrid {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.75rem), 11.75rem));
   }
 
   .gameCard,
@@ -826,7 +932,7 @@
 
 @media (max-width: 980px) {
   .catalogGrid {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 11rem));
   }
 
   .comingSoonPanel {
@@ -844,7 +950,7 @@
   }
 
   .catalogCard {
-    border-radius: 1.7rem;
+    border-radius: 1.4rem;
   }
 
   .gameMain,
@@ -873,6 +979,10 @@
     padding: 0.9rem 0 0.85rem;
   }
 
+  .homeShell {
+    width: 100%;
+  }
+
   .hubCard {
     border-radius: 2.2rem;
     padding: 0.95rem;
@@ -893,7 +1003,7 @@
 
   .routeCatalogGrid {
     grid-auto-flow: column;
-    grid-auto-columns: minmax(23rem, 84vw);
+    grid-auto-columns: minmax(18rem, 78vw);
     grid-template-columns: none;
     overflow-x: auto;
     overscroll-behavior-x: contain;
@@ -1036,7 +1146,7 @@
     font-size: 3rem;
   }
 
-  .mobileDiceStats {
+  .diceMetaGrid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.38rem;
@@ -1044,28 +1154,28 @@
     margin-top: 0.55rem;
   }
 
-  .mobileDiceStats article {
+  .diceMetaGrid article {
     padding: 0.4rem 0.2rem;
     border-radius: 0.9rem;
-    background: #e5e7eb;
+    background: rgba(255, 255, 255, 0.12);
     text-align: center;
   }
 
-  .mobileDiceStats span,
-  .mobileDiceStats strong {
+  .diceMetaGrid span,
+  .diceMetaGrid strong {
     display: block;
-    color: #102036;
+    color: #f8fafc;
   }
 
-  .mobileDiceStats span {
+  .diceMetaGrid span {
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    opacity: 0.9;
+    opacity: 0.82;
   }
 
-  .mobileDiceStats strong {
+  .diceMetaGrid strong {
     margin-top: 0.18rem;
     font-size: 0.86rem;
     line-height: 1.12;
@@ -1125,7 +1235,7 @@
   }
 
   .routeCatalogGrid {
-    grid-auto-columns: minmax(21rem, 88vw);
+    grid-auto-columns: minmax(17rem, 84vw);
   }
 
   .boardStage {
@@ -1137,12 +1247,12 @@
   }
 
   .catalogCard {
-    border-radius: 1.5rem;
+    border-radius: 1.3rem;
   }
 
   .routeCatalogGrid {
     grid-auto-flow: column;
-    grid-auto-columns: minmax(20rem, 88vw);
+    grid-auto-columns: minmax(16rem, 84vw);
     grid-template-columns: none;
     overflow-x: auto;
     overscroll-behavior-x: contain;
@@ -1153,10 +1263,6 @@
   .routeCatalogGrid .catalogCard {
     min-width: 0;
     scroll-snap-align: start;
-  }
-
-  .catalogHeader {
-    gap: 0.45rem;
   }
 
   .rulePills {
@@ -1190,20 +1296,20 @@
     font-size: 2.6rem;
   }
 
-  .mobileDiceStats {
+  .diceMetaGrid {
     gap: 0.3rem;
     margin-top: 0.45rem;
   }
 
-  .mobileDiceStats article {
+  .diceMetaGrid article {
     padding: 0.34rem 0.16rem;
   }
 
-  .mobileDiceStats span {
+  .diceMetaGrid span {
     font-size: 0.54rem;
   }
 
-  .mobileDiceStats strong {
+  .diceMetaGrid strong {
     font-size: 0.76rem;
   }
 
@@ -1226,7 +1332,7 @@
   }
 
   .routeCatalogGrid {
-    grid-auto-columns: minmax(18rem, 92vw);
+    grid-auto-columns: minmax(15rem, 88vw);
   }
 
   .rulePills span {
@@ -1281,21 +1387,21 @@
     bottom: 0.74rem;
   }
 
-  .mobileDiceStats {
+  .diceMetaGrid {
     gap: 0.24rem;
   }
 
-  .mobileDiceStats article {
+  .diceMetaGrid article {
     padding: 0.28rem 0.12rem;
     border-radius: 0.72rem;
   }
 
-  .mobileDiceStats span {
+  .diceMetaGrid span {
     font-size: 0.48rem;
     letter-spacing: 0.02em;
   }
 
-  .mobileDiceStats strong {
+  .diceMetaGrid strong {
     font-size: 0.66rem;
   }
 }

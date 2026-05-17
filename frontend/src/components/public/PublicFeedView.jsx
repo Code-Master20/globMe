@@ -45,6 +45,8 @@ const getDescriptionText = (post) => {
 const shouldShowViewCount = (post) =>
   post?.postType === "video" || post?.contentFormat === "reel";
 
+const FEED_SKELETON_COUNT = 6;
+
 export const PublicFeedView = ({
   title,
   description,
@@ -654,7 +656,48 @@ export const PublicFeedView = ({
         {afterStoryContent}
 
         {loading ? (
-          <section className={styles.placeholder}>Loading public posts...</section>
+          <section className={styles.feedGrid} aria-label="Loading public posts">
+            {Array.from({ length: FEED_SKELETON_COUNT }, (_, index) => (
+              <article
+                key={`feed-skeleton-${index}`}
+                className={`${styles.feedCard} ${styles.feedCardSkeleton}`}
+                aria-hidden="true"
+              >
+                <div className={styles.profileRow}>
+                  <span className={`${styles.skeletonBlock} ${styles.skeletonAvatar}`} />
+                  <div className={styles.skeletonProfileMeta}>
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonName}`} />
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonProfession}`} />
+                  </div>
+                </div>
+
+                <div className={`${styles.mediaFrame} ${styles.skeletonBlock}`} />
+
+                <div className={styles.cardBody}>
+                  <div className={styles.skeletonTextGroup}>
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonTitle}`} />
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonLineFull}`} />
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonLineShort}`} />
+                  </div>
+                </div>
+
+                <div className={styles.cardFooter}>
+                  <div className={styles.statGroup}>
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonStat}`} />
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonStat}`} />
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonStatShort}`} />
+                  </div>
+
+                  <div className={styles.actionGroup}>
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonActionBtn}`} />
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonActionBtn}`} />
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonActionBtn}`} />
+                    <span className={`${styles.skeletonBlock} ${styles.skeletonActionBtn}`} />
+                  </div>
+                </div>
+              </article>
+            ))}
+          </section>
         ) : posts.length === 0 ? (
           <section className={styles.placeholder}>
             <h2>{emptyHeading}</h2>
