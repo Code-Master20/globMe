@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { MdSportsEsports } from "react-icons/md";
 import api from "../../lib/api";
-import { DEFAULT_GAMES, getGameRoute } from "./gameCatalog";
+import { DEFAULT_GAMES, getGameRoute, normalizePublicGames } from "./gameCatalog";
 import styles from "./HomeGamesHub.module.css";
 
 const HOME_GAMES_CACHE_TTL_MS = 60 * 1000;
@@ -43,9 +44,7 @@ export const HomeGamesHub = () => {
         }
 
         const response = await api.get("/public/games");
-        const nextGames = Array.isArray(response.data?.data) && response.data.data.length
-          ? response.data.data
-          : DEFAULT_GAMES;
+        const nextGames = normalizePublicGames(response.data?.data);
 
         if (!ignore) {
           homeGamesCache.games = nextGames;
@@ -77,7 +76,12 @@ export const HomeGamesHub = () => {
   return (
     <section className={`${styles.shell} ${styles.homeShell}`}>
       <div className={styles.hubCard}>
-        <p className={styles.sectionTitle}>Choose a game and start playing</p>
+        <div className={styles.hubHeader}>
+          <p className={styles.sectionTitle}>Choose a game and start playing</p>
+          <div className={styles.hubIcon} aria-hidden="true">
+            <MdSportsEsports />
+          </div>
+        </div>
 
         <div className={styles.catalogGrid}>
           {loading

@@ -10,6 +10,7 @@ import { AuthAccessPrompt } from "../../components/auth/AuthAccessPrompt";
 import {
   DEFAULT_GAMES,
   getGameRoute,
+  normalizePublicGames,
   SNAKE_LADDER_GAME_KEY,
 } from "../../components/games/gameCatalog";
 import styles from "../../components/games/HomeGamesHub.module.css";
@@ -1289,9 +1290,7 @@ export const GameArena = () => {
     const loadGames = async () => {
       try {
         const response = await api.get("/public/games");
-        const nextGames = Array.isArray(response.data?.data) && response.data.data.length
-          ? response.data.data
-          : DEFAULT_GAMES;
+        const nextGames = normalizePublicGames(response.data?.data);
 
         if (!ignore) {
           setGames(nextGames);

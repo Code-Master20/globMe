@@ -17,7 +17,7 @@ const GAME_DEFINITIONS = [
   {
     key: "word-flip-lab",
     name: "Word Flip Lab",
-    cardTitle: "WORD GAME",
+    cardTitle: "WORD CORRECTION GAME",
     status: "coming-soon",
     category: "Word game",
     badge: "Coming soon",

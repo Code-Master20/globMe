@@ -15,7 +15,7 @@ export const DEFAULT_GAMES = [
   {
     key: "word-flip-lab",
     name: "Word Flip Lab",
-    cardTitle: "WORD GAME",
+    cardTitle: "WORD CORRECTION GAME",
     status: "coming-soon",
     category: "Word game",
     badge: "Coming soon",
@@ -31,5 +31,30 @@ export const DEFAULT_GAMES = [
     description: "Matching game",
   },
 ];
+
+const DEFAULT_GAMES_BY_KEY = new Map(DEFAULT_GAMES.map((game) => [game.key, game]));
+
+export const normalizePublicGames = (games) => {
+  if (!Array.isArray(games) || games.length === 0) {
+    return DEFAULT_GAMES;
+  }
+
+  return games.map((game) => {
+    const fallbackGame = DEFAULT_GAMES_BY_KEY.get(game?.key);
+
+    if (!fallbackGame) {
+      return game;
+    }
+
+    return {
+      ...game,
+      name: fallbackGame.name,
+      cardTitle: fallbackGame.cardTitle,
+      description: fallbackGame.description,
+      category: fallbackGame.category,
+      badge: fallbackGame.badge,
+    };
+  });
+};
 
 export const getGameRoute = (gameKey) => `/games/${gameKey}`;
