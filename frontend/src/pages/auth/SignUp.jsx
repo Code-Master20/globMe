@@ -44,8 +44,6 @@ export const SignUp = () => {
   const navigate = useNavigate();
   const { errorMessage } = useSelector((state) => state.auth);
 
-  const debounceRef = useRef({});
-
   const storedUser = readStoredUser();
   const [clientCredentials, setClientCredentials] = useState({
     username: getStoredText(storedUser, "username"),
@@ -56,41 +54,32 @@ export const SignUp = () => {
 
   function handleOnChange(event) {
     const { name, value } = event.target;
+    const safeValue = normalizeTextInput(value);
+    const formattedValue =
+      name === "email"
+        ? safeValue.trim()
+        : name === "username"
+          ? safeValue
+          : name === "password"
+            ? safeValue.trim()
+            : safeValue;
 
-    if (debounceRef.current[name]) {
-      clearTimeout(debounceRef.current[name]);
-    }
+    setClientCredentials((prev) => ({
+      ...prev,
+      [name]: formattedValue,
+    }));
 
-    debounceRef.current[name] = setTimeout(() => {
-      const safeValue = normalizeTextInput(value);
-      const formattedValue =
-        name === "email"
-          ? safeValue.trim().toLowerCase()
-          : name === "username"
-            ? safeValue.toLowerCase()
-            : name === "password"
-              ? safeValue.trim()
-              : safeValue;
+    const existingUser = readStoredUser() || {
+      purpose: "signup",
+    };
 
-      setClientCredentials((prev) => ({
-        ...prev,
+    localStorage.setItem(
+      "user",
+      JSON.stringify({
+        ...existingUser,
         [name]: formattedValue,
-      }));
-
-      setTimeout(() => {
-        const existingUser = readStoredUser() || {
-          purpose: "signup",
-        };
-
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            ...existingUser,
-            [name]: formattedValue,
-          }),
-        );
-      }, 1);
-    }, 5);
+      }),
+    );
   }
 
   const [loading, setLoading] = useState(false);
@@ -102,10 +91,12 @@ export const SignUp = () => {
     event.preventDefault();
     setLoading(true);
 
-    const normalizedUsername = `${clientCredentials.username ?? ""}`.trim();
+    const normalizedUsername = `${clientCredentials.username ?? ""}`.trim().toLowerCase();
+    const normalizedEmail = `${clientCredentials.email ?? ""}`.trim().toLowerCase();
 
     const trimCredentials = {
       ...clientCredentials,
+      email: normalizedEmail,
       username: normalizedUsername,
     };
 
@@ -113,6 +104,7 @@ export const SignUp = () => {
       "user",
         JSON.stringify({
           ...clientCredentials,
+          email: normalizedEmail,
           username: normalizedUsername,
         }),
       );

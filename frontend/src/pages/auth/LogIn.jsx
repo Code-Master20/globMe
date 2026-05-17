@@ -51,6 +51,17 @@ const parseBlockedCountdown = (message) => {
   return minutes * 60 + seconds;
 };
 
+const readStoredBlockedCountdown = () => {
+  const storedTime = localStorage.getItem(BLOCKED_STORAGE_KEY);
+
+  if (!storedTime) {
+    return null;
+  }
+
+  const parsed = Number(JSON.parse(storedTime));
+  return parsed > 0 ? parsed : null;
+};
+
 export const LogIn = () => {
   usePageMetadata({
     title: "Log in",
@@ -69,42 +80,31 @@ export const LogIn = () => {
     purpose: getStoredText(storedUser, "purpose", "login"),
   });
 
-  const debounceRef = useRef({});
-
   function handleOnChange(event) {
     const { name, value } = event.target;
+    const safeValue = normalizeTextInput(value);
+    const formattedValue =
+      name === "email"
+        ? safeValue.trim()
+        : name === "password"
+          ? safeValue.trim()
+          : safeValue;
 
-    if (debounceRef.current[name]) {
-      clearTimeout(debounceRef.current[name]);
-    }
+    setClientCredentials((prev) => ({
+      ...prev,
+      [name]: formattedValue,
+    }));
 
-    debounceRef.current[name] = setTimeout(() => {
-      const safeValue = normalizeTextInput(value);
-      const formattedValue =
-        name === "email"
-          ? safeValue.trim().toLowerCase()
-          : name === "password"
-            ? safeValue.trim()
-            : safeValue;
-
-      setClientCredentials((prev) => ({
-        ...prev,
+    const existingUser = readStoredUser() || {
+      purpose: "login",
+    };
+    localStorage.setItem(
+      "user",
+      JSON.stringify({
+        ...existingUser,
         [name]: formattedValue,
-      }));
-
-      setTimeout(() => {
-        const existingUser = readStoredUser() || {
-          purpose: "login",
-        };
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            ...existingUser,
-            [name]: formattedValue,
-          }),
-        );
-      }, 1);
-    }, 5);
+      }),
+    );
   }
 
   const [loading, setLoading] = useState(false);
@@ -112,26 +112,12 @@ export const LogIn = () => {
   const dispatch = useDispatch();
   const [path, setPath] = useState(null);
   const [timerIdArr, setTimerIdArr] = useState([]);
-  const [countdown, setCountdown] = useState(null);
-  const [hydrated, setHydrated] = useState(false);
-  const [disable, setDisable] = useState(false);
+  const [countdown, setCountdown] = useState(() => readStoredBlockedCountdown());
+  const [disable, setDisable] = useState(() => readStoredBlockedCountdown() > 0);
   const [tries, setTries] = useState(() => {
     const storedTries = localStorage.getItem("tryRemains");
     return storedTries ? JSON.parse(storedTries) : 3;
   });
-
-  useEffect(() => {
-    const storedTime = localStorage.getItem(BLOCKED_STORAGE_KEY);
-
-    if (storedTime) {
-      const parsed = Number(JSON.parse(storedTime));
-      setCountdown(parsed > 0 ? parsed : null);
-    } else {
-      setCountdown(null);
-    }
-
-    setHydrated(true);
-  }, []);
 
   useEffect(() => {
     if (countdown === null) return;
@@ -142,7 +128,21 @@ export const LogIn = () => {
     event.preventDefault();
     setLoading(true);
 
-    const resultAction = await dispatch(logInOtpReceived(clientCredentials));
+    const normalizedCredentials = {
+      ...clientCredentials,
+      email: `${clientCredentials.email ?? ""}`.trim().toLowerCase(),
+      password: `${clientCredentials.password ?? ""}`.trim(),
+    };
+
+    localStorage.setItem(
+      "user",
+      JSON.stringify({
+        ...(readStoredUser() || { purpose: "login" }),
+        ...normalizedCredentials,
+      }),
+    );
+
+    const resultAction = await dispatch(logInOtpReceived(normalizedCredentials));
 
     if (logInOtpReceived.rejected.match(resultAction)) {
       setLoading(false);
@@ -336,7 +336,6 @@ export const LogIn = () => {
   }
 
   const loadingEmail = "your email";
-  if (!hydrated) return null;
 
   if (loading) {
       return (
