@@ -6,6 +6,16 @@ import { StoryRail } from "./StoryRail";
 import { StoryViewerModal } from "./StoryViewerModal";
 import styles from "./StoryTray.module.css";
 
+const STORY_TRAY_CACHE_TTL_MS = 60 * 1000;
+const storyTrayCache = {
+  stories: [],
+  updatedAt: 0,
+  hydrated: false,
+};
+
+const hasFreshStoryTrayCache = () =>
+  storyTrayCache.hydrated && Date.now() - storyTrayCache.updatedAt <= STORY_TRAY_CACHE_TTL_MS;
+
 const getStoryPostedTime = (storyItem) => {
   const expiresAtMs = storyItem?.story?.expiresAt
     ? new Date(storyItem.story.expiresAt).getTime()
@@ -135,8 +145,10 @@ const buildViewerStories = (trayStories, currentUser) => {
 
 export const StoryTray = ({ onRequireAuth }) => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
-  const [stories, setStories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [stories, setStories] = useState(() =>
+    sortStoriesForTray(storyTrayCache.stories, user?._id || ""),
+  );
+  const [loading, setLoading] = useState(() => !storyTrayCache.hydrated);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
 
@@ -161,19 +173,39 @@ export const StoryTray = ({ onRequireAuth }) => {
 
   useEffect(() => {
     let ignore = false;
+    const currentUserId = user?._id || "";
+
+    if (storyTrayCache.hydrated) {
+      setStories(sortStoriesForTray(storyTrayCache.stories, currentUserId));
+      setLoading(false);
+    } else {
+      setStories([]);
+      setLoading(true);
+    }
+
+    if (hasFreshStoryTrayCache()) {
+      return () => {
+        ignore = true;
+      };
+    }
 
     const loadStories = async () => {
       try {
-        setLoading(true);
+        if (!storyTrayCache.hydrated) {
+          setLoading(true);
+        }
+
         const response = await api.get("/public/stories");
+        const nextStories = Array.isArray(response.data?.data) ? response.data.data : [];
 
         if (!ignore) {
-          setStories(
-            sortStoriesForTray(response.data?.data || [], user?._id || ""),
-          );
+          storyTrayCache.stories = nextStories;
+          storyTrayCache.updatedAt = Date.now();
+          storyTrayCache.hydrated = true;
+          setStories(sortStoriesForTray(nextStories, currentUserId));
         }
       } catch {
-        if (!ignore) {
+        if (!ignore && !storyTrayCache.hydrated) {
           setStories([]);
         }
       } finally {
@@ -270,6 +302,9 @@ export const StoryTray = ({ onRequireAuth }) => {
             return matchedStory || storyItem;
           });
 
+          storyTrayCache.stories = nextTrayStories;
+          storyTrayCache.updatedAt = Date.now();
+          storyTrayCache.hydrated = true;
           setStories(sortStoriesForTray(nextTrayStories, user?._id || ""));
         }}
       />

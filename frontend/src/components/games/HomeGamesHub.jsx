@@ -4,27 +4,60 @@ import api from "../../lib/api";
 import { DEFAULT_GAMES, getGameRoute } from "./gameCatalog";
 import styles from "./HomeGamesHub.module.css";
 
+const HOME_GAMES_CACHE_TTL_MS = 60 * 1000;
+const homeGamesCache = {
+  games: [],
+  updatedAt: 0,
+  hydrated: false,
+};
+
+const hasFreshHomeGamesCache = () =>
+  homeGamesCache.hydrated && Date.now() - homeGamesCache.updatedAt <= HOME_GAMES_CACHE_TTL_MS;
+
 export const HomeGamesHub = () => {
   const navigate = useNavigate();
-  const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [games, setGames] = useState(() => homeGamesCache.games);
+  const [loading, setLoading] = useState(() => !homeGamesCache.hydrated);
 
   useEffect(() => {
     let ignore = false;
 
+    if (homeGamesCache.hydrated) {
+      setGames(homeGamesCache.games);
+      setLoading(false);
+    } else {
+      setGames([]);
+      setLoading(true);
+    }
+
+    if (hasFreshHomeGamesCache()) {
+      return () => {
+        ignore = true;
+      };
+    }
+
     const loadGames = async () => {
       try {
-        setLoading(true);
+        if (!homeGamesCache.hydrated) {
+          setLoading(true);
+        }
+
         const response = await api.get("/public/games");
         const nextGames = Array.isArray(response.data?.data) && response.data.data.length
           ? response.data.data
           : DEFAULT_GAMES;
 
         if (!ignore) {
+          homeGamesCache.games = nextGames;
+          homeGamesCache.updatedAt = Date.now();
+          homeGamesCache.hydrated = true;
           setGames(nextGames);
         }
       } catch (_error) {
-        if (!ignore) {
+        if (!ignore && !homeGamesCache.hydrated) {
+          homeGamesCache.games = DEFAULT_GAMES;
+          homeGamesCache.updatedAt = Date.now();
+          homeGamesCache.hydrated = true;
           setGames(DEFAULT_GAMES);
         }
       } finally {

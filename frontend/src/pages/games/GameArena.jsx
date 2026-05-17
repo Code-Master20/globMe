@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
+import { flushSync } from "react-dom";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { MdCasino, MdHistory, MdLogin, MdReplay, MdSportsEsports } from "react-icons/md";
 import { toast } from "react-toastify";
@@ -616,8 +617,8 @@ const MODE_DEFINITIONS = [
     category: "computer",
     requireNames: false,
     players: [
-      { slotId: "computer", defaultName: "C1", type: "computer" },
       { slotId: "you", defaultName: "You", type: "human", primary: true },
+      { slotId: "computer", defaultName: "C1", type: "computer" },
     ],
   },
   {
@@ -1626,9 +1627,20 @@ export const GameArena = () => {
     const startingPosition = player.position;
     const nextTurn = totalTurnRef.current + 1;
 
-    setIsRolling(true);
-    setStatusText(`${player.name} is rolling the dice...`);
-    showRollFlash({ message: getRollingMessage(player) });
+    if (rollFlashTimeoutRef.current) {
+      window.clearTimeout(rollFlashTimeoutRef.current);
+      rollFlashTimeoutRef.current = null;
+    }
+
+    flushSync(() => {
+      setIsRolling(true);
+      setStatusText(`${player.name} is rolling the dice...`);
+      setRollFlash({
+        message: getRollingMessage(player),
+        value: null,
+      });
+    });
+
     focusBoardOnSmallScreen();
     await getAudioContext();
 

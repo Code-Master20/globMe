@@ -46,6 +46,13 @@ const shouldShowViewCount = (post) =>
   post?.postType === "video" || post?.contentFormat === "reel";
 
 const FEED_SKELETON_COUNT = 6;
+const PUBLIC_FEED_CACHE_TTL_MS = 60 * 1000;
+const publicFeedCache = new Map();
+
+const getCachedPublicFeedEntry = (filterType) => publicFeedCache.get(filterType) || null;
+
+const isCacheStale = (entry, ttlMs) =>
+  !entry || Date.now() - entry.updatedAt > ttlMs;
 
 export const PublicFeedView = ({
   title,
@@ -61,8 +68,8 @@ export const PublicFeedView = ({
 }) => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState(() => getCachedPublicFeedEntry(filterType)?.posts || []);
+  const [loading, setLoading] = useState(() => !getCachedPublicFeedEntry(filterType));
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [watchLaterBusyId, setWatchLaterBusyId] = useState("");
   const [likeBusyId, setLikeBusyId] = useState("");
@@ -97,22 +104,45 @@ export const PublicFeedView = ({
 
   useEffect(() => {
     let ignore = false;
+    const cachedEntry = getCachedPublicFeedEntry(filterType);
+
+    if (cachedEntry) {
+      setPosts(cachedEntry.posts);
+      setLoading(false);
+    } else {
+      setPosts([]);
+      setLoading(true);
+    }
+
+    if (cachedEntry && !isCacheStale(cachedEntry, PUBLIC_FEED_CACHE_TTL_MS)) {
+      return () => {
+        ignore = true;
+      };
+    }
 
     const loadPosts = async () => {
       try {
-        setLoading(true);
+        if (!cachedEntry) {
+          setLoading(true);
+        }
+
         const response = await api.get("/public/posts", {
           params: {
             type: filterType,
             limit: 24,
           },
         });
+        const nextPosts = Array.isArray(response.data?.data) ? response.data.data : [];
 
         if (!ignore) {
-          setPosts(response.data?.data || []);
+          publicFeedCache.set(filterType, {
+            posts: nextPosts,
+            updatedAt: Date.now(),
+          });
+          setPosts(nextPosts);
         }
       } catch (error) {
-        if (!ignore) {
+        if (!ignore && !cachedEntry) {
           toast.error(error.response?.data?.message || "Could not load posts");
           setPosts([]);
         }
@@ -129,6 +159,19 @@ export const PublicFeedView = ({
       ignore = true;
     };
   }, [filterType]);
+
+  useEffect(() => {
+    const cachedEntry = getCachedPublicFeedEntry(filterType);
+
+    if (loading || !cachedEntry) {
+      return;
+    }
+
+    publicFeedCache.set(filterType, {
+      posts,
+      updatedAt: Date.now(),
+    });
+  }, [filterType, loading, posts]);
 
   const clearPreviewAutoplayTimeout = () => {
     if (previewAutoplayTimeoutRef.current) {

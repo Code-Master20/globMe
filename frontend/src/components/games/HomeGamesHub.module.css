@@ -979,6 +979,10 @@
     padding: 0.9rem 0 0.85rem;
   }
 
+  .routeShell {
+    padding-inline: 0.9rem;
+  }
+
   .homeShell {
     width: 100%;
   }
