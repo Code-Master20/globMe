@@ -8,6 +8,7 @@ import { InvalidInputTracker } from "../../components/auth/InvalidInputTracker";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import { toast } from "react-toastify";
 import { MdOutlineRemoveRedEye } from "react-icons/md";
+import { IoClose } from "react-icons/io5";
 import { FaRegEyeSlash } from "react-icons/fa6";
 import globMe from "../../assets/globme.png";
 
@@ -184,6 +185,11 @@ export const SignUp = () => {
     navigate("/login", { replace: true });
   }
 
+  function handleMobileExit() {
+    localStorage.removeItem("user");
+    navigate("/home-feed", { replace: true });
+  }
+
   const loadingEmail = "your email";
   if (loading) {
       return (
@@ -229,6 +235,14 @@ export const SignUp = () => {
         </aside>
 
         <section className={styles["auth-card"]}>
+          <button
+            type="button"
+            className={styles["mobile-auth-close"]}
+            onClick={handleMobileExit}
+            aria-label="Close create account"
+          >
+            <IoClose />
+          </button>
           <div className={styles["auth-card-header"]}>
             <p className={styles["auth-kicker"]}>New here?</p>
             <h2 className={styles["auth-heading"]}>Create your account</h2>
