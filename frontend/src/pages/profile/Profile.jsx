@@ -2264,8 +2264,16 @@ export const Profile = () => {
             ) : null}
           </div>
 
-          <div className={styles.storyComposerGrid}>
-            <div className={styles.storyComposerCard}>
+          <div
+            className={`${styles.storyComposerGrid} ${
+              pendingStoryMediaFile ? styles.storyComposerGridMediaActive : ""
+            }`}
+          >
+            <div
+              className={`${styles.storyComposerCard} ${
+                pendingStoryMediaFile ? styles.storyComposerDraftExpanded : ""
+              }`}
+            >
               <div className={styles.storyComposerSectionHeader}>
                 <h3>Draft preview</h3>
                 <span>

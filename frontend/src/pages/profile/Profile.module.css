@@ -1094,13 +1094,34 @@
     grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
   }
 
+  .storyComposerGridMediaActive {
+    grid-template-columns: minmax(0, 1.26fr) minmax(320px, 0.74fr);
+  }
+
   .storyDraftPreview {
     grid-template-columns: minmax(320px, 380px) minmax(260px, 1fr);
     align-items: start;
   }
 
+  .storyComposerDraftExpanded {
+    padding: 1.1rem 1.15rem;
+  }
+
+  .storyComposerDraftExpanded .storyDraftPreview {
+    grid-template-columns: minmax(360px, 430px) minmax(260px, 1fr);
+    gap: 1.15rem;
+  }
+
   .storyVideoDraftShell {
     max-width: 380px;
+  }
+
+  .storyComposerDraftExpanded .storyVideoDraftShell {
+    max-width: 430px;
+  }
+
+  .storyComposerDraftExpanded .storyImage {
+    border-radius: 22px;
   }
 
   .storyMeta {
