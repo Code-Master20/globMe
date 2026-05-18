@@ -401,8 +401,90 @@ const getStoryDurationError = ({ storyType, mediaUploadResult, audioUploadResult
     return "Story videos must be 1 minute 30 seconds or shorter";
   }
 
-  if (getUploadDurationSeconds(audioUploadResult) > MAX_STORY_DURATION_SECONDS) {
-    return "Story music must be 1 minute 30 seconds or shorter";
+  return "";
+};
+
+const normalizeStoryAudioSelection = (audioFile, audioUploadResult, rawSelection = {}) => {
+  if (!audioFile || !audioUploadResult?.secure_url) {
+    return {
+      audioType: null,
+      audioStartSeconds: 0,
+      audioEndSeconds: 0,
+      audioPlaybackDurationSeconds: 0,
+    };
+  }
+
+  const sourceDuration = getUploadDurationSeconds(audioUploadResult);
+  const defaultEnd = Math.min(sourceDuration, MAX_STORY_DURATION_SECONDS);
+  const requestedStart = Number(rawSelection.startSeconds);
+  const requestedEnd = Number(rawSelection.endSeconds);
+  const requestedPlaybackDuration = Number(rawSelection.playbackDurationSeconds);
+  const audioType = audioFile?.mimetype?.startsWith("video/") ? "video" : "audio";
+
+  let audioStartSeconds = Number.isFinite(requestedStart)
+    ? Math.max(0, requestedStart)
+    : 0;
+  let audioEndSeconds = Number.isFinite(requestedEnd)
+    ? Math.max(audioStartSeconds, requestedEnd)
+    : defaultEnd;
+
+  if (sourceDuration > 0) {
+    audioStartSeconds = Math.min(audioStartSeconds, Math.max(0, sourceDuration));
+    audioEndSeconds = Math.min(Math.max(audioEndSeconds, audioStartSeconds), sourceDuration);
+  }
+
+  const clipDuration = Math.max(0, audioEndSeconds - audioStartSeconds);
+  const fallbackPlaybackDuration =
+    clipDuration > 0
+      ? Math.min(
+          MAX_STORY_DURATION_SECONDS,
+          clipDuration < MAX_STORY_DURATION_SECONDS
+            ? MAX_STORY_DURATION_SECONDS
+            : clipDuration,
+        )
+      : 0;
+
+  const audioPlaybackDurationSeconds = Number.isFinite(requestedPlaybackDuration)
+    ? Math.max(0, Math.min(MAX_STORY_DURATION_SECONDS, requestedPlaybackDuration))
+    : fallbackPlaybackDuration;
+
+  return {
+    audioType,
+    audioStartSeconds,
+    audioEndSeconds,
+    audioPlaybackDurationSeconds,
+  };
+};
+
+const getStoryAudioSelectionError = (audioSelection, audioUploadResult) => {
+  if (!audioUploadResult?.secure_url) {
+    return "";
+  }
+
+  const sourceDuration = getUploadDurationSeconds(audioUploadResult);
+
+  if (sourceDuration <= 0) {
+    return "Story soundtrack length could not be read";
+  }
+
+  const clipDuration = Math.max(
+    0,
+    audioSelection.audioEndSeconds - audioSelection.audioStartSeconds,
+  );
+
+  if (clipDuration <= 0.05) {
+    return "Choose a valid soundtrack portion for your story";
+  }
+
+  if (clipDuration > MAX_STORY_DURATION_SECONDS + 0.05) {
+    return "Story soundtrack clips must stay within 1 minute 30 seconds";
+  }
+
+  if (
+    audioSelection.audioPlaybackDurationSeconds <= 0 ||
+    audioSelection.audioPlaybackDurationSeconds > MAX_STORY_DURATION_SECONDS + 0.05
+  ) {
+    return "Story soundtrack playback must stay within 1 minute 30 seconds";
   }
 
   return "";
@@ -413,6 +495,10 @@ const resetStoryFields = (user) => {
   user.storyType = null;
   user.storyCloudinaryId = null;
   user.storyAudio = null;
+  user.storyAudioType = null;
+  user.storyAudioStartSeconds = 0;
+  user.storyAudioEndSeconds = 0;
+  user.storyAudioPlaybackDurationSeconds = 0;
   user.storyAudioCloudinaryId = null;
   user.storySourcePost = null;
   user.storyLikeCount = 0;
@@ -426,6 +512,10 @@ const appendStoryHistoryEntry = (user, storyData) => {
     mediaUrl: storyData.mediaUrl,
     mediaType: storyData.mediaType || "image",
     audioUrl: storyData.audioUrl || null,
+    audioType: storyData.audioType || null,
+    audioStartSeconds: Number(storyData.audioStartSeconds) || 0,
+    audioEndSeconds: Number(storyData.audioEndSeconds) || 0,
+    audioPlaybackDurationSeconds: Number(storyData.audioPlaybackDurationSeconds) || 0,
     mediaCloudinaryId: storyData.mediaCloudinaryId || null,
     audioCloudinaryId: storyData.audioCloudinaryId || null,
     sourcePost: storyData.sourcePost || null,
@@ -522,6 +612,10 @@ const pruneExpiredStoriesFromUser = (user) => {
       user.story ||
         user.storyType ||
         user.storyAudio ||
+        user.storyAudioType ||
+        user.storyAudioStartSeconds ||
+        user.storyAudioEndSeconds ||
+        user.storyAudioPlaybackDurationSeconds ||
         user.storyCloudinaryId ||
         user.storyAudioCloudinaryId ||
         user.storySourcePost ||
@@ -709,6 +803,11 @@ const uploadStory = async (req, res) => {
     const mediaFile = req.files?.media?.[0] || null;
     const audioFile = req.files?.audio?.[0] || null;
     const sourcePostId = `${req.body?.sourcePostId ?? ""}`.trim();
+    const rawAudioSelection = {
+      startSeconds: req.body?.audioStartSeconds,
+      endSeconds: req.body?.audioEndSeconds,
+      playbackDurationSeconds: req.body?.audioPlaybackDurationSeconds,
+    };
 
     if (!mediaFile && !sourcePostId) {
       return new ErrorHandler(
@@ -725,6 +824,12 @@ const uploadStory = async (req, res) => {
     let mediaUploadResult = null;
     let audioUploadResult = null;
     let storyType = "image";
+    let audioSelection = {
+      audioType: null,
+      audioStartSeconds: 0,
+      audioEndSeconds: 0,
+      audioPlaybackDurationSeconds: 0,
+    };
 
     try {
       if (sourcePostId) {
@@ -768,6 +873,11 @@ const uploadStory = async (req, res) => {
           folder: "seekFi/story/audio",
           resource_type: "video",
         });
+        audioSelection = normalizeStoryAudioSelection(
+          audioFile,
+          audioUploadResult,
+          rawAudioSelection,
+        );
       }
     } catch (uploadError) {
       if (mediaUploadResult?.public_id) {
@@ -802,12 +912,32 @@ const uploadStory = async (req, res) => {
       return new ErrorHandler(400, durationError).send(res);
     }
 
+    const audioSelectionError = getStoryAudioSelectionError(
+      audioSelection,
+      audioUploadResult,
+    );
+
+    if (audioSelectionError) {
+      await destroyCloudinaryAsset(
+        mediaUploadResult?.public_id,
+        storyType === "video" ? "video" : "image",
+      );
+      await destroyCloudinaryAsset(audioUploadResult?.public_id, "video");
+
+      return new ErrorHandler(400, audioSelectionError).send(res);
+    }
+
     try {
       await clearStoryLikes(user._id);
       user.story = mediaUploadResult.secure_url;
       user.storyType = storyType;
       user.storyCloudinaryId = mediaUploadResult.public_id;
       user.storyAudio = audioUploadResult?.secure_url || null;
+      user.storyAudioType = audioSelection.audioType;
+      user.storyAudioStartSeconds = audioSelection.audioStartSeconds;
+      user.storyAudioEndSeconds = audioSelection.audioEndSeconds;
+      user.storyAudioPlaybackDurationSeconds =
+        audioSelection.audioPlaybackDurationSeconds;
       user.storyAudioCloudinaryId = audioUploadResult?.public_id || null;
       user.storyLikeCount = 0;
       user.storyExpiresAt = new Date(Date.now() + STORY_LIFETIME_MS);
@@ -815,6 +945,10 @@ const uploadStory = async (req, res) => {
         mediaUrl: mediaUploadResult.secure_url,
         mediaType: storyType,
         audioUrl: audioUploadResult?.secure_url || null,
+        audioType: audioSelection.audioType,
+        audioStartSeconds: audioSelection.audioStartSeconds,
+        audioEndSeconds: audioSelection.audioEndSeconds,
+        audioPlaybackDurationSeconds: audioSelection.audioPlaybackDurationSeconds,
         mediaCloudinaryId: mediaUploadResult.public_id,
         audioCloudinaryId: audioUploadResult?.public_id || null,
         sourcePost: user.storySourcePost || null,

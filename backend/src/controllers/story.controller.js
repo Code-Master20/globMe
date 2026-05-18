@@ -26,6 +26,11 @@ const mapStoryPayload = (userDoc, viewerLiked = false, viewerId = null) => {
       mediaUrl: user.story,
       mediaType: user.storyType || "image",
       audioUrl: user.storyAudio || null,
+      audioType: user.storyAudioType || null,
+      audioStartSeconds: Number(user.storyAudioStartSeconds) || 0,
+      audioEndSeconds: Number(user.storyAudioEndSeconds) || 0,
+      audioPlaybackDurationSeconds:
+        Number(user.storyAudioPlaybackDurationSeconds) || 0,
       likeCount: typeof user.storyLikeCount === "number" ? user.storyLikeCount : 0,
       likedByViewer: viewerLiked,
       expiresAt: user.storyExpiresAt,
@@ -38,7 +43,7 @@ const getPublicStories = async (req, res) => {
     const viewerId = req.user?.id || req.user?._id || null;
     const activeUsers = await User.find(getActiveStoryQuery())
       .select(
-        "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt story storyType storyAudio storyLikeCount storyExpiresAt storyCloudinaryId storyActiveHistoryId",
+        "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt story storyType storyAudio storyAudioType storyAudioStartSeconds storyAudioEndSeconds storyAudioPlaybackDurationSeconds storyLikeCount storyExpiresAt storyCloudinaryId storyActiveHistoryId",
       )
       .sort({ storyExpiresAt: 1, updatedAt: -1 })
       .limit(24);
@@ -119,7 +124,7 @@ const getPublicStoryByUserId = async (req, res) => {
       _id: userId,
       ...getActiveStoryQuery(),
     }).select(
-      "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt story storyType storyAudio storyLikeCount storyExpiresAt storyCloudinaryId storyActiveHistoryId",
+      "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt story storyType storyAudio storyAudioType storyAudioStartSeconds storyAudioEndSeconds storyAudioPlaybackDurationSeconds storyLikeCount storyExpiresAt storyCloudinaryId storyActiveHistoryId",
     );
 
     if (!user) {

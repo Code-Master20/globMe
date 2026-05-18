@@ -425,10 +425,13 @@ export const Profile = () => {
   const [pendingStoryMediaPreview, setPendingStoryMediaPreview] = useState("");
   const [pendingStoryAudioPreview, setPendingStoryAudioPreview] = useState("");
   const [pendingStoryVideoDurationSeconds, setPendingStoryVideoDurationSeconds] = useState(0);
+  const [pendingStoryAudioDurationSeconds, setPendingStoryAudioDurationSeconds] = useState(0);
   const [storyClipStartSeconds, setStoryClipStartSeconds] = useState(0);
   const [storyClipEndSeconds, setStoryClipEndSeconds] = useState(0);
   const [storyClipPreviewing, setStoryClipPreviewing] = useState(false);
   const [storyClipExportLoading, setStoryClipExportLoading] = useState(false);
+  const [storyAudioClipStartSeconds, setStoryAudioClipStartSeconds] = useState(0);
+  const [storyAudioClipEndSeconds, setStoryAudioClipEndSeconds] = useState(0);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
   const [storyViewerInitialIndex, setStoryViewerInitialIndex] = useState(0);
   const [storyViewerStories, setStoryViewerStories] = useState([]);
@@ -626,22 +629,100 @@ export const Profile = () => {
   }, [pendingStoryAudioFile]);
 
   useEffect(() => {
+    if (!pendingStoryAudioFile) {
+      setPendingStoryAudioDurationSeconds(0);
+      setStoryAudioClipStartSeconds(0);
+      setStoryAudioClipEndSeconds(0);
+      return undefined;
+    }
+
+    let ignore = false;
+
+    const loadStoryAudioDuration = async () => {
+      try {
+        const duration = await getLocalMediaDuration(pendingStoryAudioFile);
+
+        if (!ignore) {
+          setPendingStoryAudioDurationSeconds(duration);
+          setStoryAudioClipStartSeconds(0);
+          setStoryAudioClipEndSeconds(Math.min(duration, MAX_STORY_DURATION_SECONDS));
+        }
+      } catch {
+        if (!ignore) {
+          setPendingStoryAudioDurationSeconds(0);
+          setStoryAudioClipStartSeconds(0);
+          setStoryAudioClipEndSeconds(0);
+          toast.error("We could not read that soundtrack length");
+        }
+      }
+    };
+
+    loadStoryAudioDuration();
+
+    return () => {
+      ignore = true;
+    };
+  }, [pendingStoryAudioFile]);
+
+  useEffect(() => {
     if (!pendingStoryAudioPreview || !pendingStoryAudioRef.current) {
       return undefined;
     }
 
     const audioElement = pendingStoryAudioRef.current;
-    const playPromise = audioElement.play();
+    const clipStart = Math.max(0, storyAudioClipStartSeconds);
+    const clipEnd = Math.max(
+      clipStart,
+      storyAudioClipEndSeconds || pendingStoryAudioDurationSeconds || clipStart,
+    );
 
-    if (playPromise?.catch) {
-      playPromise.catch(() => {});
+    const seekToStart = () => {
+      try {
+        audioElement.currentTime = clipStart;
+      } catch {
+        return;
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      seekToStart();
+      const playPromise = audioElement.play();
+
+      if (playPromise?.catch) {
+        playPromise.catch(() => {});
+      }
+    };
+
+    const handleTimeUpdate = () => {
+      if (audioElement.currentTime >= clipEnd - STORY_CLIP_STOP_TOLERANCE_SECONDS) {
+        seekToStart();
+        const playPromise = audioElement.play();
+
+        if (playPromise?.catch) {
+          playPromise.catch(() => {});
+        }
+      }
+    };
+
+    audioElement.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audioElement.addEventListener("timeupdate", handleTimeUpdate);
+
+    if (audioElement.readyState >= 1) {
+      handleLoadedMetadata();
     }
 
     return () => {
+      audioElement.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audioElement.removeEventListener("timeupdate", handleTimeUpdate);
       audioElement.pause();
       audioElement.currentTime = 0;
     };
-  }, [pendingStoryAudioPreview]);
+  }, [
+    pendingStoryAudioDurationSeconds,
+    pendingStoryAudioPreview,
+    storyAudioClipEndSeconds,
+    storyAudioClipStartSeconds,
+  ]);
 
   useEffect(() => {
     if (
@@ -1267,11 +1348,10 @@ export const Profile = () => {
       const duration = await getLocalMediaDuration(file);
 
       if (duration > MAX_STORY_DURATION_SECONDS) {
-        toast.error("Story music must be 1 minute 30 seconds or shorter");
-        return;
+        toast.info("Long soundtrack files can be shifted left or right inside a 1 minute 30 second window");
       }
     } catch {
-      toast.error("We could not read that audio length");
+      toast.error("We could not read that soundtrack length");
       return;
     }
 
@@ -1283,10 +1363,13 @@ export const Profile = () => {
     setPendingStoryAudioFile(null);
     setSelectedStoryPost(null);
     setPendingStoryVideoDurationSeconds(0);
+    setPendingStoryAudioDurationSeconds(0);
     setStoryClipStartSeconds(0);
     setStoryClipEndSeconds(0);
     setStoryClipPreviewing(false);
     setStoryClipExportLoading(false);
+    setStoryAudioClipStartSeconds(0);
+    setStoryAudioClipEndSeconds(0);
   };
 
   const handleStoryClipStartChange = (event) => {
@@ -1299,6 +1382,17 @@ export const Profile = () => {
     setStoryClipStartSeconds(nextStart);
     setStoryClipEndSeconds(nextEnd);
     setStoryClipPreviewing(false);
+  };
+
+  const handleStoryAudioClipStartChange = (event) => {
+    const nextStart = Number(event.target.value);
+    const nextEnd = Math.min(
+      pendingStoryAudioDurationSeconds,
+      nextStart + MAX_STORY_DURATION_SECONDS,
+    );
+
+    setStoryAudioClipStartSeconds(nextStart);
+    setStoryAudioClipEndSeconds(nextEnd);
   };
 
   const updateStoryClipWindowFromClientX = (clientX, bounds) => {
@@ -1325,6 +1419,29 @@ export const Profile = () => {
     setStoryClipPreviewing(false);
   };
 
+  const updateStoryAudioClipWindowFromClientX = (clientX, bounds) => {
+    if (!bounds || bounds.width <= 0 || pendingStoryAudioDurationSeconds <= 0) {
+      return;
+    }
+
+    const relativeX = Math.min(Math.max(clientX - bounds.left, 0), bounds.width);
+    const relativeRatio = relativeX / bounds.width;
+    const nextStart = Math.max(
+      0,
+      Math.min(
+        pendingStoryAudioDurationSeconds - MAX_STORY_DURATION_SECONDS,
+        relativeRatio * pendingStoryAudioDurationSeconds,
+      ),
+    );
+    const nextEnd = Math.min(
+      pendingStoryAudioDurationSeconds,
+      nextStart + MAX_STORY_DURATION_SECONDS,
+    );
+
+    setStoryAudioClipStartSeconds(nextStart);
+    setStoryAudioClipEndSeconds(nextEnd);
+  };
+
   const handleStoryClipWindowPointerDown = (event) => {
     if (!hasAdjustableStoryClipWindow) {
       return;
@@ -1336,6 +1453,24 @@ export const Profile = () => {
     const handlePointerMove = (moveEvent) => {
       updateStoryClipWindowFromClientX(moveEvent.clientX, bounds);
     };
+    const handlePointerUp = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
+  const handleStoryAudioClipWindowPointerDown = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+
+    updateStoryAudioClipWindowFromClientX(event.clientX, bounds);
+
+    const handlePointerMove = (moveEvent) => {
+      updateStoryAudioClipWindowFromClientX(moveEvent.clientX, bounds);
+    };
+
     const handlePointerUp = () => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
@@ -1368,6 +1503,13 @@ export const Profile = () => {
       Math.min(pendingStoryVideoDurationSeconds, MAX_STORY_DURATION_SECONDS),
     );
     setStoryClipPreviewing(false);
+  };
+
+  const handleUseDefaultStoryAudioClip = () => {
+    setStoryAudioClipStartSeconds(0);
+    setStoryAudioClipEndSeconds(
+      Math.min(pendingStoryAudioDurationSeconds, MAX_STORY_DURATION_SECONDS),
+    );
   };
 
   const handlePublishStory = async () => {
@@ -1412,6 +1554,11 @@ export const Profile = () => {
         mediaFile: mediaFileForUpload,
         audioFile: pendingStoryAudioFile,
         sourcePostId: selectedStoryPost?._id || "",
+        audioStartSeconds: pendingStoryAudioFile ? storyAudioClipStartSeconds : 0,
+        audioEndSeconds: pendingStoryAudioFile ? storyAudioClipEndSeconds : 0,
+        audioPlaybackDurationSeconds: pendingStoryAudioFile
+          ? MAX_STORY_DURATION_SECONDS
+          : 0,
       }),
     );
 
@@ -1786,6 +1933,16 @@ export const Profile = () => {
     0,
     storyClipEndSeconds - storyClipStartSeconds,
   );
+  const pendingStoryAudioSourceType = pendingStoryAudioFile?.type?.startsWith("video/")
+    ? "video"
+    : "audio";
+  const hasStorySoundtrack = Boolean(pendingStoryAudioFile);
+  const hasAdjustableStoryAudioClipWindow =
+    hasStorySoundtrack && pendingStoryAudioDurationSeconds > MAX_STORY_DURATION_SECONDS;
+  const selectedStoryAudioClipDuration = Math.max(
+    0,
+    storyAudioClipEndSeconds - storyAudioClipStartSeconds,
+  );
   const storyClipWindowStartPercent =
     pendingStoryVideoDurationSeconds > 0
       ? (storyClipStartSeconds / pendingStoryVideoDurationSeconds) * 100
@@ -1793,6 +1950,14 @@ export const Profile = () => {
   const storyClipWindowEndPercent =
     pendingStoryVideoDurationSeconds > 0
       ? (storyClipEndSeconds / pendingStoryVideoDurationSeconds) * 100
+      : 0;
+  const storyAudioClipWindowStartPercent =
+    pendingStoryAudioDurationSeconds > 0
+      ? (storyAudioClipStartSeconds / pendingStoryAudioDurationSeconds) * 100
+      : 0;
+  const storyAudioClipWindowEndPercent =
+    pendingStoryAudioDurationSeconds > 0
+      ? (storyAudioClipEndSeconds / pendingStoryAudioDurationSeconds) * 100
       : 0;
   const selectedStoryPostTooLong =
     !pendingStoryMediaFile &&
@@ -2489,9 +2654,9 @@ export const Profile = () => {
               onFileSelect={handleStoryAudioSelect}
               disabled={loading}
               size={18}
-              accept="audio/*"
+              accept="audio/*,video/*"
               label={pendingStoryAudioFile ? "Change music" : "Add music"}
-              title="Attach optional music from your device"
+              title="Attach optional sound from an audio or video file"
             />
 
             {(pendingStoryMediaFile || pendingStoryAudioFile || selectedStoryPost) ? (
@@ -2512,7 +2677,7 @@ export const Profile = () => {
             }`}
           >
             <div
-              className={`${styles.storyComposerCard} ${
+              className={`${styles.storyComposerCard} ${styles.storyComposerDraftCard} ${
                 pendingStoryMediaFile ? styles.storyComposerDraftExpanded : ""
               }`}
             >
@@ -2697,16 +2862,122 @@ export const Profile = () => {
                       </p>
                     ) : null}
 
+                    {pendingStoryAudioFile && pendingStoryAudioDurationSeconds > 0 ? (
+                      <div className={styles.storyClipPanel}>
+                        <div className={styles.storyClipHeader}>
+                          <div>
+                            <strong>
+                              {pendingStoryAudioSourceType === "video"
+                                ? "Video soundtrack"
+                                : "Audio soundtrack"}
+                            </strong>
+                            <small>
+                              {formatDurationLabel(storyAudioClipStartSeconds)} to{" "}
+                              {formatDurationLabel(storyAudioClipEndSeconds)}
+                            </small>
+                          </div>
+                          <span className={styles.storyClipBadge}>
+                            Clip {formatDurationLabel(selectedStoryAudioClipDuration)}
+                          </span>
+                        </div>
+
+                        {hasAdjustableStoryAudioClipWindow ? (
+                          <div className={styles.storyClipControl}>
+                            <div className={styles.storyClipLabelRow}>
+                              <label htmlFor="story-audio-window">
+                                Move the 1:30 sound window
+                              </label>
+                              <span>{formatDurationLabel(storyAudioClipStartSeconds)}</span>
+                            </div>
+                            <div className={styles.storyClipRangeShell}>
+                              <button
+                                type="button"
+                                className={styles.storyClipDragSurface}
+                                onPointerDown={handleStoryAudioClipWindowPointerDown}
+                                aria-label="Drag the selected 1 minute 30 second soundtrack window"
+                              >
+                                <span
+                                  className={styles.storyClipRangeBackdrop}
+                                  aria-hidden="true"
+                                >
+                                  <span
+                                    className={styles.storyClipRangeActive}
+                                    style={{
+                                      left: `${storyAudioClipWindowStartPercent}%`,
+                                      width: `${Math.max(
+                                        0,
+                                        storyAudioClipWindowEndPercent -
+                                          storyAudioClipWindowStartPercent,
+                                      )}%`,
+                                    }}
+                                  >
+                                    <span className={styles.storyClipHandle} />
+                                    <span className={styles.storyClipHandle} />
+                                  </span>
+                                </span>
+                              </button>
+                              <input
+                                id="story-audio-window"
+                                type="range"
+                                min="0"
+                                max={Math.max(
+                                  0,
+                                  pendingStoryAudioDurationSeconds - MAX_STORY_DURATION_SECONDS,
+                                )}
+                                step={STORY_CLIP_SLIDER_STEP_SECONDS}
+                                value={storyAudioClipStartSeconds}
+                                onInput={handleStoryAudioClipStartChange}
+                                onChange={handleStoryAudioClipStartChange}
+                                className={styles.storyClipSlider}
+                                aria-hidden="true"
+                                tabIndex={-1}
+                              />
+                            </div>
+                            <div className={styles.storyClipTimelineLabels}>
+                              <span>{formatDurationLabel(0)}</span>
+                              <span>
+                                {formatDurationLabel(pendingStoryAudioDurationSeconds)}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={styles.storyClipStaticNote}>
+                            This soundtrack is shorter than 1 minute 30 seconds, so it will
+                            repeat automatically until the story sound reaches 1:30.
+                          </div>
+                        )}
+
+                        <div className={styles.storyClipActions}>
+                          <button
+                            type="button"
+                            className={styles.storySecondaryButton}
+                            onClick={handleUseDefaultStoryAudioClip}
+                            disabled={!hasAdjustableStoryAudioClipWindow}
+                          >
+                            Use first 1:30
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
                     {pendingStoryAudioFile ? (
-                      <audio
-                        key={pendingStoryAudioPreview}
-                        ref={pendingStoryAudioRef}
-                        src={pendingStoryAudioPreview}
-                        autoPlay
-                        loop
-                        preload="metadata"
-                        className={styles.storyAudioPlayer}
-                      />
+                      pendingStoryAudioSourceType === "video" ? (
+                        <video
+                          key={pendingStoryAudioPreview}
+                          ref={pendingStoryAudioRef}
+                          src={pendingStoryAudioPreview}
+                          preload="metadata"
+                          className={styles.storyAudioPlayer}
+                        />
+                      ) : (
+                        <audio
+                          key={pendingStoryAudioPreview}
+                          ref={pendingStoryAudioRef}
+                          src={pendingStoryAudioPreview}
+                          preload="metadata"
+                          className={styles.storyAudioPlayer}
+                        />
+                      )
                     ) : null}
                   </div>
                 </div>
@@ -2728,7 +2999,7 @@ export const Profile = () => {
                   className={styles.storyPostSkeletonList}
                   aria-label="Loading your uploaded story posts"
                 >
-                  {Array.from({ length: 4 }, (_, index) => (
+                  {Array.from({ length: 6 }, (_, index) => (
                     <div
                       key={`story-post-skeleton-${index}`}
                       className={styles.storyPostSkeletonCard}
@@ -2738,6 +3009,9 @@ export const Profile = () => {
                         className={`${styles.storyPostSkeletonThumb} ${styles.storySkeletonBlock}`}
                       />
                       <div className={styles.storyPostSkeletonMeta}>
+                        <span
+                          className={`${styles.storyPostSkeletonBadge} ${styles.storySkeletonBlock}`}
+                        />
                         <span
                           className={`${styles.storyPostSkeletonTitle} ${styles.storySkeletonBlock}`}
                         />

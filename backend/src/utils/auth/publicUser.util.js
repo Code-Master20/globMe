@@ -40,6 +40,11 @@ const getActiveStoryPayload = (userObject) => {
     story: userObject.story,
     storyType: userObject.storyType || "image",
     storyAudio: userObject.storyAudio || null,
+    storyAudioType: userObject.storyAudioType || null,
+    storyAudioStartSeconds: Number(userObject.storyAudioStartSeconds) || 0,
+    storyAudioEndSeconds: Number(userObject.storyAudioEndSeconds) || 0,
+    storyAudioPlaybackDurationSeconds:
+      Number(userObject.storyAudioPlaybackDurationSeconds) || 0,
     storyLikeCount:
       typeof userObject.storyLikeCount === "number" ? userObject.storyLikeCount : 0,
     storyExpiresAt: expiresAt.toISOString(),
@@ -72,6 +77,10 @@ const getStoryHistoryPayload = (userObject, activeHistoryId = null) => {
         mediaUrl: item.mediaUrl,
         mediaType: item.mediaType || "image",
         audioUrl: item.audioUrl || null,
+        audioType: item.audioType || null,
+        audioStartSeconds: Number(item.audioStartSeconds) || 0,
+        audioEndSeconds: Number(item.audioEndSeconds) || 0,
+        audioPlaybackDurationSeconds: Number(item.audioPlaybackDurationSeconds) || 0,
         likeCount: typeof item.likeCount === "number" ? item.likeCount : 0,
         createdAt:
           createdAt && !Number.isNaN(createdAt.getTime())
@@ -142,6 +151,11 @@ const toPublicUser = (userDoc, options = {}) => {
       ownerUser.story = activeStory.story;
       ownerUser.storyType = activeStory.storyType;
       ownerUser.storyAudio = activeStory.storyAudio;
+      ownerUser.storyAudioType = activeStory.storyAudioType;
+      ownerUser.storyAudioStartSeconds = activeStory.storyAudioStartSeconds;
+      ownerUser.storyAudioEndSeconds = activeStory.storyAudioEndSeconds;
+      ownerUser.storyAudioPlaybackDurationSeconds =
+        activeStory.storyAudioPlaybackDurationSeconds;
       ownerUser.storyLikeCount = activeStory.storyLikeCount;
       ownerUser.storyExpiresAt = activeStory.storyExpiresAt;
     }
@@ -176,6 +190,11 @@ const toPublicUser = (userDoc, options = {}) => {
     publicUser.story = activeStory.story;
     publicUser.storyType = activeStory.storyType;
     publicUser.storyAudio = activeStory.storyAudio;
+    publicUser.storyAudioType = activeStory.storyAudioType;
+    publicUser.storyAudioStartSeconds = activeStory.storyAudioStartSeconds;
+    publicUser.storyAudioEndSeconds = activeStory.storyAudioEndSeconds;
+    publicUser.storyAudioPlaybackDurationSeconds =
+      activeStory.storyAudioPlaybackDurationSeconds;
     publicUser.storyLikeCount = activeStory.storyLikeCount;
     publicUser.storyExpiresAt = activeStory.storyExpiresAt;
   }

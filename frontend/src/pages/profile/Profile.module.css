@@ -1141,6 +1141,14 @@
   border: 1px solid rgba(203, 213, 225, 0.86);
 }
 
+.storyComposerDraftCard {
+  border-color: rgba(239, 68, 68, 0.52);
+  box-shadow:
+    0 0 0 1px rgba(239, 68, 68, 0.38),
+    0 0 0 6px rgba(239, 68, 68, 0.08),
+    0 18px 36px rgba(239, 68, 68, 0.12);
+}
+
 .storyComposerLibraryCard {
   display: flex;
   flex-direction: column;
@@ -1310,11 +1318,18 @@
 
 .storyPostSkeletonList {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  align-content: start;
 }
 
 .storyPostSkeletonCard {
+  display: flex;
+  flex-direction: column;
   padding: 0.6rem;
   border: 1px solid #dbe4ef;
   border-radius: 18px;
@@ -1332,6 +1347,12 @@
   flex-direction: column;
   gap: 0.38rem;
   margin-top: 0.55rem;
+}
+
+.storyPostSkeletonBadge {
+  width: 4.8rem;
+  height: 1.5rem;
+  border-radius: 999px;
 }
 
 .storyPostSkeletonTitle {
@@ -1370,6 +1391,20 @@
   animation: storyComposerSkeletonShimmer 1.2s ease-in-out infinite;
 }
 
+.storyPostSkeletonList::-webkit-scrollbar {
+  width: 10px;
+}
+
+.storyPostSkeletonList::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.32);
+}
+
+.storyPostSkeletonList::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.58);
+  border-radius: 999px;
+}
+
 .storyComposerFooter {
   display: flex;
   justify-content: space-between;
@@ -1402,6 +1437,10 @@
   .storyDraftSkeleton {
     grid-template-columns: minmax(320px, 400px) minmax(260px, 1fr);
     align-items: start;
+  }
+
+  .storyPostSkeletonList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .storyComposerDraftExpanded {

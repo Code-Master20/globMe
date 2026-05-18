@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MdChevronLeft, MdChevronRight, MdClose, MdOutlineFavoriteBorder } from "react-icons/md";
 import { IoHeart } from "react-icons/io5";
 import { toast } from "react-toastify";
@@ -63,6 +63,7 @@ export const StoryViewerModal = ({
   const [ownerComments, setOwnerComments] = useState([]);
   const [ownerCommentsLoading, setOwnerCommentsLoading] = useState(false);
   const [ownerCommentsError, setOwnerCommentsError] = useState("");
+  const soundtrackRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -80,6 +81,91 @@ export const StoryViewerModal = ({
   const ownerStoryEntryId = `${currentStory?.story?.storyEntryId || ""}`;
   const canLoadOwnerComments =
     isOwnStory && /^[a-f\d]{24}$/i.test(ownerStoryEntryId);
+  const soundtrackClipStartSeconds = Number(currentStory?.story?.audioStartSeconds) || 0;
+  const soundtrackClipEndSeconds = Number(currentStory?.story?.audioEndSeconds) || 0;
+  const soundtrackPlaybackDurationSeconds =
+    Number(currentStory?.story?.audioPlaybackDurationSeconds) || 0;
+  const soundtrackIsVideo = currentStory?.story?.audioType === "video";
+
+  useEffect(() => {
+    const mediaElement = soundtrackRef.current;
+
+    if (!open || !mediaElement || !currentStory?.story?.audioUrl) {
+      return undefined;
+    }
+
+    const clipStart = Math.max(0, soundtrackClipStartSeconds);
+    let clipEnd = soundtrackClipEndSeconds;
+    let playbackRemainingSeconds = soundtrackPlaybackDurationSeconds;
+
+    const seekToStart = () => {
+      try {
+        mediaElement.currentTime = clipStart;
+      } catch {
+        return;
+      }
+    };
+
+    const playFromStart = () => {
+      seekToStart();
+      const playPromise = mediaElement.play();
+
+      if (playPromise?.catch) {
+        playPromise.catch(() => {});
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      const intrinsicDuration = Number(mediaElement.duration);
+
+      if (!Number.isFinite(clipEnd) || clipEnd <= clipStart) {
+        clipEnd = Number.isFinite(intrinsicDuration) && intrinsicDuration > 0
+          ? intrinsicDuration
+          : clipStart;
+      }
+
+      if (!Number.isFinite(playbackRemainingSeconds) || playbackRemainingSeconds <= 0) {
+        playbackRemainingSeconds = Math.max(0, clipEnd - clipStart);
+      }
+
+      playFromStart();
+    };
+
+    const handleTimeUpdate = () => {
+      if (mediaElement.currentTime < clipEnd - 0.2) {
+        return;
+      }
+
+      playbackRemainingSeconds -= Math.max(0, clipEnd - clipStart);
+
+      if (playbackRemainingSeconds > 0.2) {
+        playFromStart();
+        return;
+      }
+
+      mediaElement.pause();
+    };
+
+    mediaElement.addEventListener("loadedmetadata", handleLoadedMetadata);
+    mediaElement.addEventListener("timeupdate", handleTimeUpdate);
+
+    if (mediaElement.readyState >= 1) {
+      handleLoadedMetadata();
+    }
+
+    return () => {
+      mediaElement.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      mediaElement.removeEventListener("timeupdate", handleTimeUpdate);
+      mediaElement.pause();
+      mediaElement.currentTime = 0;
+    };
+  }, [
+    currentStory?.story?.audioUrl,
+    open,
+    soundtrackClipEndSeconds,
+    soundtrackClipStartSeconds,
+    soundtrackPlaybackDurationSeconds,
+  ]);
 
   useEffect(() => {
     if (!open || !canLoadOwnerComments) {
@@ -288,12 +374,21 @@ export const StoryViewerModal = ({
             )}
 
             {currentStory.story?.audioUrl ? (
-              <audio
-                src={currentStory.story.audioUrl}
-                autoPlay
-                preload="metadata"
-                className={styles.storyBackgroundAudio}
-              />
+              soundtrackIsVideo ? (
+                <video
+                  ref={soundtrackRef}
+                  src={currentStory.story.audioUrl}
+                  preload="metadata"
+                  className={styles.storyBackgroundAudio}
+                />
+              ) : (
+                <audio
+                  ref={soundtrackRef}
+                  src={currentStory.story.audioUrl}
+                  preload="metadata"
+                  className={styles.storyBackgroundAudio}
+                />
+              )
             ) : null}
           </div>
 

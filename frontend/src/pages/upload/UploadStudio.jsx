@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSelector } from "react-redux";
 import {
   MdGraphicEq,
   MdOutlinePhotoLibrary,
@@ -11,6 +12,10 @@ import api from "../../lib/api";
 import { ImageUpload } from "../../components/media/ImgUpload";
 import { PhotoShortPlayer } from "../../components/media/PhotoShortPlayer";
 import styles from "./UploadStudio.module.css";
+
+const UPLOAD_AUX_CACHE_TTL_MS = 60 * 1000;
+const uploadPlaylistsCache = new Map();
+const uploadFriendsCache = new Map();
 
 const initialPostForm = {
   title: "",
@@ -278,6 +283,32 @@ const formatPostKindLabel = (postType, contentFormat) => {
   return contentFormat === "reel" ? "Photo Shorts" : "Raw post";
 };
 
+const UploadPickerSkeleton = ({ count = 4, optionClassName }) => (
+  <>
+    {Array.from({ length: count }).map((_, index) => (
+      <div key={`picker-skeleton-${index}`} className={`${optionClassName} ${styles.skeletonBlock}`}>
+        <span className={styles.skeletonCheckbox} />
+        <div className={styles.skeletonMetaStack}>
+          <span className={styles.skeletonTextMedium} />
+          <span className={styles.skeletonTextShort} />
+        </div>
+      </div>
+    ))}
+  </>
+);
+
+const UploadFriendOverlaySkeleton = () => (
+  <>
+    <div className={`${styles.friendSearchField} ${styles.skeletonFieldBlock}`}>
+      <span className={styles.skeletonTextShort} />
+      <div className={`${styles.friendSearchInputSkeleton} ${styles.skeletonBlock}`} />
+    </div>
+    <div className={styles.friendPicker}>
+      <UploadPickerSkeleton optionClassName={styles.friendOption} />
+    </div>
+  </>
+);
+
 export const UploadStudio = () => {
   usePageMetadata({
     title: "Upload studio",
@@ -286,6 +317,7 @@ export const UploadStudio = () => {
   });
 
   const location = useLocation();
+  const { user } = useSelector((state) => state.auth);
   const previewVideoRef = useRef(null);
   const [postForm, setPostForm] = useState(initialPostForm);
   const [selectedPostFile, setSelectedPostFile] = useState(null);
@@ -321,6 +353,7 @@ export const UploadStudio = () => {
     : selectedPostFile?.type?.startsWith("image/")
       ? "image"
       : uploadIntent;
+  const ownerCacheKey = user?._id || "guest";
 
   useEffect(() => {
     if (!selectedPostFile) {
@@ -516,9 +549,25 @@ export const UploadStudio = () => {
 
   const loadOwnerPlaylists = async () => {
     try {
-      setPlaylistsLoading(true);
+      const cachedEntry = uploadPlaylistsCache.get(ownerCacheKey);
+      const hasFreshCache =
+        cachedEntry &&
+        Date.now() - cachedEntry.updatedAt < UPLOAD_AUX_CACHE_TTL_MS;
+
+      if (hasFreshCache) {
+        setOwnerPlaylists(Array.isArray(cachedEntry.payload) ? cachedEntry.payload : []);
+        setPlaylistsLoading(false);
+      } else {
+        setPlaylistsLoading(true);
+      }
+
       const response = await api.get("/user/playlists");
-      setOwnerPlaylists(Array.isArray(response.data?.data) ? response.data.data : []);
+      const nextPlaylists = Array.isArray(response.data?.data) ? response.data.data : [];
+      setOwnerPlaylists(nextPlaylists);
+      uploadPlaylistsCache.set(ownerCacheKey, {
+        updatedAt: Date.now(),
+        payload: nextPlaylists,
+      });
     } catch (error) {
       toast.error(error.response?.data?.message || "Playlists could not be loaded");
       setOwnerPlaylists([]);
@@ -529,9 +578,27 @@ export const UploadStudio = () => {
 
   const loadOwnerFriends = async () => {
     try {
-      setFriendsLoading(true);
+      const cachedEntry = uploadFriendsCache.get(ownerCacheKey);
+      const hasFreshCache =
+        cachedEntry &&
+        Date.now() - cachedEntry.updatedAt < UPLOAD_AUX_CACHE_TTL_MS;
+
+      if (hasFreshCache) {
+        setOwnerFriends(Array.isArray(cachedEntry.payload) ? cachedEntry.payload : []);
+        setFriendsLoading(false);
+      } else {
+        setFriendsLoading(true);
+      }
+
       const response = await api.get("/network/hub");
-      setOwnerFriends(Array.isArray(response.data?.data?.friends) ? response.data.data.friends : []);
+      const nextFriends = Array.isArray(response.data?.data?.friends)
+        ? response.data.data.friends
+        : [];
+      setOwnerFriends(nextFriends);
+      uploadFriendsCache.set(ownerCacheKey, {
+        updatedAt: Date.now(),
+        payload: nextFriends,
+      });
     } catch {
       setOwnerFriends([]);
     } finally {
@@ -541,7 +608,7 @@ export const UploadStudio = () => {
 
   useEffect(() => {
     loadOwnerFriends();
-  }, []);
+  }, [ownerCacheKey]);
 
   useEffect(() => {
     if (!friendPrivacyPickerOpen) {
@@ -551,7 +618,7 @@ export const UploadStudio = () => {
 
   useEffect(() => {
     loadOwnerPlaylists();
-  }, [uploadIntent]);
+  }, [ownerCacheKey, uploadIntent]);
 
   const handlePostInputChange = (event) => {
     const { name, value } = event.target;
@@ -1164,7 +1231,9 @@ export const UploadStudio = () => {
               </div>
 
               {playlistsLoading ? (
-                <div className={styles.emptyState}>Loading your playlists...</div>
+                <div className={styles.playlistPicker}>
+                  <UploadPickerSkeleton optionClassName={styles.playlistOption} />
+                </div>
               ) : ownerPlaylists.length === 0 ? (
                 <div className={styles.emptyState}>
                   No playlists yet. You can create a new one below while uploading this post.
@@ -1250,7 +1319,7 @@ export const UploadStudio = () => {
               </div>
 
               {friendsLoading ? (
-                <div className={styles.emptyState}>Loading your friends...</div>
+                <UploadFriendOverlaySkeleton />
               ) : ownerFriends.length === 0 ? (
                 <div className={styles.emptyState}>
                   Add friends first if you want to hide this upload from specific people.

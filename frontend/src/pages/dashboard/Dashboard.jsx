@@ -16,6 +16,9 @@ import { usePageMetadata } from "../../hooks/usePageMetadata";
 import api from "../../lib/api";
 import { checkMe, logOut } from "../../store/auth/authThunks";
 
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+const dashboardCache = new Map();
+
 const formatLabel = (value) => {
   if (!value) {
     return "Uncategorized";
@@ -59,6 +62,107 @@ const formatDuration = (seconds) => {
   return `${minutes}:${`${remainder}`.padStart(2, "0")}`;
 };
 
+const DashboardSummarySkeleton = () =>
+  Array.from({ length: 5 }).map((_, index) => (
+    <article key={`summary-skeleton-${index}`} className={`${styles.summaryCard} ${styles.skeletonBlock}`}>
+      <span className={styles.skeletonTextShort} />
+      <strong className={styles.skeletonTextMedium} />
+      <small className={styles.skeletonTextLong} />
+    </article>
+  ));
+
+const DashboardPlaylistSkeleton = ({ count = 4 }) =>
+  Array.from({ length: count }).map((_, index) => (
+    <div key={`playlist-skeleton-${index}`} className={`${styles.playlistOption} ${styles.skeletonBlock}`}>
+      <span className={styles.skeletonCheckbox} />
+      <div className={styles.skeletonMetaStack}>
+        <span className={styles.skeletonTextMedium} />
+        <span className={styles.skeletonTextShort} />
+      </div>
+    </div>
+  ));
+
+const DashboardVideoWorkspaceSkeleton = () => (
+  <>
+    <div className={styles.categoryFilterRow}>
+      {Array.from({ length: 4 }).map((_, index) => (
+        <span
+          key={`category-skeleton-${index}`}
+          className={`${styles.categoryChip} ${styles.skeletonChip}`}
+        />
+      ))}
+    </div>
+
+    <div className={styles.videoGroupStack}>
+      {Array.from({ length: 2 }).map((_, groupIndex) => (
+        <section
+          key={`video-group-skeleton-${groupIndex}`}
+          className={`${styles.videoGroup} ${styles.skeletonBlock}`}
+        >
+          <div className={styles.videoGroupHeader}>
+            <span className={styles.skeletonTextMedium} />
+            <span className={styles.skeletonTextShort} />
+          </div>
+
+          <div className={styles.videoList}>
+            {Array.from({ length: 3 }).map((_, cardIndex) => (
+              <article
+                key={`video-card-skeleton-${groupIndex}-${cardIndex}`}
+                className={`${styles.videoCard} ${styles.skeletonBlock}`}
+              >
+                <div className={`${styles.videoThumbFrame} ${styles.skeletonFrame}`} />
+                <div className={styles.videoBody}>
+                  <div className={styles.skeletonMetaStack}>
+                    <span className={styles.skeletonTextMedium} />
+                    <span className={styles.skeletonTextLong} />
+                  </div>
+                  <div className={styles.inlineForm}>
+                    <span className={`${styles.skeletonInput} ${styles.skeletonBlock}`} />
+                    <span className={`${styles.inlineAction} ${styles.skeletonButton}`} />
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  </>
+);
+
+const DashboardSavedListSkeleton = ({ count = 3 }) => (
+  <div className={styles.savedList}>
+    {Array.from({ length: count }).map((_, index) => (
+      <article key={`saved-skeleton-${index}`} className={`${styles.savedCard} ${styles.skeletonBlock}`}>
+        <div className={`${styles.savedMeta} ${styles.skeletonMetaStack}`}>
+          <span className={styles.skeletonTextMedium} />
+          <span className={styles.skeletonTextLong} />
+          <span className={styles.skeletonTextShort} />
+        </div>
+        <span className={`${styles.inlineAction} ${styles.skeletonButton}`} />
+      </article>
+    ))}
+  </div>
+);
+
+const DashboardRecentPostsSkeleton = ({ count = 4 }) => (
+  <div className={styles.recentPostGrid}>
+    {Array.from({ length: count }).map((_, index) => (
+      <article
+        key={`recent-post-skeleton-${index}`}
+        className={`${styles.recentPostCard} ${styles.skeletonBlock}`}
+      >
+        <div className={`${styles.recentPostFrame} ${styles.skeletonFrame}`} />
+        <div className={`${styles.recentPostMeta} ${styles.skeletonMetaStack}`}>
+          <span className={styles.skeletonTextMedium} />
+          <span className={styles.skeletonTextShort} />
+          <span className={styles.skeletonTextLong} />
+        </div>
+      </article>
+    ))}
+  </div>
+);
+
 export const Dashboard = () => {
   usePageMetadata({
     title: "Owner dashboard",
@@ -99,37 +203,72 @@ export const Dashboard = () => {
       : videoLibrary.filter((post) => (post.category || "uncategorized") === selectedCategory),
   );
 
+  const dashboardCacheKey = user?._id ? `dashboard:${user._id}` : "";
+
+  const applyDashboardPayload = (payload) => {
+    const nextOwnerPosts = Array.isArray(payload?.ownerPosts) ? payload.ownerPosts : [];
+    const nextPosts = Array.isArray(payload?.videoLibrary) ? payload.videoLibrary : [];
+    const nextCategories = Array.isArray(payload?.videoCategories) ? payload.videoCategories : [];
+    const nextWatchLater = Array.isArray(payload?.watchLaterVideos) ? payload.watchLaterVideos : [];
+    const nextPlaylists = Array.isArray(payload?.playlists) ? payload.playlists : [];
+
+    setOwnerPosts(nextOwnerPosts);
+    setVideoLibrary(nextPosts);
+    setVideoCategories(nextCategories);
+    setWatchLaterVideos(nextWatchLater);
+    setPlaylists(nextPlaylists);
+    setCategoryDrafts(
+      nextPosts.reduce((accumulator, post) => {
+        accumulator[post._id] =
+          post.category && post.category !== "uncategorized" ? post.category : "";
+        return accumulator;
+      }, {}),
+    );
+  };
+
   const loadDashboardData = async () => {
     try {
-      setLibraryLoading(true);
+      const cachedEntry = dashboardCacheKey ? dashboardCache.get(dashboardCacheKey) : null;
+      const hasFreshCache =
+        cachedEntry &&
+        Date.now() - cachedEntry.updatedAt < DASHBOARD_CACHE_TTL_MS;
+
+      if (hasFreshCache) {
+        applyDashboardPayload(cachedEntry.payload);
+        setLibraryLoading(false);
+      } else {
+        setLibraryLoading(true);
+      }
+
       setLibraryError("");
 
       const [postsResponse, libraryResponse, watchLaterResponse, playlistsResponse] =
         await Promise.all([
           api.get("/user/posts"),
-        api.get("/user/videos"),
-        api.get("/user/watch-later"),
-        api.get("/user/playlists"),
+          api.get("/user/videos"),
+          api.get("/user/watch-later"),
+          api.get("/user/playlists"),
         ]);
 
-      setOwnerPosts(Array.isArray(postsResponse.data?.data) ? postsResponse.data.data : []);
       const libraryPayload = libraryResponse.data?.data || {};
-      const nextPosts = Array.isArray(libraryPayload.posts) ? libraryPayload.posts : [];
-      const nextCategories = Array.isArray(libraryPayload.categories)
-        ? libraryPayload.categories
-        : [];
+      const payload = {
+        ownerPosts: Array.isArray(postsResponse.data?.data) ? postsResponse.data.data : [],
+        videoLibrary: Array.isArray(libraryPayload.posts) ? libraryPayload.posts : [],
+        videoCategories: Array.isArray(libraryPayload.categories) ? libraryPayload.categories : [],
+        watchLaterVideos: Array.isArray(watchLaterResponse.data?.data)
+          ? watchLaterResponse.data.data
+          : [],
+        playlists: Array.isArray(playlistsResponse.data?.data) ? playlistsResponse.data.data : [],
+      };
 
-      setVideoLibrary(nextPosts);
-      setVideoCategories(nextCategories);
-      setCategoryDrafts(
-        nextPosts.reduce((accumulator, post) => {
-          accumulator[post._id] =
-            post.category && post.category !== "uncategorized" ? post.category : "";
-          return accumulator;
-        }, {}),
-      );
-      setWatchLaterVideos(Array.isArray(watchLaterResponse.data?.data) ? watchLaterResponse.data.data : []);
-      setPlaylists(Array.isArray(playlistsResponse.data?.data) ? playlistsResponse.data.data : []);
+      applyDashboardPayload(payload);
+
+      if (dashboardCacheKey) {
+        dashboardCache.set(dashboardCacheKey, {
+          updatedAt: Date.now(),
+          payload,
+        });
+      }
     } catch (error) {
       setLibraryError(error.response?.data?.message || "Dashboard data could not be loaded.");
     } finally {
@@ -139,7 +278,33 @@ export const Dashboard = () => {
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [dashboardCacheKey]);
+
+  useEffect(() => {
+    if (!dashboardCacheKey || libraryLoading || libraryError) {
+      return;
+    }
+
+    dashboardCache.set(dashboardCacheKey, {
+      updatedAt: Date.now(),
+      payload: {
+        ownerPosts,
+        videoLibrary,
+        videoCategories,
+        watchLaterVideos,
+        playlists,
+      },
+    });
+  }, [
+    dashboardCacheKey,
+    libraryError,
+    libraryLoading,
+    ownerPosts,
+    playlists,
+    videoCategories,
+    videoLibrary,
+    watchLaterVideos,
+  ]);
 
   const handleLogout = async () => {
     const resultAction = await dispatch(logOut());
@@ -388,35 +553,41 @@ export const Dashboard = () => {
       </section>
 
       <section className={styles.summaryGrid}>
-        <article className={styles.summaryCard}>
-          <span>Current email</span>
-          <strong>{user?.email || "Unavailable"}</strong>
-          <small>Use the email change panel below to move the account safely.</small>
-        </article>
+        {libraryLoading ? (
+          <DashboardSummarySkeleton />
+        ) : (
+          <>
+            <article className={styles.summaryCard}>
+              <span>Current email</span>
+              <strong>{user?.email || "Unavailable"}</strong>
+              <small>Use the email change panel below to move the account safely.</small>
+            </article>
 
-        <article className={styles.summaryCard}>
-          <span>Your videos</span>
-          <strong>{videoLibrary.length}</strong>
-          <small>Grouped by category so you can organize them like a creator library.</small>
-        </article>
+            <article className={styles.summaryCard}>
+              <span>Your videos</span>
+              <strong>{videoLibrary.length}</strong>
+              <small>Grouped by category so you can organize them like a creator library.</small>
+            </article>
 
-        <article className={styles.summaryCard}>
-          <span>Published posts</span>
-          <strong>{ownerPosts.length}</strong>
-          <small>Photo articles, photo reels, video reels, and long videos all count here.</small>
-        </article>
+            <article className={styles.summaryCard}>
+              <span>Published posts</span>
+              <strong>{ownerPosts.length}</strong>
+              <small>Photo articles, photo reels, video reels, and long videos all count here.</small>
+            </article>
 
-        <article className={styles.summaryCard}>
-          <span>Watch later</span>
-          <strong>{watchLaterVideos.length}</strong>
-          <small>Saved videos are collected here for your later viewing queue.</small>
-        </article>
+            <article className={styles.summaryCard}>
+              <span>Watch later</span>
+              <strong>{watchLaterVideos.length}</strong>
+              <small>Saved videos are collected here for your later viewing queue.</small>
+            </article>
 
-        <article className={styles.summaryCard}>
-          <span>Public playlists</span>
-          <strong>{playlists.length}</strong>
-          <small>These playlist shelves are visible to visitors on your profile.</small>
-        </article>
+            <article className={styles.summaryCard}>
+              <span>Public playlists</span>
+              <strong>{playlists.length}</strong>
+              <small>These playlist shelves are visible to visitors on your profile.</small>
+            </article>
+          </>
+        )}
       </section>
 
       <section className={styles.grid}>
@@ -567,7 +738,9 @@ export const Dashboard = () => {
             </label>
 
             <div className={styles.playlistPicker}>
-              {videoLibrary.length === 0 ? (
+              {libraryLoading ? (
+                <DashboardPlaylistSkeleton />
+              ) : videoLibrary.length === 0 ? (
                 <div className={styles.emptyState}>
                   Add video posts first, then you can arrange them into public playlists.
                 </div>
@@ -628,7 +801,7 @@ export const Dashboard = () => {
           </div>
 
           {libraryLoading ? (
-            <div className={styles.emptyState}>Loading your video workspace...</div>
+            <DashboardVideoWorkspaceSkeleton />
           ) : libraryError ? (
             <div className={styles.emptyState}>{libraryError}</div>
           ) : videoLibrary.length === 0 ? (
@@ -721,7 +894,7 @@ export const Dashboard = () => {
           </div>
 
           {libraryLoading ? (
-            <div className={styles.emptyState}>Loading saved videos...</div>
+            <DashboardSavedListSkeleton />
           ) : watchLaterVideos.length === 0 ? (
             <div className={styles.emptyState}>
               Save a few videos to watch later and they will appear here.
@@ -761,7 +934,9 @@ export const Dashboard = () => {
             </div>
           </div>
 
-          {playlists.length === 0 ? (
+          {libraryLoading ? (
+            <DashboardSavedListSkeleton />
+          ) : playlists.length === 0 ? (
             <div className={styles.emptyState}>
               Public playlists will appear here after you create them from your videos.
             </div>
@@ -797,7 +972,9 @@ export const Dashboard = () => {
             </div>
           </div>
 
-          {ownerPosts.length === 0 ? (
+          {libraryLoading ? (
+            <DashboardRecentPostsSkeleton />
+          ) : ownerPosts.length === 0 ? (
             <div className={styles.emptyState}>
               Publish your first photo or video post and it will show up here.
             </div>

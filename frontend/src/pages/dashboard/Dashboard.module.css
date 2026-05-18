@@ -92,6 +92,96 @@
   font-size: 1.35rem;
 }
 
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: skeletonShimmer 1.35s ease-in-out infinite;
+}
+
+.skeletonTextShort,
+.skeletonTextMedium,
+.skeletonTextLong,
+.skeletonCheckbox,
+.skeletonInput,
+.skeletonButton,
+.skeletonChip,
+.skeletonFrame {
+  display: block;
+  border-radius: 999px;
+  background: #e3ece5;
+}
+
+.skeletonTextShort {
+  width: 34%;
+  min-width: 5.4rem;
+  height: 0.9rem;
+}
+
+.skeletonTextMedium {
+  width: 58%;
+  min-width: 8rem;
+  height: 1.05rem;
+}
+
+.skeletonTextLong {
+  width: 100%;
+  height: 0.95rem;
+}
+
+.skeletonMetaStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.skeletonCheckbox {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.1rem;
+  flex-shrink: 0;
+}
+
+.skeletonInput {
+  flex: 1 1 180px;
+  min-height: 46px;
+  border-radius: 14px;
+}
+
+.skeletonButton {
+  min-width: 8.8rem;
+  min-height: 42px;
+  padding: 0;
+  box-shadow: none;
+  background: #d8e7de;
+}
+
+.skeletonChip {
+  min-width: 7rem;
+  min-height: 40px;
+  padding: 0;
+  box-shadow: none;
+  background: #dce8df;
+}
+
+.skeletonFrame {
+  background: linear-gradient(135deg, #dfe9e1 0%, #edf4ef 100%);
+}
+
 .summaryCard small {
   display: block;
   margin-top: 0.55rem;
@@ -463,6 +553,12 @@
   color: #193229;
 }
 
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @media (min-width: 700px) {
   .summaryCard {
     grid-column: span 3;
@@ -508,5 +604,11 @@
 
   .postPreviewCard {
     display: flex;
+  }
+
+  .skeletonButton,
+  .skeletonInput,
+  .skeletonChip {
+    width: 100%;
   }
 }

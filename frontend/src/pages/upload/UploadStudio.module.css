@@ -256,6 +256,70 @@
   color: #658176;
 }
 
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: uploadSkeletonShimmer 1.35s ease-in-out infinite;
+}
+
+.skeletonTextShort,
+.skeletonTextMedium,
+.skeletonCheckbox,
+.friendSearchInputSkeleton {
+  display: block;
+  border-radius: 999px;
+  background: #e3ece5;
+}
+
+.skeletonTextShort {
+  width: 32%;
+  min-width: 5.2rem;
+  height: 0.9rem;
+}
+
+.skeletonTextMedium {
+  width: 58%;
+  min-width: 8rem;
+  height: 1rem;
+}
+
+.skeletonCheckbox {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.1rem;
+  flex-shrink: 0;
+}
+
+.skeletonMetaStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.skeletonFieldBlock {
+  pointer-events: none;
+}
+
+.friendSearchInputSkeleton {
+  min-height: 44px;
+  border-radius: 14px;
+}
+
 .publishPicker {
   display: flex;
   flex-wrap: wrap;
@@ -590,6 +654,12 @@
   font: inherit;
 }
 
+@keyframes uploadSkeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @media (min-width: 960px) {
   .form {
     display: grid;
@@ -865,6 +935,11 @@
   .friendPicker,
   .playlistPicker {
     grid-template-columns: 1fr;
+  }
+
+  .friendSearchInputSkeleton {
+    min-height: 48px;
+    border-radius: 16px;
   }
 }
 

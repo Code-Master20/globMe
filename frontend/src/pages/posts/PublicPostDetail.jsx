@@ -19,6 +19,11 @@ import { PhotoShortPlayer } from "../../components/media/PhotoShortPlayer";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import styles from "./PublicPostDetail.module.css";
 
+const PUBLIC_POST_CACHE_TTL_MS = 60 * 1000;
+const publicPostCache = new Map();
+const publicPostPlaylistsCache = new Map();
+const publicPostLikesCache = new Map();
+
 const formatDisplayValue = (value) => {
   if (!value) return "";
 
@@ -68,6 +73,84 @@ const shouldShowViewCount = (post) =>
 const isMusicPhotoShort = (post) =>
   post?.postType === "image" && post?.contentFormat === "reel" && Boolean(post?.musicUrl);
 
+const PublicPostShellSkeleton = ({ video = false }) =>
+  video ? (
+    <article className={`${styles.videoShell} ${styles.skeletonBlock}`}>
+      <div className={`${styles.videoHero} ${styles.skeletonMedia}`} />
+      <section className={styles.videoContent}>
+        <div className={styles.videoCreatorRow}>
+          <span className={styles.skeletonAvatar} />
+          <div className={styles.skeletonStack}>
+            <span className={styles.skeletonTitleShort} />
+            <span className={styles.skeletonTextShort} />
+          </div>
+        </div>
+        <div className={styles.videoTitleBlock}>
+          <span className={styles.skeletonTextShort} />
+          <span className={styles.skeletonTitleLong} />
+          <div className={styles.videoMetaRow}>
+            <span className={styles.skeletonMetaPill} />
+            <span className={styles.skeletonMetaPill} />
+            <span className={styles.skeletonMetaPill} />
+          </div>
+        </div>
+        <div className={styles.videoActionRail}>
+          {Array.from({ length: 6 }).map((_, index) => (
+            <span key={`video-action-skeleton-${index}`} className={styles.skeletonActionButton} />
+          ))}
+        </div>
+        <section className={`${styles.videoPanel} ${styles.skeletonBlock}`}>
+          <div className={styles.skeletonStack}>
+            <span className={styles.skeletonTitleShort} />
+            <span className={styles.skeletonTextLong} />
+            <span className={styles.skeletonTextLong} />
+          </div>
+        </section>
+      </section>
+    </article>
+  ) : (
+    <article className={`${styles.card} ${styles.skeletonBlock}`}>
+      <div className={styles.profileRow}>
+        <span className={styles.skeletonAvatar} />
+        <div className={styles.skeletonStack}>
+          <span className={styles.skeletonTitleShort} />
+          <span className={styles.skeletonTextShort} />
+        </div>
+      </div>
+      <div className={`${styles.mediaFrame} ${styles.skeletonMedia}`} />
+      <div className={`${styles.copy} ${styles.skeletonStack}`}>
+        <span className={styles.skeletonTextShort} />
+        <span className={styles.skeletonTitleLong} />
+        <span className={styles.skeletonTextLong} />
+        <span className={styles.skeletonTextLong} />
+      </div>
+      <div className={styles.statGroup}>
+        {Array.from({ length: 4 }).map((_, index) => (
+          <span key={`stat-skeleton-${index}`} className={styles.skeletonMetaPill} />
+        ))}
+      </div>
+      <div className={styles.actionGroup}>
+        {Array.from({ length: 4 }).map((_, index) => (
+          <span key={`action-skeleton-${index}`} className={styles.skeletonActionButton} />
+        ))}
+      </div>
+    </article>
+  );
+
+const PublicPickerListSkeleton = ({ count = 4, avatar = false }) => (
+  <div className={styles.playlistPickerList}>
+    {Array.from({ length: count }).map((_, index) => (
+      <div key={`picker-list-skeleton-${index}`} className={`${styles.playlistPickerOption} ${styles.skeletonBlock}`}>
+        {avatar ? <span className={styles.skeletonLikesAvatar} /> : <span className={styles.skeletonCheckbox} />}
+        <div className={styles.skeletonStack}>
+          <span className={styles.skeletonTitleShort} />
+          <span className={styles.skeletonTextShort} />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 export const PublicPostDetail = () => {
   const { postId } = useParams();
   const navigate = useNavigate();
@@ -108,12 +191,28 @@ export const PublicPostDetail = () => {
 
     const loadPost = async () => {
       try {
-        setLoading(true);
+        const cachedEntry = publicPostCache.get(postId);
+        const hasFreshCache =
+          cachedEntry &&
+          Date.now() - cachedEntry.updatedAt < PUBLIC_POST_CACHE_TTL_MS;
+
+        if (hasFreshCache) {
+          setPost(cachedEntry.payload || null);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+
         setError("");
         const response = await api.get(`/public/posts/${postId}`);
+        const payload = response.data?.data || null;
 
         if (!ignore) {
-          setPost(response.data?.data || null);
+          setPost(payload);
+          publicPostCache.set(postId, {
+            updatedAt: Date.now(),
+            payload,
+          });
         }
       } catch (loadError) {
         if (!ignore) {
@@ -133,6 +232,17 @@ export const PublicPostDetail = () => {
       ignore = true;
     };
   }, [postId]);
+
+  useEffect(() => {
+    if (!postId || !post) {
+      return;
+    }
+
+    publicPostCache.set(postId, {
+      updatedAt: Date.now(),
+      payload: post,
+    });
+  }, [post, postId]);
 
   useEffect(() => {
     let ignore = false;
@@ -319,11 +429,27 @@ export const PublicPostDetail = () => {
 
     try {
       setLikesViewerOpen(true);
-      setLikesViewerLoading(true);
+      const cachedEntry = publicPostLikesCache.get(post._id);
+      const hasFreshCache =
+        cachedEntry &&
+        Date.now() - cachedEntry.updatedAt < PUBLIC_POST_CACHE_TTL_MS;
+
+      if (hasFreshCache) {
+        setLikesViewerItems(Array.isArray(cachedEntry.payload) ? cachedEntry.payload : []);
+        setLikesViewerLoading(false);
+      } else {
+        setLikesViewerLoading(true);
+      }
+
       setLikesViewerError("");
       const response = await api.get(`/user/posts/${post._id}/likes`);
       const payload = response.data?.data || {};
-      setLikesViewerItems(Array.isArray(payload.likes) ? payload.likes : []);
+      const nextLikes = Array.isArray(payload.likes) ? payload.likes : [];
+      setLikesViewerItems(nextLikes);
+      publicPostLikesCache.set(post._id, {
+        updatedAt: Date.now(),
+        payload: nextLikes,
+      });
     } catch (loadError) {
       setLikesViewerItems([]);
       setLikesViewerError(loadError.response?.data?.message || "Likes could not be loaded");
@@ -333,7 +459,37 @@ export const PublicPostDetail = () => {
   };
 
   const loadOwnerPlaylists = async () => {
-    setPlaylistsLoading(true);
+    const ownerCacheKey = user?._id || "";
+    const cachedEntry = ownerCacheKey ? publicPostPlaylistsCache.get(ownerCacheKey) : null;
+    const hasFreshCache =
+      cachedEntry &&
+      Date.now() - cachedEntry.updatedAt < PUBLIC_POST_CACHE_TTL_MS;
+
+    if (hasFreshCache) {
+      const cachedPlaylists = Array.isArray(cachedEntry.payload) ? cachedEntry.payload : [];
+      const cachedSelectedIds = post?._id
+        ? cachedPlaylists
+          .filter((playlist) =>
+            Array.isArray(playlist.videos) &&
+            playlist.videos.some((video) => video?._id === post._id),
+          )
+          .map((playlist) => playlist._id)
+        : [];
+
+      setOwnerPlaylists(cachedPlaylists);
+      setPlaylistPickerIds(cachedSelectedIds);
+      setNewPlaylistTitle("");
+      setNewPlaylistDescription("");
+      if (playlistPickerCloseTimeoutRef.current) {
+        window.clearTimeout(playlistPickerCloseTimeoutRef.current);
+        playlistPickerCloseTimeoutRef.current = null;
+      }
+      setPlaylistPickerClosing(false);
+      setPlaylistPickerOpen(true);
+      setPlaylistsLoading(false);
+    } else {
+      setPlaylistsLoading(true);
+    }
 
     try {
       const response = await api.get("/user/playlists");
@@ -348,6 +504,12 @@ export const PublicPostDetail = () => {
         : [];
 
       setOwnerPlaylists(nextPlaylists);
+      if (ownerCacheKey) {
+        publicPostPlaylistsCache.set(ownerCacheKey, {
+          updatedAt: Date.now(),
+          payload: nextPlaylists,
+        });
+      }
       setPlaylistPickerIds(nextSelectedIds);
       setNewPlaylistTitle("");
       setNewPlaylistDescription("");
@@ -477,7 +639,7 @@ export const PublicPostDetail = () => {
   if (loading) {
     return (
       <main className={styles.page}>
-        <section className={styles.placeholder}>Loading public post...</section>
+        <PublicPostShellSkeleton />
       </main>
     );
   }
@@ -844,7 +1006,7 @@ export const PublicPostDetail = () => {
             </div>
 
             {playlistsLoading ? (
-              <div className={styles.playlistPickerEmpty}>Loading your playlists...</div>
+              <PublicPickerListSkeleton />
             ) : ownerPlaylists.length === 0 ? (
               <div className={styles.playlistPickerEmpty}>
                 You have not created any playlists yet.
@@ -944,7 +1106,7 @@ export const PublicPostDetail = () => {
             </div>
 
             {likesViewerLoading ? (
-              <div className={styles.playlistPickerEmpty}>Loading likes...</div>
+              <PublicPickerListSkeleton avatar />
             ) : likesViewerError ? (
               <div className={styles.playlistPickerEmpty}>{likesViewerError}</div>
             ) : likesViewerItems.length === 0 ? (

@@ -92,7 +92,7 @@ const storyUpload = multer({
       return;
     }
 
-    if (isAudioField && allowedAudioTypes.includes(file.mimetype)) {
+    if (isAudioField && [...allowedAudioTypes, ...allowedVideoTypes].includes(file.mimetype)) {
       callback(null, true);
       return;
     }
@@ -100,7 +100,7 @@ const storyUpload = multer({
     callback(
       new Error(
         isAudioField
-          ? "Only audio files are allowed for story music"
+          ? "Only audio or video files are allowed for story music"
           : "Only image or video files are allowed for stories",
       ),
       false,

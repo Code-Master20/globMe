@@ -309,6 +309,21 @@ export const uploadStory = createAsyncThunk(
         formData.append("sourcePostId", storyPayload.sourcePostId);
       }
 
+      if (typeof storyPayload?.audioStartSeconds === "number") {
+        formData.append("audioStartSeconds", `${storyPayload.audioStartSeconds}`);
+      }
+
+      if (typeof storyPayload?.audioEndSeconds === "number") {
+        formData.append("audioEndSeconds", `${storyPayload.audioEndSeconds}`);
+      }
+
+      if (typeof storyPayload?.audioPlaybackDurationSeconds === "number") {
+        formData.append(
+          "audioPlaybackDurationSeconds",
+          `${storyPayload.audioPlaybackDurationSeconds}`,
+        );
+      }
+
       const response = await api.post("/user/upload-story", formData, {
         headers: {
           "Content-Type": "multipart/form-data",

@@ -34,6 +34,117 @@
   font-size: 2.4rem;
 }
 
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: publicPostSkeletonShimmer 1.35s ease-in-out infinite;
+}
+
+.skeletonMedia,
+.skeletonAvatar,
+.skeletonLikesAvatar,
+.skeletonTitleShort,
+.skeletonTitleLong,
+.skeletonTextShort,
+.skeletonTextLong,
+.skeletonMetaPill,
+.skeletonActionButton,
+.skeletonCheckbox {
+  display: block;
+  background: #dde7ef;
+}
+
+.skeletonMedia {
+  min-height: 28rem;
+  border-radius: 2.2rem;
+  background: linear-gradient(135deg, #dde8f2 0%, #eef4f9 100%);
+}
+
+.skeletonAvatar,
+.skeletonLikesAvatar {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #dbe4ed 0%, #eef3f8 100%);
+}
+
+.skeletonAvatar {
+  width: 5.2rem;
+  height: 5.2rem;
+  border-radius: 1.8rem;
+}
+
+.skeletonLikesAvatar {
+  width: 4.2rem;
+  height: 4.2rem;
+  border-radius: 1.4rem;
+}
+
+.skeletonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.skeletonTitleShort {
+  width: 36%;
+  min-width: 8rem;
+  height: 1.2rem;
+  border-radius: 999px;
+}
+
+.skeletonTitleLong {
+  width: min(72%, 24rem);
+  min-width: 12rem;
+  height: clamp(2.2rem, 4vw, 3.3rem);
+  border-radius: 1.2rem;
+}
+
+.skeletonTextShort {
+  width: 30%;
+  min-width: 6rem;
+  height: 0.95rem;
+  border-radius: 999px;
+}
+
+.skeletonTextLong {
+  width: 100%;
+  height: 1rem;
+  border-radius: 999px;
+}
+
+.skeletonMetaPill {
+  width: 7.5rem;
+  min-height: 2.4rem;
+  border-radius: 999px;
+}
+
+.skeletonActionButton {
+  width: 6rem;
+  min-height: 4.4rem;
+  border-radius: 1.5rem;
+}
+
+.skeletonCheckbox {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 0.45rem;
+  flex-shrink: 0;
+}
+
 .profileRow,
 .videoCreatorRow {
   display: flex;
@@ -668,6 +779,12 @@
   }
 }
 
+@keyframes publicPostSkeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @media (max-width: 640px) {
   .page {
     padding: 0.9rem 0.75rem 2.4rem;
@@ -765,5 +882,25 @@
   .playlistPickerPrimary,
   .playlistPickerSecondary {
     width: 100%;
+  }
+
+  .skeletonMedia {
+    min-height: 18rem;
+  }
+
+  .skeletonTitleLong {
+    width: 100%;
+    min-width: 0;
+    height: 2.2rem;
+  }
+
+  .skeletonMetaPill {
+    width: 5.8rem;
+    min-height: 2rem;
+  }
+
+  .skeletonActionButton {
+    width: 4.8rem;
+    min-height: 4rem;
   }
 }

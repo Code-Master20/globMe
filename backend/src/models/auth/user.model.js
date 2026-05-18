@@ -85,6 +85,23 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    storyAudioType: {
+      type: String,
+      enum: ["audio", "video"],
+      default: null,
+    },
+    storyAudioStartSeconds: {
+      type: Number,
+      default: 0,
+    },
+    storyAudioEndSeconds: {
+      type: Number,
+      default: 0,
+    },
+    storyAudioPlaybackDurationSeconds: {
+      type: Number,
+      default: 0,
+    },
     storyAudioCloudinaryId: {
       type: String,
       default: null,
@@ -120,6 +137,23 @@ const userSchema = new mongoose.Schema(
         audioUrl: {
           type: String,
           default: null,
+        },
+        audioType: {
+          type: String,
+          enum: ["audio", "video"],
+          default: null,
+        },
+        audioStartSeconds: {
+          type: Number,
+          default: 0,
+        },
+        audioEndSeconds: {
+          type: Number,
+          default: 0,
+        },
+        audioPlaybackDurationSeconds: {
+          type: Number,
+          default: 0,
         },
         mediaCloudinaryId: {
           type: String,
