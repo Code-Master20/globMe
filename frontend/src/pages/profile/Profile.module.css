@@ -1089,6 +1089,42 @@
   line-height: 1.55;
 }
 
+@media (min-width: 1024px) {
+  .storyComposerGrid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  }
+
+  .storyDraftPreview {
+    grid-template-columns: minmax(320px, 380px) minmax(260px, 1fr);
+    align-items: start;
+  }
+
+  .storyVideoDraftShell {
+    max-width: 380px;
+  }
+
+  .storyMeta {
+    align-self: stretch;
+    justify-content: center;
+    gap: 0.7rem;
+    min-height: 100%;
+    padding: 1.1rem 1.15rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(203, 213, 225, 0.78);
+  }
+
+  .storyMeta p {
+    font-size: 0.9rem;
+  }
+
+  .storyBadge {
+    min-height: 32px;
+    padding-inline: 0.8rem;
+    font-size: 0.76rem;
+  }
+}
+
 .storyPreview {
   margin-top: 1rem;
   width: 126px;
