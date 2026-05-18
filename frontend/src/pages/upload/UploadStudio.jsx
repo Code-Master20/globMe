@@ -460,14 +460,7 @@ export const UploadStudio = () => {
   }, [friendPrivacyPickerOpen]);
 
   useEffect(() => {
-    if (uploadIntent === "video") {
-      loadOwnerPlaylists();
-      return;
-    }
-
-    setSelectedPlaylistIds([]);
-    setNewPlaylistTitle("");
-    setNewPlaylistDescription("");
+    loadOwnerPlaylists();
   }, [uploadIntent]);
 
   const handlePostInputChange = (event) => {
@@ -627,18 +620,16 @@ export const UploadStudio = () => {
       formData.append("hiddenFromUserIds", JSON.stringify(postForm.hiddenFromUserIds));
       formData.append("includedUserIds", JSON.stringify(postForm.includedUserIds));
 
-      if (uploadIntent === "video") {
-        if (selectedPlaylistIds.length) {
-          formData.append("playlistIds", JSON.stringify(selectedPlaylistIds));
-        }
+      if (selectedPlaylistIds.length) {
+        formData.append("playlistIds", JSON.stringify(selectedPlaylistIds));
+      }
 
-        if (newPlaylistTitle.trim()) {
-          formData.append("newPlaylistTitle", newPlaylistTitle.trim());
-        }
+      if (newPlaylistTitle.trim()) {
+        formData.append("newPlaylistTitle", newPlaylistTitle.trim());
+      }
 
-        if (newPlaylistDescription.trim()) {
-          formData.append("newPlaylistDescription", newPlaylistDescription.trim());
-        }
+      if (newPlaylistDescription.trim()) {
+        formData.append("newPlaylistDescription", newPlaylistDescription.trim());
       }
 
       const response = await api.post("/user/posts/upload", formData, {
@@ -649,9 +640,7 @@ export const UploadStudio = () => {
 
       toast.success(response.data?.message || "Post published successfully");
       resetPostComposer();
-      if (uploadIntent === "video") {
-        await loadOwnerPlaylists();
-      }
+      await loadOwnerPlaylists();
     } catch (error) {
       toast.error(error.response?.data?.message || error.message || "Post upload failed");
     } finally {
@@ -947,59 +936,57 @@ export const UploadStudio = () => {
               </div>
             ) : null}
 
-            {uploadIntent === "video" ? (
-              <div className={styles.playlistPanel}>
-                <div className={styles.playlistHeader}>
-                  <div>
-                    <strong>Add to playlists</strong>
-                    <p>Attach this upload to existing playlists or create a new public playlist.</p>
-                  </div>
+            <div className={styles.playlistPanel}>
+              <div className={styles.playlistHeader}>
+                <div>
+                  <strong>Add to playlists</strong>
+                  <p>Attach this upload to existing playlists or create a new public playlist.</p>
                 </div>
-
-                {playlistsLoading ? (
-                  <div className={styles.emptyState}>Loading your playlists...</div>
-                ) : ownerPlaylists.length === 0 ? (
-                  <div className={styles.emptyState}>
-                    No playlists yet. You can create a new one below while uploading this video.
-                  </div>
-                ) : (
-                  <div className={styles.playlistPicker}>
-                    {ownerPlaylists.map((playlist) => (
-                      <label key={playlist._id} className={styles.playlistOption}>
-                        <input
-                          type="checkbox"
-                          checked={selectedPlaylistIds.includes(playlist._id)}
-                          onChange={() => handlePlaylistToggle(playlist._id)}
-                        />
-                        <div>
-                          <strong>{playlist.title}</strong>
-                          <small>{playlist.videoCount || 0} videos</small>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-                <label className={styles.field}>
-                  <span>Create new playlist</span>
-                  <input
-                    type="text"
-                    placeholder="travel vlogs, tutorials, highlights..."
-                    value={newPlaylistTitle}
-                    onChange={(event) => setNewPlaylistTitle(event.target.value)}
-                  />
-                </label>
-
-                <label className={styles.field}>
-                  <span>New playlist description</span>
-                  <textarea
-                    placeholder="Tell visitors what this playlist is about"
-                    value={newPlaylistDescription}
-                    onChange={(event) => setNewPlaylistDescription(event.target.value)}
-                  />
-                </label>
               </div>
-            ) : null}
+
+              {playlistsLoading ? (
+                <div className={styles.emptyState}>Loading your playlists...</div>
+              ) : ownerPlaylists.length === 0 ? (
+                <div className={styles.emptyState}>
+                  No playlists yet. You can create a new one below while uploading this post.
+                </div>
+              ) : (
+                <div className={styles.playlistPicker}>
+                  {ownerPlaylists.map((playlist) => (
+                    <label key={playlist._id} className={styles.playlistOption}>
+                      <input
+                        type="checkbox"
+                        checked={selectedPlaylistIds.includes(playlist._id)}
+                        onChange={() => handlePlaylistToggle(playlist._id)}
+                      />
+                      <div>
+                        <strong>{playlist.title}</strong>
+                        <small>{playlist.postCount || playlist.videoCount || 0} posts</small>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <label className={styles.field}>
+                <span>Create new playlist</span>
+                <input
+                  type="text"
+                  placeholder="travel vlogs, tutorials, highlights..."
+                  value={newPlaylistTitle}
+                  onChange={(event) => setNewPlaylistTitle(event.target.value)}
+                />
+              </label>
+
+              <label className={styles.field}>
+                <span>New playlist description</span>
+                <textarea
+                  placeholder="Tell visitors what this playlist is about"
+                  value={newPlaylistDescription}
+                  onChange={(event) => setNewPlaylistDescription(event.target.value)}
+                />
+              </label>
+            </div>
 
             <button
               type="submit"

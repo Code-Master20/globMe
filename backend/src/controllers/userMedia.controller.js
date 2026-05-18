@@ -234,9 +234,9 @@ const normalizePlaylistPostIds = (value) => {
   );
 };
 
-const appendVideoToPlaylists = async ({
+const appendPostToPlaylists = async ({
   ownerId,
-  videoPostId,
+  postId,
   existingPlaylistIds = [],
   newPlaylistTitle = "",
   newPlaylistDescription = "",
@@ -256,7 +256,7 @@ const appendVideoToPlaylists = async ({
           owner: ownerId,
         },
         {
-          $addToSet: { videoPosts: videoPostId },
+          $addToSet: { videoPosts: postId },
         },
       );
 
@@ -284,14 +284,14 @@ const appendVideoToPlaylists = async ({
         title: normalizedNewTitle,
         description: normalizedNewDescription,
         isPublic: true,
-        videoPosts: [videoPostId],
+        videoPosts: [postId],
       });
     } else {
       if (normalizedNewDescription && !`${playlist.description ?? ""}`.trim()) {
         playlist.description = normalizedNewDescription;
       }
-      if (!playlist.videoPosts.some((postId) => `${postId}` === `${videoPostId}`)) {
-        playlist.videoPosts.push(videoPostId);
+      if (!playlist.videoPosts.some((existingPostId) => `${existingPostId}` === `${postId}`)) {
+        playlist.videoPosts.push(postId);
       }
 
       await playlist.save();
@@ -1327,13 +1327,9 @@ const createOwnerPost = async (req, res) => {
       return new ErrorHandler(400, "Video posts must be 100MB or smaller").send(res);
     }
 
-    const playlistIds = postType === "video"
-      ? normalizePlaylistPostIds(req.body?.playlistIds)
-      : [];
-    const newPlaylistTitle =
-      postType === "video" ? `${req.body?.newPlaylistTitle ?? ""}`.trim() : "";
-    const newPlaylistDescription =
-      postType === "video" ? `${req.body?.newPlaylistDescription ?? ""}`.trim() : "";
+    const playlistIds = normalizePlaylistPostIds(req.body?.playlistIds);
+    const newPlaylistTitle = `${req.body?.newPlaylistTitle ?? ""}`.trim();
+    const newPlaylistDescription = `${req.body?.newPlaylistDescription ?? ""}`.trim();
 
     const uploadResult = await uploadBufferToCloudinary(mediaFile, {
       folder: postType === "video" ? "seekFi/posts/videos" : "seekFi/posts/images",
@@ -1359,15 +1355,13 @@ const createOwnerPost = async (req, res) => {
       postDate: Date.now(),
     });
 
-    const linkedPlaylists = postType === "video"
-      ? await appendVideoToPlaylists({
-        ownerId: req.user.id,
-        videoPostId: newPost._id,
-        existingPlaylistIds: playlistIds,
-        newPlaylistTitle,
-        newPlaylistDescription,
-      })
-      : [];
+    const linkedPlaylists = await appendPostToPlaylists({
+      ownerId: req.user.id,
+      postId: newPost._id,
+      existingPlaylistIds: playlistIds,
+      newPlaylistTitle,
+      newPlaylistDescription,
+    });
 
     const hydratedPost = await Post.findById(newPost._id).populate(
       "user",
