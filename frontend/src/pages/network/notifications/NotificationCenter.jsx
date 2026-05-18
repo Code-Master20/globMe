@@ -12,6 +12,14 @@ import styles from "./NotificationCenter.module.css";
 
 const SWIPE_DELETE_THRESHOLD = 96;
 const SWIPE_MAX_OFFSET = 132;
+const NOTIFICATIONS_CACHE_TTL_MS = 60 * 1000;
+const notificationsPageCache = new Map();
+
+const getCachedNotificationsEntry = (ownerId) =>
+  ownerId ? notificationsPageCache.get(`${ownerId}`) || null : null;
+
+const isNotificationsCacheStale = (entry) =>
+  !entry || Date.now() - entry.updatedAt > NOTIFICATIONS_CACHE_TTL_MS;
 
 const formatDisplayValue = (value) => {
   if (!value) return "";
@@ -38,11 +46,17 @@ const getNotificationActionLabel = (notification) =>
 export const NotificationCenter = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
   const { items, loading, deletingId, errorMessage } = useSelector(
     (state) => state.notifications,
   );
+  const cacheKey = user?._id || "";
+  const cachedEntry = getCachedNotificationsEntry(cacheKey);
   const [searchText, setSearchText] = useState("");
   const [sortOrder, setSortOrder] = useState("newest");
+  const [cachedItemsSnapshot, setCachedItemsSnapshot] = useState(
+    () => cachedEntry?.items || [],
+  );
   const [activeSwipe, setActiveSwipe] = useState({
     notificationId: "",
     offsetX: 0,
@@ -57,12 +71,46 @@ export const NotificationCenter = () => {
 
   useEffect(() => {
     const hydrateNotifications = async () => {
-      await dispatch(fetchNotifications({ limit: 100 }));
+      const activeCacheEntry = getCachedNotificationsEntry(cacheKey);
+      const shouldFetch =
+        !items.length &&
+        (!activeCacheEntry || isNotificationsCacheStale(activeCacheEntry));
+
+      if (shouldFetch) {
+        await dispatch(fetchNotifications({ limit: 100 }));
+      } else if (activeCacheEntry && isNotificationsCacheStale(activeCacheEntry)) {
+        await dispatch(fetchNotifications({ limit: 100 }));
+      }
+
       await dispatch(markNotificationsRead());
     };
 
-    hydrateNotifications();
-  }, [dispatch]);
+    if (cacheKey) {
+      hydrateNotifications();
+    }
+  }, [cacheKey, dispatch]);
+
+  useEffect(() => {
+    if (!cacheKey) {
+      setCachedItemsSnapshot([]);
+      return;
+    }
+
+    const activeCacheEntry = getCachedNotificationsEntry(cacheKey);
+    setCachedItemsSnapshot(activeCacheEntry?.items || []);
+  }, [cacheKey]);
+
+  useEffect(() => {
+    if (!cacheKey || loading) {
+      return;
+    }
+
+    notificationsPageCache.set(`${cacheKey}`, {
+      items,
+      updatedAt: Date.now(),
+    });
+    setCachedItemsSnapshot(items);
+  }, [cacheKey, items, loading]);
 
   useEffect(() => {
     if (errorMessage) {
@@ -70,8 +118,10 @@ export const NotificationCenter = () => {
     }
   }, [errorMessage]);
 
+  const effectiveItems = items.length ? items : cachedItemsSnapshot;
+  const notificationsInitialLoading = loading && !effectiveItems.length;
   const normalizedSearchText = searchText.trim().toLowerCase();
-  const visibleItems = [...items]
+  const visibleItems = [...effectiveItems]
     .filter((notification) => {
       if (!normalizedSearchText) {
         return true;
@@ -190,32 +240,82 @@ export const NotificationCenter = () => {
           <h1>Notifications</h1>
         </header>
 
-        <section className={styles.toolbar}>
-          <label className={styles.searchField}>
-            <span>Search</span>
-            <input
-              type="search"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search by name or notification text"
-            />
-          </label>
+        {notificationsInitialLoading ? (
+          <>
+            <section className={styles.toolbarSkeleton} aria-label="Loading notification controls">
+              <div className={styles.fieldSkeletonStack}>
+                <span className={`${styles.fieldLabelSkeleton} ${styles.skeletonBlock}`} />
+                <div className={`${styles.fieldSkeleton} ${styles.skeletonBlock}`} />
+              </div>
 
-          <label className={styles.sortField}>
-            <span>Order</span>
-            <select
-              value={sortOrder}
-              onChange={(event) => setSortOrder(event.target.value)}
-            >
-              <option value="newest">New to old</option>
-              <option value="oldest">Old to new</option>
-            </select>
-          </label>
-        </section>
+              <div className={styles.fieldSkeletonStack}>
+                <span className={`${styles.fieldLabelSkeleton} ${styles.skeletonBlock}`} />
+                <div className={`${styles.fieldSkeletonShort} ${styles.skeletonBlock}`} />
+              </div>
+            </section>
 
-        {loading ? (
-          <section className={styles.placeholder}>Loading notifications...</section>
-        ) : items.length === 0 ? (
+            <section className={styles.notificationList} aria-label="Loading notifications">
+              {Array.from({ length: 4 }, (_, index) => (
+                <article
+                  key={`notification-skeleton-${index}`}
+                  className={`${styles.notificationRow} ${styles.notificationRowSkeleton}`}
+                  aria-hidden="true"
+                >
+                  <div className={styles.notificationCard}>
+                    <div className={styles.notificationMain}>
+                      <div className={`${styles.avatarSkeleton} ${styles.skeletonBlock}`} />
+                      <div className={styles.notificationBodySkeleton}>
+                        <div className={styles.notificationTopSkeleton}>
+                          <div
+                            className={`${styles.notificationLinePrimary} ${styles.skeletonBlock}`}
+                          />
+                          <div
+                            className={`${styles.notificationTimeSkeleton} ${styles.skeletonBlock}`}
+                          />
+                        </div>
+                        <div
+                          className={`${styles.notificationLineSecondary} ${styles.skeletonBlock}`}
+                        />
+                        <div
+                          className={`${styles.notificationLineTertiary} ${styles.skeletonBlock}`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className={styles.notificationActions}>
+                      <div className={`${styles.actionSkeleton} ${styles.skeletonBlock}`} />
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </section>
+          </>
+        ) : (
+          <section className={styles.toolbar}>
+            <label className={styles.searchField}>
+              <span>Search</span>
+              <input
+                type="search"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Search by name or notification text"
+              />
+            </label>
+
+            <label className={styles.sortField}>
+              <span>Order</span>
+              <select
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value)}
+              >
+                <option value="newest">New to old</option>
+                <option value="oldest">Old to new</option>
+              </select>
+            </label>
+          </section>
+        )}
+
+        {!notificationsInitialLoading && effectiveItems.length === 0 ? (
           <section className={styles.placeholder}>
             You do not have any notifications yet.
           </section>
