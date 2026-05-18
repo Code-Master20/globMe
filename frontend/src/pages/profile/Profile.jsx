@@ -3654,12 +3654,12 @@ export const Profile = () => {
                                     ? styles.contentSubnavButtonActive
                                     : ""
                                 }`}
-                                onClick={() => {
+                              onClick={() => {
                                   setHasChosenPhotoView(true);
                                   setSelectedPhotoView("reels");
                                 }}
                               >
-                                <strong>Reels photos</strong>
+                                <strong>Photo Shorts</strong>
                               </button>
                             </div>
                           ) : null}
@@ -3822,8 +3822,8 @@ export const Profile = () => {
               ) : selectedContentView === "photos" && selectedPhotoView === "reels" && reelsPhotoPosts.length === 0 ? (
                 <div className={styles.storyPlaceholder}>
                   {isOwner
-                    ? "No reels photos yet."
-                    : "This profile has not uploaded reels photos yet."}
+                    ? "No photo shorts yet."
+                    : "This profile has not uploaded photo shorts yet."}
                 </div>
               ) : selectedContentView === "videos" && selectedVideoView === "all" && allVideoPosts.length === 0 ? (
                 <div className={styles.storyPlaceholder}>

@@ -18,6 +18,38 @@
   align-items: center;
 }
 
+.app-header-stack {
+  position: sticky;
+  top: 0;
+  z-index: 1200;
+  width: 100%;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: linear-gradient(
+    180deg,
+    rgba(244, 247, 251, 0.96) 0%,
+    rgba(244, 247, 251, 0.9) 100%
+  );
+}
+
+.primary-header-shell {
+  max-height: 140px;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 220ms ease,
+    opacity 180ms ease,
+    transform 220ms ease;
+}
+
+.primary-header-shell-hidden {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-18px);
+  pointer-events: none;
+}
+
 .first-loading-content {
   width: 100%;
   min-height: 100vh;
