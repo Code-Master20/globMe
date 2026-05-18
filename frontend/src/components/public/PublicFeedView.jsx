@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   MdFavorite,
   MdBookmarkAdded,
+  MdMusicNote,
   MdOutlineBookmarkBorder,
   MdOutlineChatBubbleOutline,
   MdOutlineFavoriteBorder,
@@ -44,6 +45,18 @@ const getDescriptionText = (post) => {
 
 const shouldShowViewCount = (post) =>
   post?.postType === "video" || post?.contentFormat === "reel";
+
+const isMusicPhotoShort = (post) =>
+  post?.postType === "image" && post?.contentFormat === "reel" && Boolean(post?.musicUrl);
+
+const formatDurationLabel = (value) => {
+  const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+  const wholeSeconds = Math.floor(safeValue);
+  const minutes = Math.floor(wholeSeconds / 60);
+  const seconds = wholeSeconds % 60;
+
+  return `${minutes}:${`${seconds}`.padStart(2, "0")}`;
+};
 
 const FEED_SKELETON_COUNT = 6;
 const PUBLIC_FEED_CACHE_TTL_MS = 60 * 1000;
@@ -798,6 +811,13 @@ export const PublicFeedView = ({
                       />
                     )}
                   </button>
+                  {isMusicPhotoShort(post) ? (
+                    <div className={styles.mediaBadge}>
+                      <MdMusicNote />
+                      Music short
+                      {post.durationSeconds > 0 ? ` • ${formatDurationLabel(post.durationSeconds)}` : ""}
+                    </div>
+                  ) : null}
                   {post.postType === "video" &&
                   !desktopHoverPreview &&
                   previewControlPostId === post._id ? (

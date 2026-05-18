@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { MdOutlinePhotoLibrary, MdPlayCircleOutline } from "react-icons/md";
+import {
+  MdGraphicEq,
+  MdOutlinePhotoLibrary,
+  MdPlayCircleOutline,
+} from "react-icons/md";
 import { toast } from "react-toastify";
 import { useLocation } from "react-router-dom";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import api from "../../lib/api";
 import { ImageUpload } from "../../components/media/ImgUpload";
+import { PhotoShortPlayer } from "../../components/media/PhotoShortPlayer";
 import styles from "./UploadStudio.module.css";
 
 const initialPostForm = {
@@ -17,6 +22,7 @@ const initialPostForm = {
   includedUserIds: [],
 };
 
+const MAX_PHOTO_SHORT_DURATION_SECONDS = 5 * 60;
 const CLIP_SLIDER_STEP_SECONDS = 0.1;
 const CLIP_STOP_TOLERANCE_SECONDS = 0.2;
 
@@ -36,6 +42,26 @@ const getMinimumClipSpan = (durationSeconds) => {
 
   return Math.min(1, Math.max(durationSeconds / 20, 0.2));
 };
+
+const getLocalMediaDuration = (file) =>
+  new Promise((resolve, reject) => {
+    const mediaElement = document.createElement(
+      file?.type?.startsWith("audio/") ? "audio" : "video",
+    );
+    const objectUrl = URL.createObjectURL(file);
+
+    mediaElement.preload = "metadata";
+    mediaElement.onloadedmetadata = () => {
+      const duration = Number(mediaElement.duration);
+      URL.revokeObjectURL(objectUrl);
+      resolve(Number.isFinite(duration) ? duration : 0);
+    };
+    mediaElement.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Music duration could not be read"));
+    };
+    mediaElement.src = objectUrl;
+  });
 
 const shouldTrimVideoClip = ({ durationSeconds, startSeconds, endSeconds }) => {
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
@@ -263,8 +289,12 @@ export const UploadStudio = () => {
   const previewVideoRef = useRef(null);
   const [postForm, setPostForm] = useState(initialPostForm);
   const [selectedPostFile, setSelectedPostFile] = useState(null);
+  const [selectedMusicFile, setSelectedMusicFile] = useState(null);
   const [postPreviewUrl, setPostPreviewUrl] = useState("");
+  const [musicPreviewUrl, setMusicPreviewUrl] = useState("");
   const [postUploadLoading, setPostUploadLoading] = useState(false);
+  const [musicMetadataLoading, setMusicMetadataLoading] = useState(false);
+  const [musicDurationSeconds, setMusicDurationSeconds] = useState(0);
   const [videoMetadataLoading, setVideoMetadataLoading] = useState(false);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(0);
   const [clipStartSeconds, setClipStartSeconds] = useState(0);
@@ -307,6 +337,66 @@ export const UploadStudio = () => {
       URL.revokeObjectURL(objectUrl);
     };
   }, [selectedPostFile]);
+
+  useEffect(() => {
+    if (!selectedMusicFile) {
+      setMusicPreviewUrl("");
+      return undefined;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedMusicFile);
+    setMusicPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedMusicFile]);
+
+  useEffect(() => {
+    if (uploadIntent === "image" && postForm.contentFormat === "reel") {
+      return;
+    }
+
+    setSelectedMusicFile(null);
+    setMusicMetadataLoading(false);
+    setMusicDurationSeconds(0);
+  }, [postForm.contentFormat, uploadIntent]);
+
+  useEffect(() => {
+    if (!selectedMusicFile) {
+      setMusicMetadataLoading(false);
+      setMusicDurationSeconds(0);
+      return undefined;
+    }
+
+    let ignore = false;
+
+    const loadMusicDuration = async () => {
+      try {
+        setMusicMetadataLoading(true);
+        const duration = await getLocalMediaDuration(selectedMusicFile);
+
+        if (!ignore) {
+          setMusicDurationSeconds(duration);
+        }
+      } catch {
+        if (!ignore) {
+          setMusicDurationSeconds(0);
+          toast.error("Music length could not be read");
+        }
+      } finally {
+        if (!ignore) {
+          setMusicMetadataLoading(false);
+        }
+      }
+    };
+
+    loadMusicDuration();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedMusicFile]);
 
   useEffect(() => {
     if (!clipPreviewUrl) {
@@ -478,6 +568,9 @@ export const UploadStudio = () => {
       contentFormat: getDefaultContentFormat(uploadIntent),
     });
     setSelectedPostFile(null);
+    setSelectedMusicFile(null);
+    setMusicMetadataLoading(false);
+    setMusicDurationSeconds(0);
     setSelectedPlaylistIds([]);
     setNewPlaylistTitle("");
     setNewPlaylistDescription("");
@@ -485,6 +578,10 @@ export const UploadStudio = () => {
 
   const handlePostFileSelect = (file) => {
     setSelectedPostFile(file);
+  };
+
+  const handleMusicFileSelect = (file) => {
+    setSelectedMusicFile(file);
   };
 
   const handleClipStartChange = (event) => {
@@ -589,8 +686,32 @@ export const UploadStudio = () => {
     }
 
     try {
-      setPostUploadLoading(true);
       let uploadFile = selectedPostFile;
+      const isPhotoShortsUpload =
+        uploadIntent === "image" &&
+        postForm.contentFormat === "reel" &&
+        selectedPostType === "image";
+
+      if (isPhotoShortsUpload && selectedMusicFile && musicMetadataLoading) {
+        toast.error("Wait for the selected music to finish loading");
+        return;
+      }
+
+      if (isPhotoShortsUpload && !selectedMusicFile) {
+        toast.error("Attach music to publish Photo Shorts");
+        return;
+      }
+
+      if (
+        isPhotoShortsUpload &&
+        selectedMusicFile &&
+        Math.min(musicDurationSeconds, MAX_PHOTO_SHORT_DURATION_SECONDS) <= 0
+      ) {
+        toast.error("Choose a music file with a valid length");
+        return;
+      }
+
+      setPostUploadLoading(true);
 
       if (
         uploadIntent === "video" &&
@@ -619,6 +740,10 @@ export const UploadStudio = () => {
       formData.append("isPublic", `${["world", "all"].includes(postForm.visibility)}`);
       formData.append("hiddenFromUserIds", JSON.stringify(postForm.hiddenFromUserIds));
       formData.append("includedUserIds", JSON.stringify(postForm.includedUserIds));
+
+      if (isPhotoShortsUpload && selectedMusicFile) {
+        formData.append("music", selectedMusicFile);
+      }
 
       if (selectedPlaylistIds.length) {
         formData.append("playlistIds", JSON.stringify(selectedPlaylistIds));
@@ -654,8 +779,21 @@ export const UploadStudio = () => {
     uploadIntent === "video" &&
     postForm.contentFormat === "reel" &&
     selectedPostType === "video";
+  const isPhotoShortsUpload =
+    uploadIntent === "image" &&
+    postForm.contentFormat === "reel" &&
+    selectedPostType === "image";
   const canTrimSelectedVideo =
     isVideoShortsUpload && !videoMetadataLoading && Number.isFinite(videoDurationSeconds) && videoDurationSeconds > 0;
+  const effectiveMusicDurationSeconds = Math.min(
+    musicDurationSeconds,
+    MAX_PHOTO_SHORT_DURATION_SECONDS,
+  );
+  const isMusicDurationCapped =
+    musicDurationSeconds > MAX_PHOTO_SHORT_DURATION_SECONDS + 0.1;
+  const selectedMusicSourceLabel = selectedMusicFile?.type?.startsWith("video/")
+    ? "Video soundtrack"
+    : "Audio soundtrack";
   const selectedClipDuration = Math.max(0, clipEndSeconds - clipStartSeconds);
   const clipIsTrimmed = shouldTrimVideoClip({
     durationSeconds: videoDurationSeconds,
@@ -829,11 +967,25 @@ export const UploadStudio = () => {
                     ) : null}
                   </div>
                 ) : (
-                  <img
-                    src={postPreviewUrl}
-                    alt="Selected post draft"
-                    className={styles.postPreviewMedia}
-                  />
+                  isPhotoShortsUpload && musicPreviewUrl ? (
+                    <PhotoShortPlayer
+                      imageUrl={postPreviewUrl}
+                      musicUrl={musicPreviewUrl}
+                      musicSourceType={
+                        selectedMusicFile?.type?.startsWith("video/") ? "video" : "audio"
+                      }
+                      durationSeconds={effectiveMusicDurationSeconds}
+                      title={postForm.title || "Photo Shorts preview"}
+                      className={styles.photoShortPreview}
+                      imageClassName={styles.postPreviewMedia}
+                    />
+                  ) : (
+                    <img
+                      src={postPreviewUrl}
+                      alt="Selected post draft"
+                      className={styles.postPreviewMedia}
+                    />
+                  )
                 )}
 
                 <div className={styles.postPreviewMeta}>
@@ -847,6 +999,17 @@ export const UploadStudio = () => {
                       Uploading clip: {formatDurationLabel(clipStartSeconds)} to{" "}
                       {formatDurationLabel(clipEndSeconds)} ({formatDurationLabel(selectedClipDuration)})
                     </small>
+                  ) : null}
+                  {isPhotoShortsUpload && selectedMusicFile ? (
+                    <>
+                      <small>
+                        {selectedMusicSourceLabel}: {selectedMusicFile.name}
+                      </small>
+                      <small>
+                        Photo short length: {formatDurationLabel(effectiveMusicDurationSeconds)}
+                        {isMusicDurationCapped ? " (first 5:00 used)" : ""}
+                      </small>
+                    </>
                   ) : null}
                   {postForm.tags.trim() ? <small>Tags: {postForm.tags.trim()}</small> : null}
                 </div>
@@ -922,6 +1085,62 @@ export const UploadStudio = () => {
                 <option value="private">Private post</option>
               </select>
             </label>
+
+            {uploadIntent === "image" && postForm.contentFormat === "reel" ? (
+              <div className={styles.musicPanel}>
+                <div className={styles.musicHeader}>
+                  <div>
+                    <strong>Attach music</strong>
+                    <p>
+                      Photo Shorts are photos with music included. Use a song, voice clip, or a
+                      video from your media. The short length follows the music, up to 5 minutes.
+                    </p>
+                  </div>
+                </div>
+
+                <div className={styles.musicPickerRow}>
+                  <ImageUpload
+                    Icon={MdGraphicEq}
+                    className={styles.musicUploader}
+                    buttonClassName={styles.secondaryAction}
+                    onFileSelect={handleMusicFileSelect}
+                    accept="audio/*,video/*"
+                    label={selectedMusicFile ? "Change music" : "Attach music"}
+                    disabled={postUploadLoading}
+                    title="Choose audio or a video file for your Photo Shorts soundtrack"
+                  />
+
+                  {selectedMusicFile ? (
+                    <button
+                      type="button"
+                      className={styles.secondaryAction}
+                      onClick={() => setSelectedMusicFile(null)}
+                    >
+                      Remove music
+                    </button>
+                  ) : null}
+                </div>
+
+                {selectedMusicFile ? (
+                  <div className={styles.musicSummary}>
+                    <strong>{selectedMusicSourceLabel}</strong>
+                    <small>{selectedMusicFile.name}</small>
+                    <small>
+                      {musicMetadataLoading
+                        ? "Reading music length..."
+                        : `Using ${formatDurationLabel(effectiveMusicDurationSeconds)}${
+                            isMusicDurationCapped ? " from the first 5:00" : ""
+                          }`}
+                    </small>
+                  </div>
+                ) : (
+                  <div className={styles.emptyState}>
+                    Music is required for Photo Shorts. The uploaded photo will be treated like a
+                    short and use this soundtrack length, capped at 5 minutes.
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             {ownerFriends.length || friendsLoading ? (
               <div className={styles.mobileFriendAction}>

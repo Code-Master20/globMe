@@ -68,6 +68,26 @@ const postSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    musicUrl: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    musicCloudinaryId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    musicSourceType: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+    },
+    musicDurationSeconds: {
+      type: Number,
+      default: 0,
+    },
     url: {
       type: String,
       required: true,

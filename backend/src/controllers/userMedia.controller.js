@@ -19,6 +19,7 @@ const {
 const STORY_LIFETIME_MS = 36 * 60 * 60 * 1000;
 const MAX_STORY_DURATION_SECONDS = 90;
 const MAX_OWNER_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
+const MAX_PHOTO_SHORT_MUSIC_DURATION_SECONDS = 5 * 60;
 const STORY_ALLOWED_POST_TYPES = ["image", "video"];
 const OWNER_ALLOWED_POST_IMAGE_TYPES = [
   "image/jpeg",
@@ -152,6 +153,9 @@ const normalizeOwnerPostFormat = ({ postType, contentFormat }) => {
 const getOwnerPostTypeFromFile = (file) =>
   file?.mimetype?.startsWith("video/") ? "video" : "image";
 
+const getOwnerMusicSourceTypeFromFile = (file) =>
+  file?.mimetype?.startsWith("video/") ? "video" : "audio";
+
 const buildOwnerPostTitle = (providedTitle, file) => {
   const trimmedTitle = `${providedTitle ?? ""}`.trim();
 
@@ -189,6 +193,9 @@ const formatPostPayload = (postDoc, options = {}) => {
     category: post.category || null,
     contentFormat: post.contentFormat || null,
     durationSeconds: Number(post.durationSeconds) || 0,
+    musicUrl: post.musicUrl || null,
+    musicSourceType: post.musicSourceType || null,
+    musicDurationSeconds: Number(post.musicDurationSeconds) || 0,
     url: post.url,
     visibility: resolvePostAudience(post),
     likeCount: post.likeCount || 0,
@@ -1287,7 +1294,8 @@ const updateVideoCategory = async (req, res) => {
 
 const createOwnerPost = async (req, res) => {
   try {
-    const mediaFile = req.file;
+    const mediaFile = req.files?.media?.[0] || null;
+    const musicFile = req.files?.music?.[0] || null;
 
     if (!mediaFile) {
       return new ErrorHandler(400, "Choose a photo or video to publish").send(res);
@@ -1330,11 +1338,35 @@ const createOwnerPost = async (req, res) => {
     const playlistIds = normalizePlaylistPostIds(req.body?.playlistIds);
     const newPlaylistTitle = `${req.body?.newPlaylistTitle ?? ""}`.trim();
     const newPlaylistDescription = `${req.body?.newPlaylistDescription ?? ""}`.trim();
+    const canAttachPhotoShortMusic = postType === "image" && contentFormat === "reel";
+
+    if (canAttachPhotoShortMusic && !musicFile) {
+      return new ErrorHandler(400, "Attach music to publish Photo Shorts").send(res);
+    }
 
     const uploadResult = await uploadBufferToCloudinary(mediaFile, {
       folder: postType === "video" ? "seekFi/posts/videos" : "seekFi/posts/images",
       resource_type: postType === "video" ? "video" : "image",
     });
+    let musicUploadResult = null;
+    let musicDurationSeconds = 0;
+    let musicUrl = null;
+    let musicCloudinaryId = null;
+    let musicSourceType = null;
+
+    if (canAttachPhotoShortMusic && musicFile) {
+      musicSourceType = getOwnerMusicSourceTypeFromFile(musicFile);
+      musicUploadResult = await uploadBufferToCloudinary(musicFile, {
+        folder: "seekFi/posts/music",
+        resource_type: "video",
+      });
+      musicDurationSeconds = Math.min(
+        getUploadDurationSeconds(musicUploadResult),
+        MAX_PHOTO_SHORT_MUSIC_DURATION_SECONDS,
+      );
+      musicUrl = musicUploadResult.secure_url;
+      musicCloudinaryId = musicUploadResult.public_id;
+    }
 
     const newPost = await Post.create({
       title,
@@ -1348,7 +1380,13 @@ const createOwnerPost = async (req, res) => {
       hiddenFromUsers,
       visibleToUsers,
       durationSeconds:
-        postType === "video" ? getUploadDurationSeconds(uploadResult) : 0,
+        postType === "video"
+          ? getUploadDurationSeconds(uploadResult)
+          : musicDurationSeconds,
+      musicUrl,
+      musicCloudinaryId,
+      musicSourceType,
+      musicDurationSeconds,
       url: uploadResult.secure_url,
       cloudinaryId: uploadResult.public_id,
       user: req.user.id,

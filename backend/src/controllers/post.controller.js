@@ -64,6 +64,9 @@ const getPublicPosts = async (req, res) => {
           contentFormat: post.contentFormat || null,
           visibility: resolvePostAudience(post),
           durationSeconds: Number(post.durationSeconds) || 0,
+          musicUrl: post.musicUrl || null,
+          musicSourceType: post.musicSourceType || null,
+          musicDurationSeconds: Number(post.musicDurationSeconds) || 0,
           url: post.url,
           likeCount: post.likeCount,
           shareCount: post.shareCount,
@@ -119,6 +122,9 @@ const getPublicPostById = async (req, res) => {
       contentFormat: post.contentFormat || null,
       visibility: resolvePostAudience(post),
       durationSeconds: Number(post.durationSeconds) || 0,
+      musicUrl: post.musicUrl || null,
+      musicSourceType: post.musicSourceType || null,
+      musicDurationSeconds: Number(post.musicDurationSeconds) || 0,
       url: post.url,
       likeCount: post.likeCount,
       shareCount: post.shareCount,
@@ -212,7 +218,15 @@ const deletePost = async (req, res) => {
       });
     }
 
-    await cloudinary.uploader.destroy(post.cloudinaryId);
+    await cloudinary.uploader.destroy(post.cloudinaryId, {
+      resource_type: post.postType === "video" ? "video" : "image",
+    });
+
+    if (post.musicCloudinaryId) {
+      await cloudinary.uploader.destroy(post.musicCloudinaryId, {
+        resource_type: "video",
+      });
+    }
 
     await post.deleteOne();
 

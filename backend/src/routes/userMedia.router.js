@@ -129,6 +129,8 @@ const ownerPostUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 200 * 1024 * 1024 },
   fileFilter: (req, file, callback) => {
+    const isMediaField = file.fieldname === "media";
+    const isMusicField = file.fieldname === "music";
     const allowedImageTypes = [
       "image/jpeg",
       "image/jpg",
@@ -147,24 +149,85 @@ const ownerPostUpload = multer({
       "video/mp2t",
       "video/x-matroska",
     ];
+    const allowedAudioTypes = [
+      "audio/mpeg",
+      "audio/mp3",
+      "audio/wav",
+      "audio/ogg",
+      "audio/x-m4a",
+      "audio/mp4",
+      "audio/aac",
+    ];
 
-    if ([...allowedImageTypes, ...allowedVideoTypes].includes(file.mimetype)) {
+    if (
+      isMediaField &&
+      [...allowedImageTypes, ...allowedVideoTypes].includes(file.mimetype)
+    ) {
       callback(null, true);
       return;
     }
 
-    callback(new Error("Only photo and video files are allowed for posts"), false);
+    if (
+      isMusicField &&
+      [...allowedAudioTypes, ...allowedVideoTypes].includes(file.mimetype)
+    ) {
+      callback(null, true);
+      return;
+    }
+
+    callback(
+      new Error(
+        isMusicField
+          ? "Only audio or video files are allowed for Photo Shorts music"
+          : "Only photo and video files are allowed for posts",
+      ),
+      false,
+    );
   },
 });
 
 const handleOwnerPostUpload = (req, res, next) => {
-  ownerPostUpload.single("media")(req, res, (error) => {
+  ownerPostUpload.any()(req, res, (error) => {
     if (!error) {
+      const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+      const mediaFiles = uploadedFiles.filter((file) => file.fieldname === "media");
+      const musicFiles = uploadedFiles.filter((file) => file.fieldname === "music");
+      const unexpectedFile = uploadedFiles.find(
+        (file) => !["media", "music"].includes(file.fieldname),
+      );
+
+      if (unexpectedFile) {
+        return new ErrorHandler(
+          400,
+          `Unexpected upload field: ${unexpectedFile.fieldname}`,
+        ).send(res);
+      }
+
+      if (mediaFiles.length > 1) {
+        return new ErrorHandler(400, "Only one post media file is allowed").send(res);
+      }
+
+      if (musicFiles.length > 1) {
+        return new ErrorHandler(400, "Only one Photo Shorts music file is allowed").send(res);
+      }
+
+      req.files = {
+        media: mediaFiles,
+        music: musicFiles,
+      };
+
       return next();
     }
 
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
       return new ErrorHandler(400, "Post media file is too large").send(res);
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_UNEXPECTED_FILE") {
+      return new ErrorHandler(
+        400,
+        `Unexpected upload field${error.field ? `: ${error.field}` : ""}`,
+      ).send(res);
     }
 
     return new ErrorHandler(400, error.message || "Post upload failed").send(res);

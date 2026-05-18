@@ -15,6 +15,7 @@ import noProfile from "../../assets/noProfile.png";
 import { AuthAccessPrompt } from "../../components/auth/AuthAccessPrompt";
 import { PostCommentsPanel } from "../../components/public/PostCommentsPanel";
 import { PublicShareSheet } from "../../components/public/PublicShareSheet";
+import { PhotoShortPlayer } from "../../components/media/PhotoShortPlayer";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
 import styles from "./PublicPostDetail.module.css";
 
@@ -63,6 +64,9 @@ const formatRelativeTime = (value) => {
 
 const shouldShowViewCount = (post) =>
   post?.postType === "video" || post?.contentFormat === "reel";
+
+const isMusicPhotoShort = (post) =>
+  post?.postType === "image" && post?.contentFormat === "reel" && Boolean(post?.musicUrl);
 
 export const PublicPostDetail = () => {
   const { postId } = useParams();
@@ -490,6 +494,7 @@ export const PublicPostDetail = () => {
   }
 
   const isVideoPost = post.postType === "video";
+  const isPhotoShortPost = isMusicPhotoShort(post);
   const creatorLabel =
     formatDisplayValue(post.user?.profession) || "globMe creator";
   const publishedLabel = formatRelativeTime(post.createdAt || post.postDate);
@@ -674,11 +679,22 @@ export const PublicPostDetail = () => {
             </button>
 
             <div className={styles.mediaFrame}>
-              <img
-                src={post.url}
-                alt={post.title || "Public post"}
-                className={styles.media}
-              />
+              {isPhotoShortPost ? (
+                <PhotoShortPlayer
+                  imageUrl={post.url}
+                  musicUrl={post.musicUrl}
+                  musicSourceType={post.musicSourceType || "audio"}
+                  durationSeconds={post.durationSeconds || post.musicDurationSeconds}
+                  title={post.title || "Public photo short"}
+                  imageClassName={styles.media}
+                />
+              ) : (
+                <img
+                  src={post.url}
+                  alt={post.title || "Public post"}
+                  className={styles.media}
+                />
+              )}
             </div>
 
             <div className={styles.copy}>
