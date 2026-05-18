@@ -933,6 +933,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   margin-top: 1rem;
+  align-items: start;
 }
 
 .storyComposerCard {
@@ -941,6 +942,13 @@
   border-radius: 20px;
   background: rgba(248, 250, 252, 0.88);
   border: 1px solid rgba(203, 213, 225, 0.86);
+}
+
+.storyComposerLibraryCard {
+  display: flex;
+  flex-direction: column;
+  max-height: min(68vh, 760px);
+  min-height: 0;
 }
 
 .storyComposerSectionHeader {
@@ -969,6 +977,12 @@
   align-items: center;
 }
 
+.storyVideoDraftShell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
 .storyAudioPlayer {
   display: none;
 }
@@ -977,6 +991,28 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.storyComposerLibraryCard .storyPostsState,
+.storyComposerLibraryCard .storyPostList {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.storyComposerLibraryCard .storyPostList::-webkit-scrollbar {
+  width: 10px;
+}
+
+.storyComposerLibraryCard .storyPostList::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.38);
+}
+
+.storyComposerLibraryCard .storyPostList::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.62);
+  border-radius: 999px;
 }
 
 .storyPostCard {
@@ -1133,6 +1169,160 @@
 
 .storyMeta p {
   font-size: 0.8rem;
+}
+
+.storyClipPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+}
+
+.storyClipHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.storyClipHeader strong {
+  display: block;
+  color: #172033;
+  font-size: 0.88rem;
+}
+
+.storyClipHeader small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.storyClipBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.storyClipControl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.storyClipLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #475569;
+  font-size: 0.76rem;
+}
+
+.storyClipControl input[type="range"] {
+  width: 100%;
+  accent-color: #2563eb;
+}
+
+.storyClipRangeShell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+}
+
+.storyClipDragSurface {
+  position: relative;
+  width: 100%;
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.storyClipRangeBackdrop {
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 8px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.35);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.storyClipRangeActive {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
+  pointer-events: none;
+}
+
+.storyClipHandle {
+  width: 4px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+  pointer-events: none;
+}
+
+.storyClipSlider {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.storyClipTimelineLabels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.storyClipStaticNote {
+  padding: 0.8rem 0.85rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #475569;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.storyClipActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.storyTrimWarning {
+  color: #b45309 !important;
+  font-weight: 600;
 }
 
 .storyPlaceholder {
@@ -2444,6 +2634,14 @@
   .storyComposerGrid,
   .storyDraftPreview {
     grid-template-columns: 1fr;
+  }
+
+  .storyClipActions {
+    flex-direction: column;
+  }
+
+  .storyComposerLibraryCard {
+    max-height: min(54vh, 520px);
   }
 
   .storyComposerOverlay {

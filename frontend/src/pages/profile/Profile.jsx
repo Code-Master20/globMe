@@ -36,6 +36,8 @@ import {
 import api from "../../lib/api";
 
 const MAX_STORY_DURATION_SECONDS = 90;
+const STORY_CLIP_SLIDER_STEP_SECONDS = 0.1;
+const STORY_CLIP_STOP_TOLERANCE_SECONDS = 0.2;
 
 const listify = (value) => {
   if (Array.isArray(value)) {
@@ -146,6 +148,220 @@ const getLocalMediaDuration = (file) =>
     mediaElement.src = objectUrl;
   });
 
+const formatDurationLabel = (value) => {
+  const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+  const wholeSeconds = Math.floor(safeValue);
+  const minutes = Math.floor(wholeSeconds / 60);
+  const seconds = wholeSeconds % 60;
+
+  return `${minutes}:${`${seconds}`.padStart(2, "0")}`;
+};
+
+const getStoryClipMinimumSpan = (durationSeconds) => {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return 0.2;
+  }
+
+  return Math.min(1, Math.max(durationSeconds / 40, 0.2));
+};
+
+const shouldTrimStoryVideoClip = ({ durationSeconds, startSeconds, endSeconds }) => {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return false;
+  }
+
+  const cappedEnd = Math.min(durationSeconds, MAX_STORY_DURATION_SECONDS);
+
+  if (durationSeconds > MAX_STORY_DURATION_SECONDS + 0.05) {
+    return true;
+  }
+
+  return startSeconds > 0.05 || endSeconds < cappedEnd - 0.05;
+};
+
+const getSupportedRecorderMimeType = () => {
+  if (typeof MediaRecorder === "undefined") {
+    return "";
+  }
+
+  const supportedTypes = [
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+  ];
+
+  return supportedTypes.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+};
+
+const waitForVideoSeek = (video, targetTime) =>
+  new Promise((resolve, reject) => {
+    if (Math.abs(video.currentTime - targetTime) < STORY_CLIP_SLIDER_STEP_SECONDS) {
+      resolve();
+      return;
+    }
+
+    const handleSeeked = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error("The selected video could not be prepared."));
+    };
+    const cleanup = () => {
+      video.removeEventListener("seeked", handleSeeked);
+      video.removeEventListener("error", handleError);
+    };
+
+    video.addEventListener("seeked", handleSeeked, { once: true });
+    video.addEventListener("error", handleError, { once: true });
+    video.currentTime = targetTime;
+  });
+
+const buildTrimmedStoryVideoFile = async ({ file, startSeconds, endSeconds }) => {
+  if (typeof document === "undefined" || typeof MediaRecorder === "undefined") {
+    throw new Error("Story trimming is not available in this browser.");
+  }
+
+  const video = document.createElement("video");
+  const objectUrl = URL.createObjectURL(file);
+  const supportedMimeType = getSupportedRecorderMimeType();
+
+  video.preload = "auto";
+  video.playsInline = true;
+  video.muted = true;
+  video.defaultMuted = true;
+  video.volume = 0;
+  video.controls = false;
+  video.src = objectUrl;
+
+  try {
+    await new Promise((resolve, reject) => {
+      const handleLoadedMetadata = () => {
+        cleanup();
+        resolve();
+      };
+      const handleError = () => {
+        cleanup();
+        reject(new Error("The selected video could not be read."));
+      };
+      const cleanup = () => {
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        video.removeEventListener("error", handleError);
+      };
+
+      video.addEventListener("loadedmetadata", handleLoadedMetadata, { once: true });
+      video.addEventListener("error", handleError, { once: true });
+      video.load();
+    });
+
+    const durationSeconds = Number.isFinite(video.duration) ? video.duration : 0;
+    const safeStart = Math.max(0, Math.min(startSeconds, durationSeconds));
+    const safeEnd = Math.max(safeStart, Math.min(endSeconds, durationSeconds));
+    const captureStream =
+      typeof video.captureStream === "function"
+        ? video.captureStream()
+        : typeof video.mozCaptureStream === "function"
+          ? video.mozCaptureStream()
+          : null;
+
+    if (!captureStream) {
+      throw new Error("This browser cannot trim story videos yet.");
+    }
+
+    const recorder = supportedMimeType
+      ? new MediaRecorder(captureStream, { mimeType: supportedMimeType })
+      : new MediaRecorder(captureStream);
+
+    await waitForVideoSeek(video, safeStart);
+
+    return await new Promise((resolve, reject) => {
+      const chunks = [];
+      let hasStopped = false;
+
+      const stopRecording = () => {
+        if (hasStopped) {
+          return;
+        }
+
+        hasStopped = true;
+
+        if (!video.paused) {
+          video.pause();
+        }
+
+        if (recorder.state !== "inactive") {
+          recorder.stop();
+        }
+      };
+
+      const handleTimeUpdate = () => {
+        if (video.currentTime >= safeEnd - STORY_CLIP_STOP_TOLERANCE_SECONDS) {
+          stopRecording();
+        }
+      };
+      const handleDataAvailable = (event) => {
+        if (event.data?.size) {
+          chunks.push(event.data);
+        }
+      };
+      const handleRecorderStop = () => {
+        cleanup();
+
+        if (!chunks.length) {
+          reject(new Error("No story clip was created. Please try another range."));
+          return;
+        }
+
+        const extension = recorder.mimeType.includes("webm") ? "webm" : "mp4";
+        const baseName = file.name.replace(/\.[^.]+$/, "");
+        resolve(
+          new File(chunks, `${baseName}-story-clip.${extension}`, {
+            type: recorder.mimeType || supportedMimeType || file.type,
+            lastModified: Date.now(),
+          }),
+        );
+      };
+      const handleRecorderError = () => {
+        cleanup();
+        reject(new Error("The selected story clip could not be recorded."));
+      };
+      const handlePlaybackError = () => {
+        cleanup();
+        reject(new Error("The selected story clip could not be played."));
+      };
+      const cleanup = () => {
+        video.removeEventListener("timeupdate", handleTimeUpdate);
+        video.removeEventListener("ended", stopRecording);
+        video.removeEventListener("error", handlePlaybackError);
+        recorder.removeEventListener("dataavailable", handleDataAvailable);
+        recorder.removeEventListener("stop", handleRecorderStop);
+        recorder.removeEventListener("error", handleRecorderError);
+      };
+
+      video.addEventListener("timeupdate", handleTimeUpdate);
+      video.addEventListener("ended", stopRecording);
+      video.addEventListener("error", handlePlaybackError);
+      recorder.addEventListener("dataavailable", handleDataAvailable);
+      recorder.addEventListener("stop", handleRecorderStop);
+      recorder.addEventListener("error", handleRecorderError);
+
+      try {
+        recorder.start(250);
+        video.play().catch(() => {
+          stopRecording();
+          reject(new Error("Story clip preview permissions blocked trimming."));
+        });
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
 export const Profile = () => {
   const { userId } = useParams();
   const [searchParams] = useSearchParams();
@@ -173,6 +389,11 @@ export const Profile = () => {
   const [selectedStoryPost, setSelectedStoryPost] = useState(null);
   const [pendingStoryMediaPreview, setPendingStoryMediaPreview] = useState("");
   const [pendingStoryAudioPreview, setPendingStoryAudioPreview] = useState("");
+  const [pendingStoryVideoDurationSeconds, setPendingStoryVideoDurationSeconds] = useState(0);
+  const [storyClipStartSeconds, setStoryClipStartSeconds] = useState(0);
+  const [storyClipEndSeconds, setStoryClipEndSeconds] = useState(0);
+  const [storyClipPreviewing, setStoryClipPreviewing] = useState(false);
+  const [storyClipExportLoading, setStoryClipExportLoading] = useState(false);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
   const [storyViewerInitialIndex, setStoryViewerInitialIndex] = useState(0);
   const [storyViewerStories, setStoryViewerStories] = useState([]);
@@ -201,6 +422,7 @@ export const Profile = () => {
   const [likesViewerItems, setLikesViewerItems] = useState([]);
   const [likesViewerError, setLikesViewerError] = useState("");
   const pendingStoryAudioRef = useRef(null);
+  const pendingStoryVideoRef = useRef(null);
 
   const isOwner = !userId || (user?._id && `${userId}` === `${user._id}`);
   const profileContentKey = isOwner ? user?._id || "owner" : userId || "guest";
@@ -381,6 +603,77 @@ export const Profile = () => {
       audioElement.currentTime = 0;
     };
   }, [pendingStoryAudioPreview]);
+
+  useEffect(() => {
+    if (
+      !pendingStoryMediaFile ||
+      !pendingStoryMediaFile.type?.startsWith("video/")
+    ) {
+      setPendingStoryVideoDurationSeconds(0);
+      setStoryClipStartSeconds(0);
+      setStoryClipEndSeconds(0);
+      setStoryClipPreviewing(false);
+      setStoryClipExportLoading(false);
+      return undefined;
+    }
+
+    let ignore = false;
+
+    const loadStoryVideoDuration = async () => {
+      try {
+        const duration = await getLocalMediaDuration(pendingStoryMediaFile);
+
+        if (!ignore) {
+          setPendingStoryVideoDurationSeconds(duration);
+          setStoryClipStartSeconds(0);
+          setStoryClipEndSeconds(Math.min(duration, MAX_STORY_DURATION_SECONDS));
+        }
+      } catch {
+        if (!ignore) {
+          setPendingStoryVideoDurationSeconds(0);
+          setStoryClipStartSeconds(0);
+          setStoryClipEndSeconds(0);
+          toast.error("We could not read that video length");
+        }
+      }
+    };
+
+    loadStoryVideoDuration();
+
+    return () => {
+      ignore = true;
+    };
+  }, [pendingStoryMediaFile]);
+
+  useEffect(() => {
+    if (!storyClipPreviewing) {
+      return undefined;
+    }
+
+    const videoElement = pendingStoryVideoRef.current;
+
+    if (!videoElement) {
+      return undefined;
+    }
+
+    const handleTimeUpdate = () => {
+      if (videoElement.currentTime >= storyClipEndSeconds - STORY_CLIP_STOP_TOLERANCE_SECONDS) {
+        videoElement.pause();
+        setStoryClipPreviewing(false);
+      }
+    };
+    const handlePause = () => {
+      setStoryClipPreviewing(false);
+    };
+
+    videoElement.addEventListener("timeupdate", handleTimeUpdate);
+    videoElement.addEventListener("pause", handlePause);
+
+    return () => {
+      videoElement.removeEventListener("timeupdate", handleTimeUpdate);
+      videoElement.removeEventListener("pause", handlePause);
+    };
+  }, [storyClipEndSeconds, storyClipPreviewing]);
 
   useEffect(() => {
     if (!storyComposerOpen) {
@@ -804,8 +1097,7 @@ export const Profile = () => {
         const duration = await getLocalMediaDuration(file);
 
         if (duration > MAX_STORY_DURATION_SECONDS) {
-          toast.error("Story videos must be 1 minute 30 seconds or shorter");
-          return;
+          toast.info("Long story videos will be trimmed to 1 minute 30 seconds");
         }
       } catch {
         toast.error("We could not read that video length");
@@ -837,6 +1129,92 @@ export const Profile = () => {
     setPendingStoryMediaFile(null);
     setPendingStoryAudioFile(null);
     setSelectedStoryPost(null);
+    setPendingStoryVideoDurationSeconds(0);
+    setStoryClipStartSeconds(0);
+    setStoryClipEndSeconds(0);
+    setStoryClipPreviewing(false);
+    setStoryClipExportLoading(false);
+  };
+
+  const handleStoryClipStartChange = (event) => {
+    const nextStart = Number(event.target.value);
+    const nextEnd = Math.min(
+      pendingStoryVideoDurationSeconds,
+      nextStart + MAX_STORY_DURATION_SECONDS,
+    );
+
+    setStoryClipStartSeconds(nextStart);
+    setStoryClipEndSeconds(nextEnd);
+    setStoryClipPreviewing(false);
+  };
+
+  const updateStoryClipWindowFromClientX = (clientX, bounds) => {
+    if (!bounds || bounds.width <= 0 || pendingStoryVideoDurationSeconds <= 0) {
+      return;
+    }
+
+    const maxStart = Math.max(
+      0,
+      pendingStoryVideoDurationSeconds - MAX_STORY_DURATION_SECONDS,
+    );
+    const relativeRatio = Math.min(
+      1,
+      Math.max(0, (clientX - bounds.left) / bounds.width),
+    );
+    const nextStart = Math.min(maxStart, Math.max(0, relativeRatio * maxStart));
+    const nextEnd = Math.min(
+      pendingStoryVideoDurationSeconds,
+      nextStart + MAX_STORY_DURATION_SECONDS,
+    );
+
+    setStoryClipStartSeconds(nextStart);
+    setStoryClipEndSeconds(nextEnd);
+    setStoryClipPreviewing(false);
+  };
+
+  const handleStoryClipWindowPointerDown = (event) => {
+    if (!hasAdjustableStoryClipWindow) {
+      return;
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    updateStoryClipWindowFromClientX(event.clientX, bounds);
+
+    const handlePointerMove = (moveEvent) => {
+      updateStoryClipWindowFromClientX(moveEvent.clientX, bounds);
+    };
+    const handlePointerUp = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
+  const handlePreviewStoryClip = async () => {
+    const videoElement = pendingStoryVideoRef.current;
+
+    if (!videoElement) {
+      return;
+    }
+
+    try {
+      videoElement.currentTime = storyClipStartSeconds;
+      setStoryClipPreviewing(true);
+      await videoElement.play();
+    } catch {
+      setStoryClipPreviewing(false);
+      toast.error("Story clip preview could not start");
+    }
+  };
+
+  const handleUseDefaultStoryClip = () => {
+    setStoryClipStartSeconds(0);
+    setStoryClipEndSeconds(
+      Math.min(pendingStoryVideoDurationSeconds, MAX_STORY_DURATION_SECONDS),
+    );
+    setStoryClipPreviewing(false);
   };
 
   const handlePublishStory = async () => {
@@ -845,20 +1223,52 @@ export const Profile = () => {
       return;
     }
 
+    if (selectedStoryPostTooLong) {
+      toast.error("Uploaded video posts longer than 1 minute 30 seconds cannot be used directly as stories yet");
+      return;
+    }
+
+    let mediaFileForUpload = pendingStoryMediaFile;
+
+    if (
+      pendingStoryMediaFile?.type?.startsWith("video/") &&
+      pendingStoryVideoDurationSeconds > 0 &&
+      shouldTrimStoryVideoClip({
+        durationSeconds: pendingStoryVideoDurationSeconds,
+        startSeconds: storyClipStartSeconds,
+        endSeconds: storyClipEndSeconds,
+      })
+    ) {
+      try {
+        setStoryClipExportLoading(true);
+        mediaFileForUpload = await buildTrimmedStoryVideoFile({
+          file: pendingStoryMediaFile,
+          startSeconds: storyClipStartSeconds,
+          endSeconds: storyClipEndSeconds,
+        });
+      } catch (error) {
+        setStoryClipExportLoading(false);
+        toast.error(error.message || "Story video could not be prepared");
+        return;
+      }
+    }
+
     setUploadTarget("story");
     const resultAction = await dispatch(
       uploadStory({
-        mediaFile: pendingStoryMediaFile,
+        mediaFile: mediaFileForUpload,
         audioFile: pendingStoryAudioFile,
         sourcePostId: selectedStoryPost?._id || "",
       }),
     );
 
     if (uploadStory.rejected.match(resultAction)) {
+      setStoryClipExportLoading(false);
       toast.error(resultAction.payload?.message || "Story could not be uploaded");
       return;
     }
 
+    setStoryClipExportLoading(false);
     toast.success(resultAction.payload?.message || "Story uploaded successfully");
     resetStoryComposer();
     setStoryComposerOpen(false);
@@ -1132,6 +1542,26 @@ export const Profile = () => {
     ? (pendingStoryMediaFile.type?.startsWith("video/") ? "video" : "image")
     : (selectedStoryPost?.postType || "image");
   const composerHasSelection = Boolean(pendingStoryMediaFile || selectedStoryPost?._id);
+  const isDeviceStoryVideo =
+    Boolean(pendingStoryMediaFile) && pendingStoryType === "video";
+  const hasAdjustableStoryClipWindow =
+    isDeviceStoryVideo && pendingStoryVideoDurationSeconds > MAX_STORY_DURATION_SECONDS;
+  const selectedStoryClipDuration = Math.max(
+    0,
+    storyClipEndSeconds - storyClipStartSeconds,
+  );
+  const storyClipWindowStartPercent =
+    pendingStoryVideoDurationSeconds > 0
+      ? (storyClipStartSeconds / pendingStoryVideoDurationSeconds) * 100
+      : 0;
+  const storyClipWindowEndPercent =
+    pendingStoryVideoDurationSeconds > 0
+      ? (storyClipEndSeconds / pendingStoryVideoDurationSeconds) * 100
+      : 0;
+  const selectedStoryPostTooLong =
+    !pendingStoryMediaFile &&
+    selectedStoryPost?.postType === "video" &&
+    Number(selectedStoryPost?.durationSeconds || 0) > MAX_STORY_DURATION_SECONDS;
   const rawPhotoPosts = uploadedPosts.filter(
     (post) => post.postType === "image" && post.contentFormat !== "reel",
   );
@@ -1850,12 +2280,115 @@ export const Profile = () => {
               {composerHasSelection ? (
                 <div className={styles.storyDraftPreview}>
                   {pendingStoryType === "video" ? (
-                    <video
-                      src={pendingStoryMediaPreview || selectedStoryPost?.url}
-                      className={styles.storyImage}
-                      controls
-                      preload="metadata"
-                    />
+                    <div className={styles.storyVideoDraftShell}>
+                      <video
+                        ref={pendingStoryVideoRef}
+                        src={pendingStoryMediaPreview || selectedStoryPost?.url}
+                        className={styles.storyImage}
+                        controls
+                        preload="metadata"
+                      />
+
+                      {isDeviceStoryVideo && pendingStoryVideoDurationSeconds > 0 ? (
+                        <div className={styles.storyClipPanel}>
+                          <div className={styles.storyClipHeader}>
+                            <div>
+                              <strong>Story video clip</strong>
+                              <small>
+                                {formatDurationLabel(storyClipStartSeconds)} to{" "}
+                                {formatDurationLabel(storyClipEndSeconds)}
+                              </small>
+                            </div>
+                            <span className={styles.storyClipBadge}>
+                              Length {formatDurationLabel(selectedStoryClipDuration)}
+                            </span>
+                          </div>
+
+                          {hasAdjustableStoryClipWindow ? (
+                            <div className={styles.storyClipControl}>
+                              <div className={styles.storyClipLabelRow}>
+                                <label htmlFor="story-video-window">
+                                  Move the 1:30 window
+                                </label>
+                                <span>{formatDurationLabel(storyClipStartSeconds)}</span>
+                              </div>
+                              <div className={styles.storyClipRangeShell}>
+                                <button
+                                  type="button"
+                                  className={styles.storyClipDragSurface}
+                                  onPointerDown={handleStoryClipWindowPointerDown}
+                                  aria-label="Drag the selected 1 minute 30 second story clip window"
+                                >
+                                  <span
+                                    className={styles.storyClipRangeBackdrop}
+                                    aria-hidden="true"
+                                  >
+                                    <span
+                                      className={styles.storyClipRangeActive}
+                                      style={{
+                                        left: `${storyClipWindowStartPercent}%`,
+                                        width: `${Math.max(
+                                          0,
+                                          storyClipWindowEndPercent - storyClipWindowStartPercent,
+                                        )}%`,
+                                      }}
+                                    >
+                                      <span className={styles.storyClipHandle} />
+                                      <span className={styles.storyClipHandle} />
+                                    </span>
+                                  </span>
+                                </button>
+                                <input
+                                  id="story-video-window"
+                                  type="range"
+                                  min="0"
+                                  max={Math.max(
+                                    0,
+                                    pendingStoryVideoDurationSeconds - MAX_STORY_DURATION_SECONDS,
+                                  )}
+                                  step={STORY_CLIP_SLIDER_STEP_SECONDS}
+                                  value={storyClipStartSeconds}
+                                  onInput={handleStoryClipStartChange}
+                                  onChange={handleStoryClipStartChange}
+                                  className={styles.storyClipSlider}
+                                  aria-hidden="true"
+                                  tabIndex={-1}
+                                />
+                              </div>
+                              <div className={styles.storyClipTimelineLabels}>
+                                <span>{formatDurationLabel(0)}</span>
+                                <span>
+                                  {formatDurationLabel(pendingStoryVideoDurationSeconds)}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className={styles.storyClipStaticNote}>
+                              This video already fits inside the 1 minute 30 second story limit,
+                              so the full video will be used.
+                            </div>
+                          )}
+
+                          <div className={styles.storyClipActions}>
+                            <button
+                              type="button"
+                              className={styles.storySecondaryButton}
+                              onClick={handlePreviewStoryClip}
+                            >
+                              {storyClipPreviewing ? "Previewing..." : "Preview selected clip"}
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.storySecondaryButton}
+                              onClick={handleUseDefaultStoryClip}
+                              disabled={!hasAdjustableStoryClipWindow}
+                            >
+                              Use first 1:30
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : (
                     <img
                       src={pendingStoryMediaPreview || selectedStoryPost?.url}
@@ -1873,6 +2406,25 @@ export const Profile = () => {
                         ? formatDisplayValue(selectedStoryPost.title) || "Selected post"
                         : pendingStoryMediaFile?.name || "Device upload"}
                     </p>
+                    {isDeviceStoryVideo && pendingStoryVideoDurationSeconds > 0 ? (
+                      <>
+                        <p>
+                          Original length:{" "}
+                          {formatDurationLabel(pendingStoryVideoDurationSeconds)}
+                        </p>
+                        <p>
+                          Story clip: {formatDurationLabel(storyClipStartSeconds)} to{" "}
+                          {formatDurationLabel(storyClipEndSeconds)} (
+                          {formatDurationLabel(selectedStoryClipDuration)})
+                        </p>
+                      </>
+                    ) : null}
+                    {selectedStoryPostTooLong ? (
+                      <p className={styles.storyTrimWarning}>
+                        This uploaded video post is longer than 1 minute 30 seconds.
+                        Select a device video instead if you want to trim a deliberate part for story.
+                      </p>
+                    ) : null}
 
                     {pendingStoryAudioFile ? (
                       <audio
@@ -1894,7 +2446,7 @@ export const Profile = () => {
               )}
             </div>
 
-            <div className={styles.storyComposerCard}>
+            <div className={`${styles.storyComposerCard} ${styles.storyComposerLibraryCard}`}>
               <div className={styles.storyComposerSectionHeader}>
                 <h3>Your uploaded posts</h3>
                 <span>Image and video posts can become your story</span>
@@ -1964,9 +2516,13 @@ export const Profile = () => {
               type="button"
               className={styles.storyPublishButton}
               onClick={handlePublishStory}
-              disabled={loading || !composerHasSelection}
+              disabled={loading || storyClipExportLoading || !composerHasSelection}
             >
-              {loading && uploadTarget === "story" ? "Publishing..." : "Publish story"}
+              {storyClipExportLoading
+                ? "Preparing clip..."
+                : loading && uploadTarget === "story"
+                  ? "Publishing..."
+                  : "Publish story"}
             </button>
           </div>
         </div>
