@@ -1,9 +1,15 @@
 const Post = require("../models/post.model");
+const User = require("../models/auth/user.model");
 const cloudinary = require("../config/cloudinary.utils");
 const SuccessHandler = require("../utils/successHandler.util");
 const ErrorHandler = require("../utils/errorHandler.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
 const { getViewerLikedPostIdSet } = require("../utils/posts/postLike.util");
+const {
+  resolvePostAudience,
+  buildFriendIdSet,
+  canViewerAccessPostAudience,
+} = require("../utils/posts/postAudience.util");
 
 const getPublicPosts = async (req, res) => {
   try {
@@ -14,6 +20,8 @@ const getPublicPosts = async (req, res) => {
     const limit = Number.isFinite(limitValue)
       ? Math.min(Math.max(limitValue, 1), 48)
       : 24;
+    const viewer = viewerId ? await User.findById(viewerId).select("friends") : null;
+    const viewerFriendIdSet = buildFriendIdSet(viewer);
 
     const query =
       requestedType === "all" || !allowedTypes.includes(requestedType)
@@ -26,7 +34,7 @@ const getPublicPosts = async (req, res) => {
         "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt",
       )
       .sort({ createdAt: -1 })
-      .limit(limit);
+      .limit(limit * 4);
     const watchLaterPostIds = Array.isArray(req.user?.watchLaterPosts)
       ? req.user.watchLaterPosts.map((item) => `${item}`)
       : [];
@@ -37,6 +45,14 @@ const getPublicPosts = async (req, res) => {
 
     const normalizedPosts = posts
       .filter((post) => post.user)
+      .filter((post) =>
+        canViewerAccessPostAudience({
+          post,
+          viewerId,
+          viewerFriendIdSet,
+        }),
+      )
+      .slice(0, limit)
       .map((post) => {
         return {
           _id: post._id,
@@ -46,6 +62,7 @@ const getPublicPosts = async (req, res) => {
           postType: post.postType,
           category: post.category || null,
           contentFormat: post.contentFormat || null,
+          visibility: resolvePostAudience(post),
           durationSeconds: Number(post.durationSeconds) || 0,
           url: post.url,
           likeCount: post.likeCount,
@@ -54,6 +71,7 @@ const getPublicPosts = async (req, res) => {
           viewCount: post.viewCount || 0,
           postDate: post.postDate,
           createdAt: post.createdAt,
+          isPublic: post.isPublic !== false,
           savedToWatchLater: watchLaterPostIds.includes(`${post._id}`),
           likedByViewer: likedPostIds.has(`${post._id}`),
           user: toPublicUser(post.user, { viewerId }),
@@ -71,12 +89,22 @@ const getPublicPosts = async (req, res) => {
 const getPublicPostById = async (req, res) => {
   try {
     const viewerId = req.user?.id || req.user?._id || null;
+    const viewer = viewerId ? await User.findById(viewerId).select("friends") : null;
+    const viewerFriendIdSet = buildFriendIdSet(viewer);
     const post = await Post.findById(req.params.postId).populate(
       "user",
       "username avatar banner profession location bio talent status gender dob profileVisibility creator friends followers following createdAt updatedAt",
     );
 
-    if (!post || !post.user) {
+    if (
+      !post ||
+      !post.user ||
+      !canViewerAccessPostAudience({
+        post,
+        viewerId,
+        viewerFriendIdSet,
+      })
+    ) {
       return new ErrorHandler(404, "Post not found").send(res);
     }
     const likedPostIds = await getViewerLikedPostIdSet(viewerId, [post._id]);
@@ -89,6 +117,7 @@ const getPublicPostById = async (req, res) => {
       postType: post.postType,
       category: post.category || null,
       contentFormat: post.contentFormat || null,
+      visibility: resolvePostAudience(post),
       durationSeconds: Number(post.durationSeconds) || 0,
       url: post.url,
       likeCount: post.likeCount,
@@ -98,6 +127,7 @@ const getPublicPostById = async (req, res) => {
       postDate: post.postDate,
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
+      isPublic: post.isPublic !== false,
       savedToWatchLater: Array.isArray(req.user?.watchLaterPosts)
         ? req.user.watchLaterPosts.some((item) => `${item}` === `${post._id}`)
         : false,
@@ -114,11 +144,20 @@ const getPublicPostById = async (req, res) => {
 const incrementPublicPostView = async (req, res) => {
   try {
     const viewerId = req.user?.id || req.user?._id || null;
+    const viewer = viewerId ? await User.findById(viewerId).select("friends") : null;
+    const viewerFriendIdSet = buildFriendIdSet(viewer);
     const existingPost = await Post.findById(req.params.postId).select(
-      "_id user viewCount postType contentFormat",
+      "_id user viewCount postType contentFormat isPublic visibility hiddenFromUsers visibleToUsers",
     );
 
-    if (!existingPost) {
+    if (
+      !existingPost ||
+      !canViewerAccessPostAudience({
+        post: existingPost,
+        viewerId,
+        viewerFriendIdSet,
+      })
+    ) {
       return new ErrorHandler(404, "Post not found").send(res);
     }
 

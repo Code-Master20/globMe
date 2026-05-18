@@ -16,25 +16,25 @@ const uploadOptions = [
     id: "photo-reel",
     type: "image",
     format: "reel",
-    title: "Photo reel",
+    title: "Photo Shorts",
   },
   {
     id: "photo-raw",
     type: "image",
     format: "article",
-    title: "Raw photo post",
+    title: "Upload Photo",
   },
   {
     id: "video-reel",
     type: "video",
     format: "reel",
-    title: "Video reel",
+    title: "Video Shorts",
   },
   {
     id: "video-long",
     type: "video",
     format: "long",
-    title: "Long video",
+    title: "Video Longs",
   },
 ];
 

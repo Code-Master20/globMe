@@ -35,6 +35,35 @@ const postSchema = new mongoose.Schema(
       lowercase: true,
       default: null,
     },
+    visibility: {
+      type: String,
+      enum: ["private", "friends", "world", "all"],
+      trim: true,
+      lowercase: true,
+      default: "world",
+    },
+    isPublic: {
+      type: Boolean,
+      default: true,
+    },
+    hiddenFromUsers: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [],
+    },
+    visibleToUsers: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [],
+    },
     durationSeconds: {
       type: Number,
       default: 0,

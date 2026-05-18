@@ -1,6 +1,9 @@
 .page {
+  align-self: stretch;
+  box-sizing: border-box;
+  width: 100%;
   min-height: 100vh;
-  padding: 2rem;
+  padding: 2.25rem 2.75rem 3rem;
   background:
     radial-gradient(circle at top left, rgba(255, 204, 128, 0.32), transparent 28%),
     radial-gradient(circle at top right, rgba(110, 196, 184, 0.24), transparent 22%),
@@ -10,7 +13,9 @@
 
 .hero,
 .panel {
-  width: min(980px, 100%);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1240px;
   margin: 0 auto;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.9);
@@ -19,12 +24,20 @@
 }
 
 .hero {
-  padding: 1.6rem;
+  padding: 1.7rem 1.9rem;
+}
+
+.heroContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .panel {
+  position: relative;
   margin-top: 1rem;
-  padding: 1.4rem;
+  padding: 1.5rem;
 }
 
 .kicker,
@@ -41,6 +54,12 @@
   margin: 0;
 }
 
+.hero h1 {
+  font-size: clamp(1.95rem, 2vw, 2.55rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
 .subcopy {
   margin: 0.85rem 0 0;
   max-width: 720px;
@@ -51,7 +70,18 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.mediaColumn,
+.detailsColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .primaryAction,
@@ -88,6 +118,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  width: 100%;
+  box-sizing: border-box;
   padding: 1rem;
   border-radius: 22px;
   background: #faf8f2;
@@ -111,7 +143,23 @@
   gap: 0.75rem;
 }
 
+.friendPicker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
+}
+
 .playlistOption {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.9rem;
+  border-radius: 16px;
+  border: 1px solid rgba(39, 66, 56, 0.12);
+  background: #fff;
+}
+
+.friendOption {
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
@@ -125,12 +173,26 @@
   margin-top: 0.2rem;
 }
 
+.friendOption input {
+  margin-top: 0.2rem;
+}
+
 .playlistOption strong,
 .playlistOption small {
   display: block;
 }
 
+.friendOption strong,
+.friendOption small {
+  display: block;
+}
+
 .playlistOption small {
+  margin-top: 0.3rem;
+  color: #658176;
+}
+
+.friendOption small {
   margin-top: 0.3rem;
   color: #658176;
 }
@@ -140,10 +202,18 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.85rem;
+  width: 100%;
 }
 
 .publishUploader {
   flex: 1 1 260px;
+  min-width: 0;
+}
+
+.publishUploader :global(button) {
+  width: 100%;
+  justify-content: flex-start;
+  padding-inline: 1.15rem;
 }
 
 .primaryAction,
@@ -169,14 +239,25 @@
 }
 
 .postPreviewCard {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr);
   gap: 1rem;
   align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
   padding: 1rem;
   border-radius: 22px;
   background: #faf8f2;
   border: 1px solid rgba(25, 50, 41, 0.08);
+}
+
+.videoPreviewShell {
+  position: relative;
+  min-height: 360px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #193229;
 }
 
 .postPreviewMedia {
@@ -187,11 +268,215 @@
   background: #dde6de;
 }
 
+.videoPreviewShell .postPreviewMedia {
+  display: block;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+}
+
+.trimOverlay {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 4.35rem;
+  left: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(10, 18, 14, 0) 0%, rgba(10, 18, 14, 0.84) 42%, rgba(10, 18, 14, 0.92) 100%);
+  color: #f7fbf8;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.trimOverlayHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.trimOverlayHeader strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.trimOverlayHeader small {
+  display: block;
+  margin-top: 0.2rem;
+  color: rgba(247, 251, 248, 0.78);
+}
+
+.trimOverlayBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  background: rgba(247, 251, 248, 0.14);
+  color: #f7fbf8;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.trimOverlayControl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.trimOverlayLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: rgba(247, 251, 248, 0.82);
+}
+
+.trimOverlayControl input[type="range"] {
+  width: 100%;
+  accent-color: #7de0b4;
+}
+
+.trimUtilityBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.trimOverlayControl input[type="range"],
+.trimUtilityBar .secondaryAction {
+  pointer-events: auto;
+}
+
+.trimUtilityBar .secondaryAction {
+  min-height: 42px;
+}
+
+.trimUtilityBar .secondaryAction:disabled {
+  opacity: 0.55;
+}
+
+.trimOverlayStatus {
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(247, 251, 248, 0.86);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
 .postPreviewMeta {
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 0.45rem;
+}
+
+.mobileFriendAction {
+  display: flex;
+  margin-top: -0.2rem;
+  width: 100%;
+}
+
+.friendPrivacyButton {
+  min-height: 42px;
+  padding: 0 0.95rem;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 107, 82, 0.18);
+  background: #eef7f2;
+  color: #1f6b52;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.heroFriendButton {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.cardAudiencePanel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: min(100%, 860px);
+  max-height: min(84vh, 720px);
+  overflow: auto;
+  padding: 1.2rem;
+  border-radius: 22px;
+  background: #fffefb;
+  border: 1px solid rgba(31, 107, 82, 0.14);
+  box-shadow: 0 24px 50px rgba(20, 48, 38, 0.22);
+}
+
+.cardAudienceOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  z-index: 3;
+}
+
+.cardAudienceBackdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: 22px;
+  background: rgba(19, 50, 41, 0.44);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+
+.cardAudiencePanelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.friendPrivacyClose {
+  min-height: 40px;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 71, 59, 0.12);
+  background: #f3efe5;
+  color: #25473b;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.friendSearchField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.friendSearchField span {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #25473b;
+}
+
+.friendSearchField input {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(39, 66, 56, 0.15);
+  padding: 0.8rem 0.95rem;
+  background: #fffefb;
+  color: #193229;
 }
 
 .postPreviewMeta strong {
@@ -215,6 +500,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  width: 100%;
 }
 
 .field span {
@@ -225,6 +511,8 @@
 .field input,
 .field select,
 .field textarea {
+  box-sizing: border-box;
+  width: 100%;
   min-height: 46px;
   border-radius: 14px;
   border: 1px solid rgba(39, 66, 56, 0.15);
@@ -239,23 +527,325 @@
   font: inherit;
 }
 
+@media (min-width: 1100px) {
+  .form {
+    display: grid;
+    grid-template-columns: minmax(460px, 0.98fr) minmax(360px, 0.82fr);
+    gap: 1.15rem 1.35rem;
+    align-items: start;
+  }
+
+  .mediaColumn {
+    grid-column: 1;
+  }
+
+  .detailsColumn {
+    grid-column: 2;
+    align-self: start;
+  }
+
+  .mobileFriendAction {
+    display: none;
+  }
+
+  .postPreviewCard {
+    grid-template-columns: 1fr;
+    padding: 1.15rem;
+  }
+
+  .videoPreviewShell {
+    min-height: 430px;
+  }
+
+  .postPreviewMedia {
+    max-height: 430px;
+  }
+
+  .postPreviewMeta {
+    padding-inline: 0.2rem;
+  }
+
+  .trimUtilityBar {
+    margin-top: 0;
+  }
+
+  .field input,
+  .field select,
+  .field textarea {
+    font-size: 1rem;
+  }
+
+  .primarySubmit {
+    width: 100%;
+    min-height: 52px;
+  }
+}
+
 @media (max-width: 699px) {
   .page {
-    padding: 1rem;
+    padding: 0.65rem 0.75rem 1.2rem;
   }
 
   .hero,
   .panel {
-    padding: 1.2rem;
+    width: min(100%, calc(100vw - 1.5rem));
+    max-width: none;
+    margin-inline: auto;
+  }
+
+  .hero {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0.15rem 0 0.55rem;
+  }
+
+  .panel {
+    border-radius: 22px;
+    padding: 0.95rem;
+  }
+
+  .heroContent {
+    align-items: center;
+  }
+
+  .hero h1 {
+    font-size: clamp(1.42rem, 6.4vw, 1.8rem);
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+  }
+
+  .form,
+  .mediaColumn,
+  .detailsColumn {
+    gap: 0.8rem;
+  }
+
+  .publishPicker {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.7rem;
+  }
+
+  .publishUploader {
+    flex-basis: auto;
+    width: 100%;
+  }
+
+  .secondaryAction,
+  .primarySubmit {
+    width: 100%;
+  }
+
+  .publishUploader :global(button),
+  .primarySubmit,
+  .secondaryAction,
+  .friendPrivacyButton {
+    min-height: 50px;
+    border-radius: 16px;
+  }
+
+  .postPreviewMedia {
+    max-height: 260px;
+  }
+
+  .postPreviewMeta {
+    gap: 0.3rem;
+  }
+
+  .postPreviewMeta strong {
+    font-size: 0.96rem;
+  }
+
+  .field {
+    gap: 0.32rem;
+  }
+
+  .field span {
+    font-size: 0.82rem;
+  }
+
+  .field input,
+  .field select,
+  .field textarea,
+  .friendSearchField input {
+    min-height: 48px;
+    border-radius: 16px;
+    padding: 0.82rem 0.9rem;
+    font-size: 0.95rem;
+  }
+
+  .field textarea {
+    min-height: 104px;
+  }
+
+  .mobileFriendAction {
+    margin-top: 0;
+  }
+
+  .friendPrivacyButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .heroFriendButton {
+    width: auto;
+    min-height: 40px;
+    padding-inline: 0.85rem;
+    font-size: 0.88rem;
+  }
+
+  .mobileFriendAction {
+    display: none;
+  }
+
+  .playlistPanel {
+    padding: 0.85rem;
+    border-radius: 18px;
   }
 
   .postPreviewCard {
     display: flex;
     flex-direction: column;
+    gap: 0.7rem;
+    padding: 0.75rem;
+    border-radius: 18px;
+  }
+
+  .videoPreviewShell {
+    min-height: 300px;
+  }
+
+  .trimOverlay {
+    gap: 0.35rem;
+    padding: 0.55rem 0.6rem;
+    right: 0.55rem;
+    left: 0.55rem;
+    bottom: 6.6rem;
+  }
+
+  .trimOverlayHeader {
+    gap: 0.5rem;
+  }
+
+  .trimOverlayHeader strong {
+    font-size: 0.82rem;
+  }
+
+  .trimOverlayHeader small,
+  .trimOverlayLabelRow {
+    font-size: 0.72rem;
+  }
+
+  .trimOverlayBadge {
+    min-height: 28px;
+    padding: 0 0.6rem;
+    font-size: 0.72rem;
+  }
+
+  .trimOverlayControl {
+    gap: 0.12rem;
+  }
+
+  .trimOverlayControl input[type="range"] {
+    height: 16px;
+  }
+
+  .trimUtilityBar {
+    gap: 0.45rem;
+  }
+
+  .trimUtilityBar .secondaryAction {
+    flex: 1 1 100%;
+    min-height: 40px;
+    padding: 0 0.85rem;
   }
 
   .confirmedChoice {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .cardAudienceOverlay {
+    padding: 0.6rem;
+  }
+
+  .cardAudiencePanel {
+    width: 100%;
+    max-height: min(82vh, 620px);
+    padding: 0.85rem;
+    border-radius: 16px;
+  }
+
+  .cardAudiencePanelHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .friendPrivacyClose {
+    width: 100%;
+  }
+
+  .friendPicker,
+  .playlistPicker {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 430px) {
+  .page {
+    padding: 0.55rem 0.65rem 1rem;
+  }
+
+  .hero,
+  .panel {
+    width: min(100%, calc(100vw - 1.3rem));
+  }
+
+  .panel {
+    padding: 0.8rem;
+  }
+
+  .hero h1 {
+    font-size: clamp(1.28rem, 7vw, 1.58rem);
+  }
+
+  .primaryAction,
+  .secondaryAction,
+  .primarySubmit,
+  .friendPrivacyButton {
+    min-height: 48px;
+    padding-inline: 0.85rem;
+    font-size: 0.96rem;
+  }
+
+  .heroFriendButton {
+    min-height: 38px;
+    padding-inline: 0.72rem;
+    font-size: 0.82rem;
+  }
+
+  .field input,
+  .field select,
+  .field textarea,
+  .friendSearchField input {
+    font-size: 0.92rem;
+  }
+
+  .postPreviewMedia {
+    max-height: 220px;
+  }
+
+  .videoPreviewShell {
+    min-height: 270px;
+  }
+
+  .postPreviewMeta small,
+  .playlistHeader p,
+  .emptyState,
+  .friendOption small,
+  .playlistOption small {
+    font-size: 0.84rem;
   }
 }

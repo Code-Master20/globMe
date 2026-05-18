@@ -10,6 +10,11 @@ const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
 const { getViewerLikedPostIdSet } = require("../utils/posts/postLike.util");
+const {
+  resolvePostAudience,
+  buildFriendIdSet,
+  canViewerAccessPostAudience,
+} = require("../utils/posts/postAudience.util");
 
 const STORY_LIFETIME_MS = 36 * 60 * 60 * 1000;
 const MAX_STORY_DURATION_SECONDS = 90;
@@ -59,6 +64,72 @@ const normalizeTagInput = (value) =>
         .slice(0, 12),
     ),
   );
+
+const normalizeObjectIdListInput = (value) => {
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return [];
+    }
+
+    try {
+      return normalizeObjectIdListInput(JSON.parse(trimmedValue));
+    } catch (error) {
+      return normalizeObjectIdListInput(trimmedValue.split(","));
+    }
+  }
+
+  if (!Array.isArray(value)) {
+    return value && mongoose.isValidObjectId(`${value}`.trim()) ? [`${value}`.trim()] : [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => `${item ?? ""}`.trim())
+        .filter((item) => mongoose.isValidObjectId(item)),
+    ),
+  );
+};
+
+const normalizeHiddenFriendIds = ({ value, ownerFriendIdSet = new Set() }) =>
+  normalizeObjectIdListInput(value).filter((friendId) => ownerFriendIdSet.has(friendId));
+
+const normalizeIncludedFriendIds = ({ value, ownerFriendIdSet = new Set() }) =>
+  normalizeObjectIdListInput(value).filter((friendId) => ownerFriendIdSet.has(friendId));
+
+const normalizePostVisibility = (value, fallback = true) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  const normalizedValue = `${value ?? ""}`.trim().toLowerCase();
+
+  if (["false", "0", "private", "hidden"].includes(normalizedValue)) {
+    return false;
+  }
+
+  if (["true", "1", "public", "visible"].includes(normalizedValue)) {
+    return true;
+  }
+
+  return fallback;
+};
+
+const normalizePostAudience = (value, fallback = "world") => {
+  const normalizedValue = `${value ?? ""}`.trim().toLowerCase();
+
+  if (["private", "friends", "world", "all"].includes(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  if (normalizedValue === "public") {
+    return "world";
+  }
+
+  return fallback;
+};
 
 const normalizeOwnerPostFormat = ({ postType, contentFormat }) => {
   const normalizedFormat = `${contentFormat ?? ""}`.trim().toLowerCase();
@@ -119,6 +190,7 @@ const formatPostPayload = (postDoc, options = {}) => {
     contentFormat: post.contentFormat || null,
     durationSeconds: Number(post.durationSeconds) || 0,
     url: post.url,
+    visibility: resolvePostAudience(post),
     likeCount: post.likeCount || 0,
     shareCount: post.shareCount || 0,
     commentCount: post.commentCount || 0,
@@ -126,6 +198,7 @@ const formatPostPayload = (postDoc, options = {}) => {
     postDate: post.postDate,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
+    isPublic: post.isPublic !== false,
     savedToWatchLater,
     likedByViewer,
     playlists,
@@ -1229,6 +1302,26 @@ const createOwnerPost = async (req, res) => {
     const title = buildOwnerPostTitle(req.body?.title, mediaFile);
     const description = `${req.body?.description ?? ""}`.trim();
     const tags = normalizeTagInput(req.body?.tags);
+    const visibility = normalizePostAudience(
+      req.body?.visibility,
+      normalizePostVisibility(req.body?.isPublic, true) ? "world" : "private",
+    );
+    const isPublic = ["world", "all"].includes(visibility);
+    const owner = await User.findById(req.user.id).select("friends");
+
+    if (!owner) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    const ownerFriendIdSet = buildFriendIdSet(owner);
+    const hiddenFromUsers = normalizeHiddenFriendIds({
+      value: req.body?.hiddenFromUserIds ?? req.body?.hiddenFromUsers,
+      ownerFriendIdSet,
+    });
+    const visibleToUsers = normalizeIncludedFriendIds({
+      value: req.body?.includedUserIds ?? req.body?.visibleToUsers,
+      ownerFriendIdSet,
+    });
 
     if (postType === "video" && Number(mediaFile.size) > MAX_OWNER_VIDEO_UPLOAD_BYTES) {
       return new ErrorHandler(400, "Video posts must be 100MB or smaller").send(res);
@@ -1254,6 +1347,10 @@ const createOwnerPost = async (req, res) => {
       postType,
       category,
       contentFormat,
+      visibility,
+      isPublic,
+      hiddenFromUsers,
+      visibleToUsers,
       durationSeconds:
         postType === "video" ? getUploadDurationSeconds(uploadResult) : 0,
       url: uploadResult.secure_url,
@@ -1339,6 +1436,8 @@ const getProfilePosts = async (req, res) => {
     const viewerId = req.user?.id || req.user?._id || null;
     const requestedType = `${req.query.type ?? "all"}`.trim().toLowerCase();
     const allowedTypes = ["all", "image", "video"];
+    const viewer = viewerId ? await User.findById(viewerId).select("friends") : null;
+    const viewerFriendIdSet = buildFriendIdSet(viewer);
 
     if (!mongoose.isValidObjectId(userId)) {
       return new ErrorHandler(400, "Invalid profile id").send(res);
@@ -1369,6 +1468,13 @@ const getProfilePosts = async (req, res) => {
       "Profile posts loaded",
       posts
         .filter((post) => post.user)
+        .filter((post) =>
+          canViewerAccessPostAudience({
+            post,
+            viewerId,
+            viewerFriendIdSet,
+          }),
+        )
         .map((post) =>
           formatPostPayload(post, {
             viewerId,
@@ -1391,9 +1497,20 @@ const togglePostLike = async (req, res) => {
       return new ErrorHandler(400, "Invalid post selected").send(res);
     }
 
-    const post = await Post.findById(postId).select("user likeCount title");
+    const post = await Post.findById(postId).select(
+      "user likeCount title visibility isPublic hiddenFromUsers visibleToUsers",
+    );
+    const viewer = await User.findById(req.user.id).select("friends");
+    const viewerFriendIdSet = buildFriendIdSet(viewer);
 
-    if (!post) {
+    if (
+      !post ||
+      !canViewerAccessPostAudience({
+        post,
+        viewerId: req.user.id,
+        viewerFriendIdSet,
+      })
+    ) {
       return new ErrorHandler(404, "Post not found").send(res);
     }
 
@@ -1513,10 +1630,20 @@ const toggleWatchLater = async (req, res) => {
     }
 
     const post = await Post.findById(postId).select(
-      "title description url postType category user likeCount commentCount shareCount viewCount postDate createdAt updatedAt",
+      "title description url postType category user likeCount commentCount shareCount viewCount postDate createdAt updatedAt visibility isPublic hiddenFromUsers visibleToUsers",
     );
+    const viewer = await User.findById(req.user.id).select("friends");
+    const viewerFriendIdSet = buildFriendIdSet(viewer);
 
-    if (!post || post.postType !== "video") {
+    if (
+      !post ||
+      post.postType !== "video" ||
+      !canViewerAccessPostAudience({
+        post,
+        viewerId: req.user.id,
+        viewerFriendIdSet,
+      })
+    ) {
       return new ErrorHandler(404, "Video post not found").send(res);
     }
 
@@ -1565,6 +1692,8 @@ const getWatchLaterVideos = async (req, res) => {
     const watchLaterIds = Array.isArray(user.watchLaterPosts)
       ? user.watchLaterPosts
       : [];
+    const viewer = await User.findById(req.user.id).select("friends");
+    const viewerFriendIdSet = buildFriendIdSet(viewer);
 
     const posts = await Post.find({
       _id: { $in: watchLaterIds },
@@ -1582,6 +1711,13 @@ const getWatchLaterVideos = async (req, res) => {
 
     const normalizedPosts = posts
       .filter((post) => post.user)
+      .filter((post) =>
+        canViewerAccessPostAudience({
+          post,
+          viewerId: req.user.id,
+          viewerFriendIdSet,
+        }),
+      )
       .map((post) =>
         formatPostPayload(post, {
           viewerId: user._id,

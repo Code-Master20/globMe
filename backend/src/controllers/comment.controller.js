@@ -4,10 +4,15 @@ const cloudinary = require("../config/cloudinary.utils");
 const Comment = require("../models/comment.model");
 const CommentLike = require("../models/commentLike.model");
 const Post = require("../models/post.model");
+const User = require("../models/auth/user.model");
 const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const { getViewerCommentReactionSets } = require("../utils/comments/commentLike.util");
 const { buildCommentThreadPayload } = require("../utils/comments/commentThread.util");
+const {
+  buildFriendIdSet,
+  canViewerAccessPostAudience,
+} = require("../utils/posts/postAudience.util");
 
 const COMMENT_IMAGE_FOLDER = "seekFi/comments/images";
 
@@ -70,9 +75,20 @@ const getPublicPostComments = async (req, res) => {
       return new ErrorHandler(400, "Invalid post selected").send(res);
     }
 
-    const post = await Post.findById(postId).select("user commentCount");
+    const viewer = viewerId ? await User.findById(viewerId).select("friends") : null;
+    const viewerFriendIdSet = buildFriendIdSet(viewer);
+    const post = await Post.findById(postId).select(
+      "user commentCount visibility isPublic hiddenFromUsers visibleToUsers",
+    );
 
-    if (!post) {
+    if (
+      !post ||
+      !canViewerAccessPostAudience({
+        post,
+        viewerId,
+        viewerFriendIdSet,
+      })
+    ) {
       return new ErrorHandler(404, "Post not found").send(res);
     }
 
@@ -108,6 +124,7 @@ const createPostComment = async (req, res) => {
 
   try {
     const { postId } = req.params;
+    const viewerId = req.user?.id || req.user?._id || null;
     const commentText = `${req.body?.comment ?? ""}`.trim();
     const parentCommentId = `${req.body?.parentCommentId ?? ""}`.trim();
     const linkUrl = normalizeLinkInput(req.body?.linkUrl);
@@ -120,9 +137,20 @@ const createPostComment = async (req, res) => {
       return new ErrorHandler(400, "Comment link must be a valid URL").send(res);
     }
 
-    const post = await Post.findById(postId).select("user commentCount");
+    const viewer = viewerId ? await User.findById(viewerId).select("friends") : null;
+    const viewerFriendIdSet = buildFriendIdSet(viewer);
+    const post = await Post.findById(postId).select(
+      "user commentCount visibility isPublic hiddenFromUsers visibleToUsers",
+    );
 
-    if (!post) {
+    if (
+      !post ||
+      !canViewerAccessPostAudience({
+        post,
+        viewerId,
+        viewerFriendIdSet,
+      })
+    ) {
       return new ErrorHandler(404, "Post not found").send(res);
     }
 

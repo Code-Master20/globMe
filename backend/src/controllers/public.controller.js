@@ -77,14 +77,20 @@ const getDynamicSitemap = async (_req, res) => {
         .sort({ updatedAt: -1 })
         .lean(),
       Post.find({})
-        .select("_id user postType updatedAt")
+        .select("_id user postType updatedAt visibility isPublic")
         .sort({ updatedAt: -1 })
         .lean(),
     ]);
 
     const entryMap = new Map();
     const validUserIds = new Set(users.map((user) => `${user._id}`));
-    const publicPosts = posts.filter((post) => validUserIds.has(`${post.user}`));
+    const publicPosts = posts.filter(
+      (post) =>
+        validUserIds.has(`${post.user}`) &&
+        `${post?.visibility ?? ""}`.trim().toLowerCase() !== "friends" &&
+        ["world", "all"].includes(`${post?.visibility ?? ""}`.trim().toLowerCase()) ||
+        post?.isPublic !== false,
+    );
     const availableGames = GAME_DEFINITIONS.filter((game) => game.status === "available");
     const latestPublicPostLastMod = getLatestValue(publicPosts.map((post) => post.updatedAt));
     const latestVideoPostLastMod = getLatestValue(
