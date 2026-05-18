@@ -1,7 +1,7 @@
 .page {
-  width: min(1140px, 100%);
+  width: min(1240px, 100%);
   margin: 0 auto;
-  padding: 1.2rem 1rem 3rem;
+  padding: clamp(0.9rem, 2vw, 1.2rem) clamp(0.75rem, 2vw, 1rem) 3rem;
 }
 
 .placeholder {
@@ -27,7 +27,7 @@
 
 .feedGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
   gap: 1.2rem;
 }
 

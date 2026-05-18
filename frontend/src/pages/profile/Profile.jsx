@@ -38,6 +38,30 @@ import api from "../../lib/api";
 const MAX_STORY_DURATION_SECONDS = 90;
 const STORY_CLIP_SLIDER_STEP_SECONDS = 0.1;
 const STORY_CLIP_STOP_TOLERANCE_SECONDS = 0.2;
+const STORY_POSTS_CACHE_TTL_MS = 60 * 1000;
+const storyPostsCache = new Map();
+const VISITOR_PROFILE_CACHE_TTL_MS = 60 * 1000;
+const visitorProfileCache = new Map();
+const visitorProfilePostsCache = new Map();
+const visitorProfilePlaylistsCache = new Map();
+
+const getCachedStoryPostsEntry = (ownerId) =>
+  ownerId ? storyPostsCache.get(`${ownerId}`) || null : null;
+
+const isStoryPostsCacheStale = (entry) =>
+  !entry || Date.now() - entry.updatedAt > STORY_POSTS_CACHE_TTL_MS;
+
+const getCachedVisitorProfileEntry = (profileId) =>
+  profileId ? visitorProfileCache.get(`${profileId}`) || null : null;
+
+const getCachedVisitorProfilePostsEntry = (profileId) =>
+  profileId ? visitorProfilePostsCache.get(`${profileId}`) || null : null;
+
+const getCachedVisitorProfilePlaylistsEntry = (profileId) =>
+  profileId ? visitorProfilePlaylistsCache.get(`${profileId}`) || null : null;
+
+const isVisitorProfileCacheStale = (entry) =>
+  !entry || Date.now() - entry.updatedAt > VISITOR_PROFILE_CACHE_TTL_MS;
 
 const listify = (value) => {
   if (Array.isArray(value)) {
@@ -368,11 +392,18 @@ export const Profile = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user, loading } = useSelector((state) => state.auth);
+  const initialVisitorProfileEntry = userId ? getCachedVisitorProfileEntry(userId) : null;
+  const initialVisitorPostsEntry = userId ? getCachedVisitorProfilePostsEntry(userId) : null;
+  const initialVisitorPlaylistsEntry = userId
+    ? getCachedVisitorProfilePlaylistsEntry(userId)
+    : null;
 
   const [width, setWidth] = useState(window.innerWidth);
   const [uploadTarget, setUploadTarget] = useState(null);
-  const [viewedUser, setViewedUser] = useState(null);
-  const [profileLoading, setProfileLoading] = useState(false);
+  const [viewedUser, setViewedUser] = useState(() => initialVisitorProfileEntry?.profile || null);
+  const [profileLoading, setProfileLoading] = useState(
+    () => Boolean(userId) && !initialVisitorProfileEntry,
+  );
   const [profileError, setProfileError] = useState("");
   const [showInfo, setShowInfo] = useState(false);
   const [relationshipLoading, setRelationshipLoading] = useState(false);
@@ -381,8 +412,12 @@ export const Profile = () => {
   const [storyPosts, setStoryPosts] = useState([]);
   const [storyPostsLoading, setStoryPostsLoading] = useState(false);
   const [storyPostsError, setStoryPostsError] = useState("");
-  const [uploadedPosts, setUploadedPosts] = useState([]);
-  const [uploadedPostsLoading, setUploadedPostsLoading] = useState(false);
+  const [uploadedPosts, setUploadedPosts] = useState(
+    () => initialVisitorPostsEntry?.posts || [],
+  );
+  const [uploadedPostsLoading, setUploadedPostsLoading] = useState(
+    () => Boolean(userId) && !initialVisitorPostsEntry,
+  );
   const [uploadedPostsError, setUploadedPostsError] = useState("");
   const [pendingStoryMediaFile, setPendingStoryMediaFile] = useState(null);
   const [pendingStoryAudioFile, setPendingStoryAudioFile] = useState(null);
@@ -399,8 +434,12 @@ export const Profile = () => {
   const [storyViewerStories, setStoryViewerStories] = useState([]);
   const [storyViewerLoading, setStoryViewerLoading] = useState(false);
   const [autoOpenedStoryKey, setAutoOpenedStoryKey] = useState("");
-  const [playlists, setPlaylists] = useState([]);
-  const [playlistsLoading, setPlaylistsLoading] = useState(false);
+  const [playlists, setPlaylists] = useState(
+    () => initialVisitorPlaylistsEntry?.playlists || [],
+  );
+  const [playlistsLoading, setPlaylistsLoading] = useState(
+    () => Boolean(userId) && !initialVisitorPlaylistsEntry,
+  );
   const [playlistsError, setPlaylistsError] = useState("");
   const [playlistRefreshNonce, setPlaylistRefreshNonce] = useState(0);
   const [selectedContentView, setSelectedContentView] = useState("all");
@@ -827,26 +866,52 @@ export const Profile = () => {
     }
 
     let ignore = false;
+    const cacheKey = `${user._id}`;
+    const cachedEntry = getCachedStoryPostsEntry(cacheKey);
+
+    if (cachedEntry) {
+      setStoryPosts(Array.isArray(cachedEntry.posts) ? cachedEntry.posts : []);
+      setStoryPostsError("");
+      setStoryPostsLoading(false);
+    }
+
+    if (cachedEntry && !isStoryPostsCacheStale(cachedEntry)) {
+      return () => {
+        ignore = true;
+      };
+    }
 
     const loadStoryPosts = async () => {
       try {
-        setStoryPostsLoading(true);
-        setStoryPostsError("");
+        if (!cachedEntry) {
+          setStoryPostsLoading(true);
+          setStoryPostsError("");
+        }
         const response = await api.get("/user/story-posts");
+        const nextPosts = Array.isArray(response.data?.data) ? response.data.data : [];
 
         if (!ignore) {
-          setStoryPosts(response.data?.data || []);
+          storyPostsCache.set(cacheKey, {
+            posts: nextPosts,
+            updatedAt: Date.now(),
+          });
+          setStoryPosts(nextPosts);
+          setStoryPostsError("");
         }
       } catch (error) {
         if (!ignore) {
-          setStoryPosts([]);
-          setStoryPostsError(
-            error.response?.data?.message || "Could not load your uploaded posts.",
-          );
+          if (!cachedEntry) {
+            setStoryPosts([]);
+            setStoryPostsError(
+              error.response?.data?.message || "Could not load your uploaded posts.",
+            );
+          }
         }
       } finally {
         if (!ignore) {
-          setStoryPostsLoading(false);
+          if (!cachedEntry) {
+            setStoryPostsLoading(false);
+          }
         }
       }
     };
@@ -872,26 +937,54 @@ export const Profile = () => {
     }
 
     let ignore = false;
+    const cachedEntry = getCachedVisitorProfileEntry(userId);
+
+    if (cachedEntry?.profile) {
+      setViewedUser(cachedEntry.profile);
+      setProfileError("");
+      setProfileLoading(false);
+    } else {
+      setViewedUser(null);
+      setProfileLoading(true);
+    }
+
+    if (cachedEntry && !isVisitorProfileCacheStale(cachedEntry)) {
+      return () => {
+        ignore = true;
+      };
+    }
 
     const loadViewedProfile = async () => {
       try {
-        setProfileLoading(true);
-        setProfileError("");
+        if (!cachedEntry) {
+          setProfileLoading(true);
+          setProfileError("");
+        }
         const response = await api.get(`/user/profile/${userId}`);
+        const nextProfile = response.data?.data || null;
 
         if (!ignore) {
-          setViewedUser(response.data?.data || null);
+          visitorProfileCache.set(`${userId}`, {
+            profile: nextProfile,
+            updatedAt: Date.now(),
+          });
+          setViewedUser(nextProfile);
+          setProfileError("");
         }
       } catch (error) {
         if (!ignore) {
-          setViewedUser(null);
-          setProfileError(
-            error.response?.data?.message || "That profile could not be loaded.",
-          );
+          if (!cachedEntry) {
+            setViewedUser(null);
+            setProfileError(
+              error.response?.data?.message || "That profile could not be loaded.",
+            );
+          }
         }
       } finally {
         if (!ignore) {
-          setProfileLoading(false);
+          if (!cachedEntry) {
+            setProfileLoading(false);
+          }
         }
       }
     };
@@ -914,28 +1007,59 @@ export const Profile = () => {
     }
 
     let ignore = false;
+    const cachedEntry = !isOwner
+      ? getCachedVisitorProfilePlaylistsEntry(profileId)
+      : null;
+
+    if (!isOwner && cachedEntry) {
+      setPlaylists(Array.isArray(cachedEntry.playlists) ? cachedEntry.playlists : []);
+      setPlaylistsError("");
+      setPlaylistsLoading(false);
+    } else if (!isOwner) {
+      setPlaylists([]);
+      setPlaylistsLoading(true);
+    }
+
+    if (!isOwner && cachedEntry && !isVisitorProfileCacheStale(cachedEntry)) {
+      return () => {
+        ignore = true;
+      };
+    }
 
     const loadPlaylists = async () => {
       try {
-        setPlaylistsLoading(true);
-        setPlaylistsError("");
+        if (isOwner || !cachedEntry) {
+          setPlaylistsLoading(true);
+          setPlaylistsError("");
+        }
         const response = isOwner
           ? await api.get("/user/playlists")
           : await api.get(`/user/profile/${profileId}/playlists`);
+        const nextPlaylists = Array.isArray(response.data?.data) ? response.data.data : [];
 
         if (!ignore) {
-          setPlaylists(Array.isArray(response.data?.data) ? response.data.data : []);
+          if (!isOwner) {
+            visitorProfilePlaylistsCache.set(`${profileId}`, {
+              playlists: nextPlaylists,
+              updatedAt: Date.now(),
+            });
+          }
+          setPlaylists(nextPlaylists);
         }
       } catch (error) {
         if (!ignore) {
-          setPlaylists([]);
-          setPlaylistsError(
-            error.response?.data?.message || "Playlists could not be loaded.",
-          );
+          if (isOwner || !cachedEntry) {
+            setPlaylists([]);
+            setPlaylistsError(
+              error.response?.data?.message || "Playlists could not be loaded.",
+            );
+          }
         }
       } finally {
         if (!ignore) {
-          setPlaylistsLoading(false);
+          if (isOwner || !cachedEntry) {
+            setPlaylistsLoading(false);
+          }
         }
       }
     };
@@ -958,28 +1082,57 @@ export const Profile = () => {
     }
 
     let ignore = false;
+    const cachedEntry = !isOwner ? getCachedVisitorProfilePostsEntry(profileId) : null;
+
+    if (!isOwner && cachedEntry) {
+      setUploadedPosts(Array.isArray(cachedEntry.posts) ? cachedEntry.posts : []);
+      setUploadedPostsError("");
+      setUploadedPostsLoading(false);
+    } else if (!isOwner) {
+      setUploadedPosts([]);
+      setUploadedPostsLoading(true);
+    }
+
+    if (!isOwner && cachedEntry && !isVisitorProfileCacheStale(cachedEntry)) {
+      return () => {
+        ignore = true;
+      };
+    }
 
     const loadUploadedPosts = async () => {
       try {
-        setUploadedPostsLoading(true);
-        setUploadedPostsError("");
+        if (isOwner || !cachedEntry) {
+          setUploadedPostsLoading(true);
+          setUploadedPostsError("");
+        }
         const response = isOwner
           ? await api.get("/user/posts")
           : await api.get(`/user/profile/${profileId}/posts`);
+        const nextPosts = Array.isArray(response.data?.data) ? response.data.data : [];
 
         if (!ignore) {
-          setUploadedPosts(Array.isArray(response.data?.data) ? response.data.data : []);
+          if (!isOwner) {
+            visitorProfilePostsCache.set(`${profileId}`, {
+              posts: nextPosts,
+              updatedAt: Date.now(),
+            });
+          }
+          setUploadedPosts(nextPosts);
         }
       } catch (error) {
         if (!ignore) {
-          setUploadedPosts([]);
-          setUploadedPostsError(
-            error.response?.data?.message || "Your uploaded posts could not be loaded.",
-          );
+          if (isOwner || !cachedEntry) {
+            setUploadedPosts([]);
+            setUploadedPostsError(
+              error.response?.data?.message || "Your uploaded posts could not be loaded.",
+            );
+          }
         }
       } finally {
         if (!ignore) {
-          setUploadedPostsLoading(false);
+          if (isOwner || !cachedEntry) {
+            setUploadedPostsLoading(false);
+          }
         }
       }
     };
@@ -1465,9 +1618,92 @@ export const Profile = () => {
   if (!isOwner && profileLoading) {
     return (
       <main className={styles.mainContainer}>
-        <section className={styles.emptyState}>
-          <h1>Loading profile...</h1>
-          <p>We are pulling the public view for this member right now.</p>
+        <section className={styles.contentContainer}>
+          <div className={styles.visitorProfileSkeleton} aria-label="Loading public profile">
+            <div className={`${styles.visitorBannerSkeleton} ${styles.profileSkeletonBlock}`} />
+
+            <div className={styles.visitorProfileCardSkeleton}>
+              <div className={styles.visitorProfileHeaderSkeleton}>
+                <div className={styles.visitorProfileLeftSkeleton}>
+                  <div
+                    className={`${styles.visitorAvatarSkeleton} ${styles.profileSkeletonBlock}`}
+                  />
+                  <div className={styles.visitorProfileTextSkeleton}>
+                    <div
+                      className={`${styles.visitorNameSkeleton} ${styles.profileSkeletonBlock}`}
+                    />
+                    <div
+                      className={`${styles.visitorMetaSkeleton} ${styles.profileSkeletonBlock}`}
+                    />
+                    <div
+                      className={`${styles.visitorMetaSkeletonShort} ${styles.profileSkeletonBlock}`}
+                    />
+                    <div className={styles.visitorSkillRowSkeleton}>
+                      {Array.from({ length: 2 }, (_, index) => (
+                        <span
+                          key={`visitor-skill-skeleton-${index}`}
+                          className={`${styles.visitorSkillSkeleton} ${styles.profileSkeletonBlock}`}
+                        />
+                      ))}
+                    </div>
+                    <div
+                      className={`${styles.visitorBioSkeleton} ${styles.profileSkeletonBlock}`}
+                    />
+                    <div
+                      className={`${styles.visitorLocationSkeleton} ${styles.profileSkeletonBlock}`}
+                    />
+                    <div
+                      className={`${styles.visitorActionSkeleton} ${styles.profileSkeletonBlock}`}
+                    />
+                    <div
+                      className={`${styles.visitorNoteSkeleton} ${styles.profileSkeletonBlock}`}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.visitorStatsSkeleton}>
+                  {Array.from({ length: 2 }, (_, index) => (
+                    <div
+                      key={`visitor-stat-skeleton-${index}`}
+                      className={`${styles.visitorStatCardSkeleton} ${styles.profileSkeletonBlock}`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.visitorUploadsSkeleton}>
+                <div className={styles.visitorUploadsHeaderSkeleton}>
+                  <div className={styles.visitorNavRowSkeleton}>
+                    {Array.from({ length: 4 }, (_, index) => (
+                      <span
+                        key={`visitor-nav-skeleton-${index}`}
+                        className={`${styles.visitorNavSkeleton} ${styles.profileSkeletonBlock}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.visitorUploadsGridSkeleton}>
+                  {Array.from({ length: 6 }, (_, index) => (
+                    <div
+                      key={`visitor-upload-skeleton-${index}`}
+                      className={styles.visitorUploadCardSkeleton}
+                    >
+                      <div
+                        className={`${styles.visitorUploadThumbSkeleton} ${styles.profileSkeletonBlock}`}
+                      />
+                      <div
+                        className={`${styles.visitorUploadLineSkeleton} ${styles.profileSkeletonBlock}`}
+                      />
+                      <div
+                        className={`${styles.visitorUploadLineSkeletonShort} ${styles.profileSkeletonBlock}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
       </main>
     );
@@ -1562,6 +1798,12 @@ export const Profile = () => {
     !pendingStoryMediaFile &&
     selectedStoryPost?.postType === "video" &&
     Number(selectedStoryPost?.durationSeconds || 0) > MAX_STORY_DURATION_SECONDS;
+  const storyComposerInitialLoading =
+    storyComposerOpen && storyPostsLoading && !storyPosts.length;
+  const visitorUploadsInitialLoading =
+    !isOwner &&
+    ((selectedContentView === "playlists" && playlistsLoading && !playlists.length) ||
+      (selectedContentView !== "playlists" && uploadedPostsLoading && !uploadedPosts.length));
   const rawPhotoPosts = uploadedPosts.filter(
     (post) => post.postType === "image" && post.contentFormat !== "reel",
   );
@@ -2285,7 +2527,28 @@ export const Profile = () => {
                 </span>
               </div>
 
-              {composerHasSelection ? (
+              {storyComposerInitialLoading ? (
+                <div
+                  className={styles.storyDraftSkeleton}
+                  aria-label="Loading story draft preview"
+                >
+                  <div
+                    className={`${styles.storyDraftSkeletonMedia} ${styles.storySkeletonBlock}`}
+                    aria-hidden="true"
+                  />
+                  <div className={styles.storyDraftSkeletonMeta}>
+                    <span
+                      className={`${styles.storyDraftSkeletonBadge} ${styles.storySkeletonBlock}`}
+                    />
+                    <span
+                      className={`${styles.storyDraftSkeletonLinePrimary} ${styles.storySkeletonBlock}`}
+                    />
+                    <span
+                      className={`${styles.storyDraftSkeletonLineSecondary} ${styles.storySkeletonBlock}`}
+                    />
+                  </div>
+                </div>
+              ) : composerHasSelection ? (
                 <div className={styles.storyDraftPreview}>
                   {pendingStoryType === "video" ? (
                     <div className={styles.storyVideoDraftShell}>
@@ -2460,8 +2723,31 @@ export const Profile = () => {
                 <span>Image and video posts can become your story</span>
               </div>
 
-              {storyPostsLoading ? (
-                <div className={styles.storyPostsState}>Loading your posts...</div>
+              {storyComposerInitialLoading ? (
+                <div
+                  className={styles.storyPostSkeletonList}
+                  aria-label="Loading your uploaded story posts"
+                >
+                  {Array.from({ length: 4 }, (_, index) => (
+                    <div
+                      key={`story-post-skeleton-${index}`}
+                      className={styles.storyPostSkeletonCard}
+                      aria-hidden="true"
+                    >
+                      <div
+                        className={`${styles.storyPostSkeletonThumb} ${styles.storySkeletonBlock}`}
+                      />
+                      <div className={styles.storyPostSkeletonMeta}>
+                        <span
+                          className={`${styles.storyPostSkeletonTitle} ${styles.storySkeletonBlock}`}
+                        />
+                        <span
+                          className={`${styles.storyPostSkeletonType} ${styles.storySkeletonBlock}`}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : storyPostsError ? (
                 <div className={styles.storyPostsState}>{storyPostsError}</div>
               ) : storyPosts.length === 0 ? (
@@ -3207,7 +3493,29 @@ export const Profile = () => {
                 </div>
 
                 <div className={styles.uploadsCanvas}>
-                  {uploadedPostsLoading || (selectedContentView === "playlists" && playlistsLoading) ? (
+                  {visitorUploadsInitialLoading ? (
+                <div
+                  className={styles.visitorUploadsGridSkeleton}
+                  aria-label="Loading profile posts"
+                >
+                  {Array.from({ length: 6 }, (_, index) => (
+                    <div
+                      key={`visitor-content-skeleton-${index}`}
+                      className={styles.visitorUploadCardSkeleton}
+                    >
+                      <div
+                        className={`${styles.visitorUploadThumbSkeleton} ${styles.profileSkeletonBlock}`}
+                      />
+                      <div
+                        className={`${styles.visitorUploadLineSkeleton} ${styles.profileSkeletonBlock}`}
+                      />
+                      <div
+                        className={`${styles.visitorUploadLineSkeletonShort} ${styles.profileSkeletonBlock}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : uploadedPostsLoading || (selectedContentView === "playlists" && playlistsLoading) ? (
                 <div className={styles.storyPlaceholder}>
                   {selectedContentView === "playlists"
                     ? "Loading playlists..."

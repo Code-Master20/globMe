@@ -3,7 +3,7 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 100vh;
-  padding: 2.25rem 2.75rem 3rem;
+  padding: clamp(0.75rem, 2vw, 2.25rem) clamp(0.75rem, 2.8vw, 2.75rem) 3rem;
   background:
     radial-gradient(circle at top left, rgba(255, 204, 128, 0.32), transparent 28%),
     radial-gradient(circle at top right, rgba(110, 196, 184, 0.24), transparent 22%),
@@ -15,7 +15,7 @@
 .panel {
   box-sizing: border-box;
   width: 100%;
-  max-width: 1240px;
+  max-width: 1320px;
   margin: 0 auto;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.9);
@@ -32,6 +32,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .panel {
@@ -55,6 +56,7 @@
 }
 
 .hero h1 {
+  max-width: min(100%, 18ch);
   font-size: clamp(1.95rem, 2vw, 2.55rem);
   line-height: 1.08;
   letter-spacing: -0.02em;
@@ -588,10 +590,10 @@
   font: inherit;
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 960px) {
   .form {
     display: grid;
-    grid-template-columns: minmax(460px, 0.98fr) minmax(360px, 0.82fr);
+    grid-template-columns: minmax(0, 1.02fr) minmax(320px, 0.88fr);
     gap: 1.15rem 1.35rem;
     align-items: start;
   }
@@ -608,7 +610,9 @@
   .mobileFriendAction {
     display: none;
   }
+}
 
+@media (min-width: 1100px) {
   .postPreviewCard {
     grid-template-columns: 1fr;
     padding: 1.15rem;
@@ -649,7 +653,7 @@
 
   .hero,
   .panel {
-    width: min(100%, calc(100vw - 1.5rem));
+    width: 100%;
     max-width: none;
     margin-inline: auto;
   }
@@ -669,6 +673,7 @@
 
   .heroContent {
     align-items: center;
+    justify-content: space-between;
   }
 
   .hero h1 {
@@ -870,7 +875,7 @@
 
   .hero,
   .panel {
-    width: min(100%, calc(100vw - 1.3rem));
+    width: 100%;
   }
 
   .panel {

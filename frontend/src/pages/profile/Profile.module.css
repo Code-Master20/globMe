@@ -8,7 +8,7 @@
 }
 
 .contentContainer {
-  width: min(1160px, 100%);
+  width: min(1240px, 100%);
   transition:
     filter 220ms ease,
     transform 220ms ease,
@@ -41,6 +41,203 @@
   margin-top: 0.75rem;
   color: #5f6b7c;
   line-height: 1.6;
+}
+
+.profileSkeletonBlock {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(226, 232, 240, 0.96),
+    rgba(241, 245, 249, 0.98)
+  );
+}
+
+.profileSkeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.82) 45%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: visitorProfileSkeletonShimmer 1.2s ease-in-out infinite;
+}
+
+.visitorProfileSkeleton {
+  width: 100%;
+}
+
+.visitorBannerSkeleton {
+  width: 100%;
+  height: 340px;
+  border-radius: 0 0 28px 28px;
+}
+
+.visitorProfileCardSkeleton {
+  position: relative;
+  z-index: 1;
+  margin: -88px clamp(0.9rem, 2vw, 1.4rem) 0;
+  padding: clamp(1.25rem, 2vw, 2rem);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 28px 56px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.visitorProfileHeaderSkeleton {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
+  gap: 1.5rem 2rem;
+  align-items: start;
+}
+
+.visitorProfileLeftSkeleton {
+  display: flex;
+  gap: 1.4rem;
+  align-items: center;
+}
+
+.visitorAvatarSkeleton {
+  width: 160px;
+  height: 160px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.visitorProfileTextSkeleton {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.visitorNameSkeleton {
+  width: min(20rem, 78%);
+  height: 2.8rem;
+  border-radius: 999px;
+}
+
+.visitorMetaSkeleton {
+  width: min(12rem, 60%);
+  height: 1.15rem;
+  border-radius: 999px;
+}
+
+.visitorMetaSkeletonShort {
+  width: min(16rem, 72%);
+  height: 1.15rem;
+  border-radius: 999px;
+}
+
+.visitorSkillRowSkeleton {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.visitorSkillSkeleton {
+  width: 5.2rem;
+  height: 2.1rem;
+  border-radius: 999px;
+}
+
+.visitorBioSkeleton {
+  width: min(38rem, 96%);
+  height: 1.2rem;
+  border-radius: 999px;
+}
+
+.visitorLocationSkeleton {
+  width: min(30rem, 86%);
+  height: 1.15rem;
+  border-radius: 999px;
+}
+
+.visitorActionSkeleton {
+  width: 8rem;
+  height: 4.8rem;
+  border-radius: 18px;
+}
+
+.visitorNoteSkeleton {
+  width: min(42rem, 100%);
+  height: 5.2rem;
+  border-radius: 18px;
+}
+
+.visitorStatsSkeleton {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.visitorStatCardSkeleton {
+  width: 8rem;
+  height: 5.2rem;
+  border-radius: 20px;
+}
+
+.visitorUploadsSkeleton {
+  margin-top: 1.25rem;
+}
+
+.visitorUploadsHeaderSkeleton {
+  margin-bottom: 0.95rem;
+}
+
+.visitorNavRowSkeleton {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.visitorNavSkeleton {
+  width: 5.6rem;
+  height: 3.2rem;
+  border-radius: 999px;
+}
+
+.visitorUploadsGridSkeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.95rem;
+}
+
+.visitorUploadCardSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.visitorUploadThumbSkeleton {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 18px;
+}
+
+.visitorUploadLineSkeleton {
+  width: 72%;
+  height: 1rem;
+  border-radius: 999px;
+}
+
+.visitorUploadLineSkeletonShort {
+  width: 48%;
+  height: 0.88rem;
+  border-radius: 999px;
+}
+
+@keyframes visitorProfileSkeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .bannerWrapper {
@@ -136,8 +333,8 @@
 .profileCard {
   position: relative;
   z-index: 1;
-  margin: -88px 1rem 0;
-  padding: 2rem;
+  margin: -88px clamp(0.9rem, 2vw, 1.4rem) 0;
+  padding: clamp(1.25rem, 2vw, 2rem);
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(226, 232, 240, 0.95);
@@ -147,7 +344,7 @@
 
 .profileHeader {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.95fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
   gap: 1.5rem 2rem;
   align-items: start;
 }
@@ -856,16 +1053,16 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 1.3rem;
+  padding: clamp(0.75rem, 1.8vw, 1.3rem);
   overflow-y: auto;
   background: rgba(2, 6, 23, 0.34);
   backdrop-filter: blur(14px);
 }
 
 .storyComposerDialog {
-  width: min(1080px, 100%);
+  width: min(1280px, calc(100vw - 1.5rem));
   margin: 0 auto;
-  padding: 1rem;
+  padding: clamp(0.9rem, 1.8vw, 1.2rem);
   border-radius: 28px;
   background:
     radial-gradient(circle at top, rgba(251, 146, 60, 0.18), transparent 26%),
@@ -930,8 +1127,8 @@
 
 .storyComposerGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1.02fr) minmax(320px, 0.98fr);
+  gap: clamp(0.85rem, 1.6vw, 1.15rem);
   margin-top: 1rem;
   align-items: start;
 }
@@ -947,7 +1144,7 @@
 .storyComposerLibraryCard {
   display: flex;
   flex-direction: column;
-  max-height: min(68vh, 760px);
+  max-height: min(72vh, 820px);
   min-height: 0;
 }
 
@@ -972,9 +1169,9 @@
 
 .storyDraftPreview {
   display: grid;
-  grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 0.82fr) minmax(0, 1fr);
   gap: 1rem;
-  align-items: center;
+  align-items: start;
 }
 
 .storyVideoDraftShell {
@@ -989,7 +1186,7 @@
 
 .storyPostList {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.75rem;
   overflow-y: auto;
   padding-right: 0.25rem;
@@ -1074,6 +1271,105 @@
   line-height: 1.6;
 }
 
+.storyDraftSkeleton {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.82fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.storyDraftSkeletonMedia {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 20px;
+}
+
+.storyDraftSkeletonMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.storyDraftSkeletonBadge {
+  width: 6.2rem;
+  height: 1.85rem;
+  border-radius: 999px;
+}
+
+.storyDraftSkeletonLinePrimary {
+  width: 68%;
+  height: 1rem;
+  border-radius: 999px;
+}
+
+.storyDraftSkeletonLineSecondary {
+  width: 52%;
+  height: 0.88rem;
+  border-radius: 999px;
+}
+
+.storyPostSkeletonList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.storyPostSkeletonCard {
+  padding: 0.6rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.storyPostSkeletonThumb {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 14px;
+}
+
+.storyPostSkeletonMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+  margin-top: 0.55rem;
+}
+
+.storyPostSkeletonTitle {
+  width: 72%;
+  height: 0.95rem;
+  border-radius: 999px;
+}
+
+.storyPostSkeletonType {
+  width: 38%;
+  height: 0.78rem;
+  border-radius: 999px;
+}
+
+.storySkeletonBlock {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(226, 232, 240, 0.96),
+    rgba(241, 245, 249, 0.98)
+  );
+}
+
+.storySkeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.82) 45%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: storyComposerSkeletonShimmer 1.2s ease-in-out infinite;
+}
+
 .storyComposerFooter {
   display: flex;
   justify-content: space-between;
@@ -1091,15 +1387,20 @@
 
 @media (min-width: 1024px) {
   .storyComposerGrid {
-    grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+    grid-template-columns: minmax(0, 1.14fr) minmax(380px, 0.86fr);
   }
 
   .storyComposerGridMediaActive {
-    grid-template-columns: minmax(0, 1.26fr) minmax(320px, 0.74fr);
+    grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
   }
 
   .storyDraftPreview {
-    grid-template-columns: minmax(320px, 380px) minmax(260px, 1fr);
+    grid-template-columns: minmax(320px, 400px) minmax(260px, 1fr);
+    align-items: start;
+  }
+
+  .storyDraftSkeleton {
+    grid-template-columns: minmax(320px, 400px) minmax(260px, 1fr);
     align-items: start;
   }
 
@@ -1108,16 +1409,21 @@
   }
 
   .storyComposerDraftExpanded .storyDraftPreview {
-    grid-template-columns: minmax(360px, 430px) minmax(260px, 1fr);
+    grid-template-columns: minmax(420px, 520px) minmax(260px, 1fr);
+    gap: 1.15rem;
+  }
+
+  .storyComposerDraftExpanded .storyDraftSkeleton {
+    grid-template-columns: minmax(420px, 520px) minmax(260px, 1fr);
     gap: 1.15rem;
   }
 
   .storyVideoDraftShell {
-    max-width: 380px;
+    max-width: 400px;
   }
 
   .storyComposerDraftExpanded .storyVideoDraftShell {
-    max-width: 430px;
+    max-width: 520px;
   }
 
   .storyComposerDraftExpanded .storyImage {
@@ -1143,6 +1449,12 @@
     min-height: 32px;
     padding-inline: 0.8rem;
     font-size: 0.76rem;
+  }
+}
+
+@keyframes storyComposerSkeletonShimmer {
+  100% {
+    transform: translateX(100%);
   }
 }
 
@@ -1744,6 +2056,12 @@
     width: 100%;
     min-width: 0;
     padding-inline: 0.6rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .visitorUploadsGridSkeleton {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2513,6 +2831,43 @@
     border-radius: 24px 24px 0 0;
   }
 
+  .visitorBannerSkeleton {
+    height: 220px;
+    border-radius: 0;
+  }
+
+  .visitorProfileCardSkeleton {
+    margin: -52px 0 0;
+    padding: 1.2rem;
+    border-radius: 24px 24px 0 0;
+  }
+
+  .visitorProfileHeaderSkeleton {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .visitorProfileLeftSkeleton {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.9rem;
+    width: 100%;
+  }
+
+  .visitorAvatarSkeleton {
+    width: 120px;
+    height: 120px;
+  }
+
+  .visitorStatsSkeleton {
+    justify-content: flex-start;
+  }
+
+  .visitorUploadsGridSkeleton {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .profilePicContainer {
     align-self: flex-start;
   }
@@ -2689,7 +3044,8 @@
   }
 
   .storyComposerGrid,
-  .storyDraftPreview {
+  .storyDraftPreview,
+  .storyDraftSkeleton {
     grid-template-columns: 1fr;
   }
 
@@ -2720,6 +3076,10 @@
   }
 
   .storyPostList {
+    grid-template-columns: 1fr;
+  }
+
+  .storyPostSkeletonList {
     grid-template-columns: 1fr;
   }
 

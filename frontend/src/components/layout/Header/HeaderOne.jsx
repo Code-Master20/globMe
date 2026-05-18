@@ -44,18 +44,6 @@ export const HeaderOne = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const uploadMenuRef = useRef(null);
-  //to track current width of the screen
-  const [width, setWidth] = useState(window.outerWidth);
-
-  useEffect(() => {
-    const screenWidthTracker = () => {
-      setWidth(window.outerWidth);
-    };
-    window.addEventListener("resize", screenWidthTracker);
-    return () => {
-      window.removeEventListener("resize", screenWidthTracker);
-    };
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -88,18 +76,7 @@ export const HeaderOne = () => {
                 <HiOutlineSortDescending />
               </NavLink>
               <img src={globMe} alt="" />
-              <p
-                style={{
-                  color: "green",
-                  fontSize: "2rem",
-                  fontWeight: "bolder",
-                  fontFamily: "sans-serif",
-                  marginLeft: "-2rem",
-                  textShadow: "1px 5px 8px rgba(17, 15, 15, 0.4)",
-                }}
-              >
-                globMe
-              </p>
+              <p className={styles.brandWordmark}>globMe</p>
             </article>
             <article className={styles["create-search-sms"]}>
               <div className={styles.uploadMenuWrap} ref={uploadMenuRef}>

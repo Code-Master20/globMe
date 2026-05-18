@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import noProfile from "../../../assets/noProfile.png";
 import api from "../../../lib/api";
 import styles from "./PeopleHub.module.css";
+
+const NETWORK_HUB_CACHE_TTL_MS = 60 * 1000;
+const networkHubCache = new Map();
+
+const getCachedNetworkHubEntry = (ownerId) =>
+  ownerId ? networkHubCache.get(`${ownerId}`) || null : null;
+
+const isNetworkHubCacheStale = (entry) =>
+  !entry || Date.now() - entry.updatedAt > NETWORK_HUB_CACHE_TTL_MS;
 
 const formatDisplayValue = (value) => {
   if (!value) return "";
@@ -56,8 +66,13 @@ const emptyStateCopy = {
 export const PeopleHub = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [networkHub, setNetworkHub] = useState(createEmptyHub);
-  const [loading, setLoading] = useState(true);
+  const { user } = useSelector((state) => state.auth);
+  const ownerId = user?._id || "";
+  const cachedEntry = getCachedNetworkHubEntry(ownerId);
+  const [networkHub, setNetworkHub] = useState(() =>
+    cachedEntry?.hub ? cachedEntry.hub : createEmptyHub(),
+  );
+  const [loading, setLoading] = useState(() => !cachedEntry);
   const [acceptingId, setAcceptingId] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
   const [mutatingId, setMutatingId] = useState(null);
@@ -65,26 +80,60 @@ export const PeopleHub = () => {
   const [sortOrder, setSortOrder] = useState("newest");
 
   const loadNetworkHub = async ({ silent = false } = {}) => {
+    const localCachedEntry = getCachedNetworkHubEntry(ownerId);
+    const hadCachedEntry = Boolean(localCachedEntry);
+
     try {
-      if (!silent) {
+      if (!silent && !hadCachedEntry) {
         setLoading(true);
       }
 
       const response = await api.get("/network/hub");
-      setNetworkHub(response.data?.data || createEmptyHub());
+      const nextHub = response.data?.data || createEmptyHub();
+
+      if (ownerId) {
+        networkHubCache.set(`${ownerId}`, {
+          hub: nextHub,
+          updatedAt: Date.now(),
+        });
+      }
+
+      setNetworkHub(nextHub);
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not load your network");
-      setNetworkHub(createEmptyHub());
+      if (!hadCachedEntry) {
+        setNetworkHub(createEmptyHub());
+      }
     } finally {
-      if (!silent) {
+      if (!silent && !hadCachedEntry) {
         setLoading(false);
       }
     }
   };
 
   useEffect(() => {
+    if (!ownerId) {
+      setNetworkHub(createEmptyHub());
+      setLoading(true);
+      return;
+    }
+
+    const localCachedEntry = getCachedNetworkHubEntry(ownerId);
+
+    if (localCachedEntry?.hub) {
+      setNetworkHub(localCachedEntry.hub);
+      setLoading(false);
+    } else {
+      setNetworkHub(createEmptyHub());
+      setLoading(true);
+    }
+
+    if (localCachedEntry && !isNetworkHubCacheStale(localCachedEntry)) {
+      return;
+    }
+
     loadNetworkHub();
-  }, []);
+  }, [ownerId]);
 
   const creatorEnabled = Boolean(networkHub.creator);
   const mainTabs = [
@@ -242,6 +291,8 @@ export const PeopleHub = () => {
         : secondDate - firstDate;
     });
 
+  const networkInitialLoading = loading && !cachedEntry;
+
   const renderCardActions = (person) => {
     const isReceivedRequest = activeMainTab === "requests" && activeRequestTab === "received";
     const isSentRequest = activeMainTab === "requests" && activeRequestTab === "sent";
@@ -371,21 +422,33 @@ export const PeopleHub = () => {
         </header>
 
         <section className={styles.tabsPanel}>
-          <div className={styles.mainTabs} role="tablist" aria-label="Network sections">
-            {mainTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                className={`${styles.tabBtn} ${
-                  activeMainTab === tab.key ? styles.tabBtnActive : ""
-                }`}
-                onClick={() => updateSearchTab(tab.key)}
-              >
-                <span>{tab.label}</span>
-                <strong>{tab.count}</strong>
-              </button>
-            ))}
-          </div>
+          {networkInitialLoading ? (
+            <div className={styles.mainTabsSkeleton} aria-label="Loading network tabs">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div
+                  key={`network-tab-skeleton-${index}`}
+                  className={`${styles.tabSkeleton} ${styles.skeletonBlock}`}
+                  aria-hidden="true"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className={styles.mainTabs} role="tablist" aria-label="Network sections">
+              {mainTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`${styles.tabBtn} ${
+                    activeMainTab === tab.key ? styles.tabBtnActive : ""
+                  }`}
+                  onClick={() => updateSearchTab(tab.key)}
+                >
+                  <span>{tab.label}</span>
+                  <strong>{tab.count}</strong>
+                </button>
+              ))}
+            </div>
+          )}
 
           {!creatorEnabled ? (
             <div className={styles.creatorNotice}>
@@ -393,7 +456,7 @@ export const PeopleHub = () => {
             </div>
           ) : null}
 
-          {activeMainTab === "requests" ? (
+          {activeMainTab === "requests" && !networkInitialLoading ? (
             <div
               className={styles.requestTabs}
               role="tablist"
@@ -418,50 +481,109 @@ export const PeopleHub = () => {
           ) : null}
         </section>
 
-        <section className={styles.listHeader}>
-          <div className={styles.sectionTitleGroup}>
-            <h2>
-              {activeMainTab === "requests"
-                ? requestTabs.find((tab) => tab.key === activeRequestTab)?.label
-                : mainTabs.find((tab) => tab.key === activeMainTab)?.label}
-            </h2>
-            <span className={styles.peopleCountBadge}>
-              {filteredUsers.length} {filteredUsers.length === 1 ? "person" : "persons"}
-            </span>
-          </div>
-          <div className={styles.listControls}>
-            <label className={styles.searchField}>
-              <span>Search</span>
-              <input
-                type="search"
-                value={searchText}
-                onChange={(event) => setSearchText(event.target.value)}
-                placeholder="Search people"
-              />
-            </label>
+        {networkInitialLoading ? (
+          <>
+            <section className={styles.listHeaderSkeleton} aria-label="Loading network controls">
+              <div className={styles.sectionTitleSkeletonGroup}>
+                <div className={`${styles.titleSkeleton} ${styles.skeletonBlock}`} />
+                <div className={`${styles.countSkeleton} ${styles.skeletonBlock}`} />
+              </div>
+              <div className={styles.listControlsSkeleton}>
+                <div className={`${styles.fieldSkeleton} ${styles.skeletonBlock}`} />
+                <div className={`${styles.fieldSkeletonShort} ${styles.skeletonBlock}`} />
+              </div>
+            </section>
 
-            <label className={styles.sortField}>
-              <span>Order</span>
-              <select
-                value={sortOrder}
-                onChange={(event) => setSortOrder(event.target.value)}
-              >
-                <option value="newest">New to old</option>
-                <option value="oldest">Old to new</option>
-              </select>
-            </label>
-          </div>
-        </section>
+            <section className={styles.requestList} aria-label="Loading network list">
+              {Array.from({ length: 4 }, (_, index) => (
+                <article
+                  key={`network-card-skeleton-${index}`}
+                  className={`${styles.requestCard} ${styles.requestCardSkeleton}`}
+                  aria-hidden="true"
+                >
+                  <div className={styles.requestMain}>
+                    <div className={`${styles.avatarSkeleton} ${styles.skeletonBlock}`} />
+                    <div className={styles.requestInfoSkeleton}>
+                      <div className={styles.identitySkeletonRow}>
+                        <div
+                          className={`${styles.lineSkeletonPrimary} ${styles.skeletonBlock}`}
+                        />
+                        <div
+                          className={`${styles.badgeSkeleton} ${styles.skeletonBlock}`}
+                        />
+                      </div>
+                      <div
+                        className={`${styles.lineSkeletonSecondary} ${styles.skeletonBlock}`}
+                      />
+                      <div
+                        className={`${styles.lineSkeletonWide} ${styles.skeletonBlock}`}
+                      />
+                      <div
+                        className={`${styles.lineSkeletonMedium} ${styles.skeletonBlock}`}
+                      />
+                      <div className={styles.tagsSkeletonRow}>
+                        {Array.from({ length: 3 }, (_, tagIndex) => (
+                          <span
+                            key={`network-tag-skeleton-${index}-${tagIndex}`}
+                            className={`${styles.tagSkeleton} ${styles.skeletonBlock}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
 
-        {loading ? (
-          <section className={styles.placeholder}>Loading your network...</section>
-        ) : visibleUsers.length === 0 ? (
+                  <div className={styles.cardActions}>
+                    <div className={`${styles.actionSkeleton} ${styles.skeletonBlock}`} />
+                    <div className={`${styles.actionSkeleton} ${styles.skeletonBlock}`} />
+                  </div>
+                </article>
+              ))}
+            </section>
+          </>
+        ) : (
+          <section className={styles.listHeader}>
+            <div className={styles.sectionTitleGroup}>
+              <h2>
+                {activeMainTab === "requests"
+                  ? requestTabs.find((tab) => tab.key === activeRequestTab)?.label
+                  : mainTabs.find((tab) => tab.key === activeMainTab)?.label}
+              </h2>
+              <span className={styles.peopleCountBadge}>
+                {filteredUsers.length} {filteredUsers.length === 1 ? "person" : "persons"}
+              </span>
+            </div>
+            <div className={styles.listControls}>
+              <label className={styles.searchField}>
+                <span>Search</span>
+                <input
+                  type="search"
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  placeholder="Search people"
+                />
+              </label>
+
+              <label className={styles.sortField}>
+                <span>Order</span>
+                <select
+                  value={sortOrder}
+                  onChange={(event) => setSortOrder(event.target.value)}
+                >
+                  <option value="newest">New to old</option>
+                  <option value="oldest">Old to new</option>
+                </select>
+              </label>
+            </div>
+          </section>
+        )}
+
+        {!networkInitialLoading && visibleUsers.length === 0 ? (
           <section className={styles.placeholder}>{emptyCopy}</section>
-        ) : filteredUsers.length === 0 ? (
+        ) : !networkInitialLoading && filteredUsers.length === 0 ? (
           <section className={styles.placeholder}>
             No persons match that search.
           </section>
-        ) : (
+        ) : !networkInitialLoading ? (
           <section className={styles.requestList}>
             {filteredUsers.map((person) => {
               const location = getLocationLabel(person.location);
@@ -514,7 +636,7 @@ export const PeopleHub = () => {
               );
             })}
           </section>
-        )}
+        ) : null}
       </section>
     </main>
   );

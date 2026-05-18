@@ -1,6 +1,6 @@
 .page {
   min-height: 100vh;
-  padding: 2rem;
+  padding: clamp(1rem, 2vw, 2rem);
   background:
     radial-gradient(circle at top left, rgba(255, 204, 128, 0.32), transparent 28%),
     radial-gradient(circle at top right, rgba(110, 196, 184, 0.24), transparent 22%),
@@ -8,11 +8,19 @@
   color: #193229;
 }
 
+.page > .hero,
+.page > .summaryGrid,
+.page > .grid {
+  width: min(1240px, 100%);
+  margin-inline: auto;
+}
+
 .hero {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   align-items: flex-start;
+  flex-wrap: wrap;
   padding: 1.75rem;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.82);
@@ -462,6 +470,20 @@
 
   .grid > .panel {
     grid-column: span 6;
+  }
+}
+
+@media (max-width: 959px) and (min-width: 700px) {
+  .summaryCard {
+    grid-column: span 6;
+  }
+
+  .grid > .panel {
+    grid-column: span 12;
+  }
+
+  .postPreviewCard {
+    grid-template-columns: 1fr;
   }
 }
 

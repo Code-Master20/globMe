@@ -79,6 +79,18 @@
   gap: 0.8rem;
 }
 
+.mainTabsSkeleton {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.tabSkeleton {
+  width: 9.25rem;
+  min-height: 4.4rem;
+  border-radius: 16px;
+}
+
 .tabBtn {
   display: inline-flex;
   align-items: center;
@@ -162,11 +174,38 @@
   margin: 1.25rem 0 1rem;
 }
 
+.listHeaderSkeleton {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  margin: 1.25rem 0 1rem;
+}
+
 .sectionTitleGroup {
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.sectionTitleSkeletonGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.titleSkeleton {
+  width: 10rem;
+  height: 1.6rem;
+  border-radius: 999px;
+}
+
+.countSkeleton {
+  width: 5.2rem;
+  height: 3.4rem;
+  border-radius: 999px;
 }
 
 .peopleCountBadge {
@@ -186,6 +225,24 @@
   grid-template-columns: minmax(0, 1fr) 160px auto;
   align-items: end;
   gap: 0.8rem;
+  width: 100%;
+}
+
+.listControlsSkeleton {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  align-items: end;
+  gap: 0.8rem;
+  width: 100%;
+}
+
+.fieldSkeleton,
+.fieldSkeletonShort {
+  min-height: 4.2rem;
+  border-radius: 14px;
+}
+
+.fieldSkeletonShort {
   width: 100%;
 }
 
@@ -258,6 +315,10 @@
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.05);
 }
 
+.requestCardSkeleton {
+  pointer-events: none;
+}
+
 .requestMain {
   display: flex;
   gap: 0.9rem;
@@ -268,6 +329,76 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
+}
+
+.requestInfoSkeleton {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.identitySkeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.avatarSkeleton {
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  flex-shrink: 0;
+}
+
+.lineSkeletonPrimary {
+  width: 9.5rem;
+  height: 1.2rem;
+  border-radius: 999px;
+}
+
+.lineSkeletonSecondary {
+  width: 14rem;
+  height: 1rem;
+  border-radius: 999px;
+}
+
+.lineSkeletonWide {
+  width: min(32rem, 92%);
+  height: 1rem;
+  border-radius: 999px;
+}
+
+.lineSkeletonMedium {
+  width: min(20rem, 72%);
+  height: 1rem;
+  border-radius: 999px;
+}
+
+.badgeSkeleton {
+  width: 5.2rem;
+  height: 1.8rem;
+  border-radius: 999px;
+}
+
+.tagsSkeletonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.1rem;
+}
+
+.tagSkeleton {
+  width: 4.8rem;
+  height: 1.9rem;
+  border-radius: 999px;
+}
+
+.actionSkeleton {
+  min-height: 4.4rem;
+  border-radius: 16px;
 }
 
 .avatar {
@@ -394,6 +525,36 @@
   cursor: wait;
 }
 
+.skeletonBlock {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(226, 232, 240, 0.96),
+    rgba(241, 245, 249, 0.98)
+  );
+}
+
+.skeletonBlock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.82) 45%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: peopleHubSkeletonShimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes peopleHubSkeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @media (max-width: 720px) {
   .page {
     padding: 0.75rem;
@@ -404,7 +565,17 @@
     flex-direction: column;
   }
 
+  .listHeaderSkeleton {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .sectionTitleGroup {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sectionTitleSkeletonGroup {
     width: 100%;
     justify-content: space-between;
   }
@@ -418,6 +589,11 @@
   }
 
   .listControls {
+    grid-template-columns: minmax(0, 1fr) 140px;
+    align-items: end;
+  }
+
+  .listControlsSkeleton {
     grid-template-columns: minmax(0, 1fr) 140px;
     align-items: end;
   }
@@ -494,6 +670,11 @@
   }
 
   .avatar {
+    width: 64px;
+    height: 64px;
+  }
+
+  .avatarSkeleton {
     width: 64px;
     height: 64px;
   }
