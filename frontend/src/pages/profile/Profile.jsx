@@ -225,6 +225,26 @@ const mergeConnectionState = (currentProfile, payload) => {
       typeof payload?.counts?.followingCount === "number"
         ? payload.counts.followingCount
         : currentProfile.followingCount,
+    fradosCount:
+      typeof payload?.counts?.fradosCount === "number"
+        ? payload.counts.fradosCount
+        : currentProfile.fradosCount,
+    safrosCount:
+      typeof payload?.counts?.safrosCount === "number"
+        ? payload.counts.safrosCount
+        : currentProfile.safrosCount,
+    sabosCount:
+      typeof payload?.counts?.sabosCount === "number"
+        ? payload.counts.sabosCount
+        : currentProfile.sabosCount,
+    saboingsCount:
+      typeof payload?.counts?.saboingsCount === "number"
+        ? payload.counts.saboingsCount
+        : currentProfile.saboingsCount,
+    safroingsCount:
+      typeof payload?.counts?.safroingsCount === "number"
+        ? payload.counts.safroingsCount
+        : currentProfile.safroingsCount,
   };
 };
 
@@ -1974,20 +1994,21 @@ export const Profile = () => {
       ? locationItems.map(formatDisplayValue).join(", ")
       : "";
   const profileIntro = bioItems[0] || "";
-  const friendsCount =
-    typeof profileUser.friendsCount === "number" ? profileUser.friendsCount : 0;
-  const followersCount =
-    typeof profileUser.followersCount === "number"
-      ? profileUser.followersCount
-      : 0;
-  const followingCount =
-    typeof profileUser.followingCount === "number"
-      ? profileUser.followingCount
-      : 0;
-
   const canVisitorSeeFriends = typeof profileUser.friendsCount === "number";
   const canVisitorSeeFollowers = typeof profileUser.followersCount === "number";
   const canVisitorSeeFollowing = typeof profileUser.followingCount === "number";
+  const fradosCount =
+    typeof profileUser.fradosCount === "number" ? profileUser.fradosCount : 0;
+  const safrosCount =
+    typeof profileUser.safrosCount === "number" ? profileUser.safrosCount : 0;
+  const sabosCount =
+    typeof profileUser.sabosCount === "number" ? profileUser.sabosCount : 0;
+  const saboingsCount =
+    typeof profileUser.saboingsCount === "number" ? profileUser.saboingsCount : 0;
+  const safroingsCount =
+    typeof profileUser.safroingsCount === "number"
+      ? profileUser.safroingsCount
+      : 0;
   const relationshipStatus = profileUser.relationshipStatus || "none";
   const friendType = profileUser.friendType || null;
   const subscriberType = profileUser.subscriberType || null;
@@ -2090,21 +2111,33 @@ export const Profile = () => {
 
   const connectionStats = [
     {
-      label: "Friends",
-      value: friendsCount,
+      label: "Frados",
+      value: fradosCount,
       visible: isOwner || canVisitorSeeFriends,
     },
     {
-      label: "Subscriptions",
-      value: followingCount,
+      label: "Safros",
+      value: safrosCount,
+      visible: isOwner ? creatorActive : canVisitorSeeFollowers,
+    },
+    {
+      label: "Saboings",
+      value: saboingsCount,
       visible: isOwner || canVisitorSeeFollowing,
     },
     {
-      label: "Subscribers",
-      value: followersCount,
+      label: "Safroings",
+      value: safroingsCount,
+      visible: isOwner || canVisitorSeeFollowing,
+    },
+    {
+      label: "Sabos",
+      value: sabosCount,
       visible: isOwner ? creatorActive : canVisitorSeeFollowers,
     },
   ].filter((item) => item.visible);
+  const hasExpandedConnectionStats = connectionStats.length > 3;
+  const shouldStackHeaderMeta = connectionStats.length >= 3;
 
   const summaryStats = [
     {
@@ -3364,7 +3397,7 @@ export const Profile = () => {
                         onClick={handleCreatorModeToggle}
                         disabled={loading}
                       >
-                        creator mode
+                        creator
                         <span className={styles.creatorIndicator}>
                           {creatorActive ? "✓" : "x"}
                         </span>
@@ -3394,7 +3427,11 @@ export const Profile = () => {
                   ) : null}
                 </div>
 
-                <div className={styles.headerMetaRow}>
+                <div
+                  className={`${styles.headerMetaRow} ${
+                    shouldStackHeaderMeta ? styles.headerMetaRowStacked : ""
+                  }`}
+                >
                   <div className={styles.headerMetaText}>
                     {professionLabel || isOwner ? (
                       <p className={styles.profession}>{professionLabel || "--"}</p>
@@ -3407,7 +3444,9 @@ export const Profile = () => {
 
                   {connectionStats.length > 0 ? (
                     <div
-                      className={`${styles.connectionStats} ${styles.connectionStatsDesktop}`}
+                      className={`${styles.connectionStats} ${styles.connectionStatsDesktop} ${
+                        hasExpandedConnectionStats ? styles.connectionStatsExpanded : ""
+                      }`}
                     >
                       {connectionStats.map((item) => (
                         <div key={item.label} className={styles.connectionCard}>
@@ -3502,7 +3541,7 @@ export const Profile = () => {
                           onClick={handleCreatorModeToggle}
                           disabled={loading}
                         >
-                          creator mode
+                          creator
                           <span className={styles.creatorIndicator}>
                             {creatorActive ? "✓" : "x"}
                           </span>

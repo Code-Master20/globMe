@@ -1,3 +1,5 @@
+const { buildRelationshipCounts } = require("../network/relationship.util");
+
 const basePublicFields = [
   "_id",
   "username",
@@ -129,13 +131,7 @@ const toPublicUser = (userDoc, options = {}) => {
       : { ...userDoc };
 
   const isOwner = viewerId && `${viewerId}` === `${userObject._id}`;
-  const friendsCount = Array.isArray(userObject.friends) ? userObject.friends.length : 0;
-  const followersCount = Array.isArray(userObject.followers)
-    ? userObject.followers.length
-    : 0;
-  const followingCount = Array.isArray(userObject.following)
-    ? userObject.following.length
-    : 0;
+  const relationshipCounts = buildRelationshipCounts(userObject);
   const activeStory = getActiveStoryPayload(userObject);
   const storyHistory = getStoryHistoryPayload(
     userObject,
@@ -144,9 +140,7 @@ const toPublicUser = (userDoc, options = {}) => {
 
   if (isOwner) {
     const ownerUser = pickAllowedFields(userObject, ownerVisibleFields);
-    ownerUser.friendsCount = friendsCount;
-    ownerUser.followersCount = followersCount;
-    ownerUser.followingCount = followingCount;
+    Object.assign(ownerUser, relationshipCounts);
     ownerUser.storyHistory = storyHistory;
 
     if (activeStory) {
@@ -169,7 +163,8 @@ const toPublicUser = (userDoc, options = {}) => {
   const visibility = userObject.profileVisibility || {};
 
   if (visibility.friendsCount !== false) {
-    publicUser.friendsCount = friendsCount;
+    publicUser.friendsCount = relationshipCounts.friendsCount;
+    publicUser.fradosCount = relationshipCounts.fradosCount;
   }
 
   visibilityControlledFields.forEach((field) => {
@@ -181,11 +176,15 @@ const toPublicUser = (userDoc, options = {}) => {
   });
 
   if (visibility.followingCount === true) {
-    publicUser.followingCount = followingCount;
+    publicUser.followingCount = relationshipCounts.followingCount;
+    publicUser.saboingsCount = relationshipCounts.saboingsCount;
+    publicUser.safroingsCount = relationshipCounts.safroingsCount;
   }
 
   if (userObject.creator && visibility.followersCount === true) {
-    publicUser.followersCount = followersCount;
+    publicUser.followersCount = relationshipCounts.followersCount;
+    publicUser.sabosCount = relationshipCounts.sabosCount;
+    publicUser.safrosCount = relationshipCounts.safrosCount;
   }
 
   if (activeStory) {

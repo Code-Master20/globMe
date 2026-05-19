@@ -68,21 +68,40 @@ button:focus-visible {
   }
 } */
 
-html {
-  font-size: 62.5%;
-  /* now 1rem = 10px  for children*/
+:root {
+  --app-font-base: clamp(10.6px, 10.2px + 0.22vw, 11.8px);
+  --app-body-font-size: clamp(1.08rem, 1.04rem + 0.08vw, 1.16rem);
+  --app-line-height: 1.55;
 }
+
+html {
+  font-size: var(--app-font-base);
+  /* now 1rem scales from roughly 10.6px to 11.8px across devices */
+}
+
 body {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
   cursor: default;
+  font-size: var(--app-body-font-size);
+  line-height: var(--app-line-height);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 *,
 *::before,
 *::after {
   box-sizing: inherit;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
 }
 
 .Toastify__toast-container {
@@ -171,6 +190,11 @@ body {
 }
 
 @media (max-width: 640px) {
+  :root {
+    --app-font-base: clamp(10.4px, 10.15px + 0.24vw, 10.95px);
+    --app-body-font-size: clamp(1.06rem, 1.03rem + 0.1vw, 1.12rem);
+  }
+
   .Toastify__toast-container {
     inset-inline: 0;
     width: 100%;
@@ -181,5 +205,12 @@ body {
     min-height: 5.8rem;
     border-radius: 1.6rem;
     font-size: 1.28rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --app-font-base: clamp(11.2px, 10.9px + 0.18vw, 12px);
+    --app-body-font-size: clamp(1.12rem, 1.08rem + 0.06vw, 1.18rem);
   }
 }

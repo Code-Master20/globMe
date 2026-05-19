@@ -59,9 +59,9 @@ const visibilityFields = [
   { key: "status", label: "Relationship status" },
   { key: "gender", label: "Gender" },
   { key: "dob", label: "Date of birth" },
-  { key: "friendsCount", label: "Friends" },
-  { key: "followersCount", label: "Subscribers (creator mode)" },
-  { key: "followingCount", label: "Subscriptions" },
+  { key: "friendsCount", label: "Frados" },
+  { key: "followersCount", label: "Sabos and Safros (creator mode)" },
+  { key: "followingCount", label: "Saboings and Safroings" },
 ];
 
 const profileLinkTypes = [

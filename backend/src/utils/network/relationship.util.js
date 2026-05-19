@@ -16,11 +16,36 @@ const removeRelationshipIfPresent = (list, targetId) => {
   return normalizedList.filter((id) => `${id}` !== `${targetId}`);
 };
 
-const buildRelationshipCounts = (userDoc) => ({
-  friendsCount: Array.isArray(userDoc?.friends) ? userDoc.friends.length : 0,
-  followersCount: Array.isArray(userDoc?.followers) ? userDoc.followers.length : 0,
-  followingCount: Array.isArray(userDoc?.following) ? userDoc.following.length : 0,
-});
+const buildRelationshipCounts = (userDoc) => {
+  const friendIds = Array.isArray(userDoc?.friends)
+    ? userDoc.friends.map((id) => `${id}`)
+    : [];
+  const followerIds = Array.isArray(userDoc?.followers)
+    ? userDoc.followers.map((id) => `${id}`)
+    : [];
+  const followingIds = Array.isArray(userDoc?.following)
+    ? userDoc.following.map((id) => `${id}`)
+    : [];
+  const followerIdSet = new Set(followerIds);
+  const friendIdSet = new Set(friendIds);
+  const followingIdSet = new Set(followingIds);
+  const safrosCount = friendIds.filter((id) => followerIdSet.has(id)).length;
+  const fradosCount = Math.max(0, friendIds.length - safrosCount);
+  const safroingsCount = followingIds.filter((id) => friendIdSet.has(id)).length;
+  const saboingsCount = Math.max(0, followingIds.length - safroingsCount);
+  const sabosCount = followerIds.filter((id) => !friendIdSet.has(id)).length;
+
+  return {
+    friendsCount: friendIds.length,
+    followersCount: followerIds.length,
+    followingCount: followingIds.length,
+    fradosCount,
+    safrosCount,
+    sabosCount,
+    saboingsCount,
+    safroingsCount,
+  };
+};
 
 const getRelationshipSnapshot = (viewer, target) => {
   const targetId = target?._id || target?.id || target;
