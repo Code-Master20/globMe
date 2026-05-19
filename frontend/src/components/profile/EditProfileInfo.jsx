@@ -60,8 +60,8 @@ const visibilityFields = [
   { key: "gender", label: "Gender" },
   { key: "dob", label: "Date of birth" },
   { key: "friendsCount", label: "Friends" },
-  { key: "followersCount", label: "Followers (creator mode)" },
-  { key: "followingCount", label: "Following (creator mode)" },
+  { key: "followersCount", label: "Subscribers (creator mode)" },
+  { key: "followingCount", label: "Subscriptions" },
 ];
 
 const profileLinkTypes = [

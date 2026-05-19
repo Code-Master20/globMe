@@ -5,51 +5,22 @@ const ErrorHandler = require("../utils/errorHandler.util");
 const SuccessHandler = require("../utils/successHandler.util");
 const sendRelationshipEmail = require("../services/network/sendRelationshipEmail.util");
 const toPublicUser = require("../utils/auth/publicUser.util");
-
-const getRelationshipStatus = (viewer, targetId) => {
-  const normalizedTargetId = `${targetId}`;
-  const friends = viewer.friends || [];
-  const friendRequestsSent = viewer.friendRequestsSent || [];
-  const friendRequestsReceived = viewer.friendRequestsReceived || [];
-
-  if (friends.some((id) => `${id}` === normalizedTargetId)) {
-    return "friends";
-  }
-
-  if (friendRequestsSent.some((id) => `${id}` === normalizedTargetId)) {
-    return "pending_sent";
-  }
-
-  if (friendRequestsReceived.some((id) => `${id}` === normalizedTargetId)) {
-    return "pending_received";
-  }
-
-  return "none";
-};
-
-const hasRelationship = (list = [], targetId) =>
-  list.some((id) => `${id}` === `${targetId}`);
-
-const addRelationshipIfMissing = (list, targetId) => {
-  const normalizedList = Array.isArray(list) ? list : [];
-
-  if (!hasRelationship(normalizedList, targetId)) {
-    normalizedList.push(targetId);
-  }
-
-  return normalizedList;
-};
-
-const removeRelationshipIfPresent = (list, targetId) => {
-  const normalizedList = Array.isArray(list) ? list : [];
-  return normalizedList.filter((id) => `${id}` !== `${targetId}`);
-};
+const {
+  hasRelationship,
+  addRelationshipIfMissing,
+  removeRelationshipIfPresent,
+  getRelationshipSnapshot,
+  buildRelationshipPayload,
+} = require("../utils/network/relationship.util");
 
 const networkProfileFields =
   "username email avatar profession location bio talent status gender dob profileVisibility creator";
 
-const mapUsersToPublic = (users = [], viewerId) =>
-  users.map((person) => toPublicUser(person, { viewerId }));
+const mapUsersToPublic = (users = [], viewer) =>
+  users.map((person) => ({
+    ...toPublicUser(person, { viewerId: viewer?._id || viewer?.id || null }),
+    ...getRelationshipSnapshot(viewer, person),
+  }));
 
 const clearRejectHistoryBetweenUsers = (firstUser, secondUser) => {
   firstUser.friendRequestRejectsSent = removeRelationshipIfPresent(
@@ -95,13 +66,13 @@ const searchUsers = async (req, res) => {
       ],
     })
       .select(
-        "username email avatar profession location bio talent status gender dob profileVisibility",
+        "username email avatar profession location bio talent status gender dob profileVisibility creator",
       )
       .limit(12);
 
     const results = users.map((user) => ({
       ...toPublicUser(user, { viewerId: req.user._id }),
-      relationshipStatus: getRelationshipStatus(req.user, user._id),
+      ...getRelationshipSnapshot(req.user, user),
     }));
 
     return new SuccessHandler(200, "Search results", results).send(res);
@@ -161,21 +132,21 @@ const getOwnerNetworkHub = async (req, res) => {
       return new ErrorHandler(404, "User not found").send(res);
     }
 
-    return new SuccessHandler(200, "Network hub", {
+      return new SuccessHandler(200, "Network hub", {
       creator: Boolean(user.creator),
-      friends: mapUsersToPublic(user.friends, req.user._id),
-      following: user.creator ? mapUsersToPublic(user.following, req.user._id) : [],
-      followers: user.creator ? mapUsersToPublic(user.followers, req.user._id) : [],
+      friends: mapUsersToPublic(user.friends, req.user),
+      following: mapUsersToPublic(user.following, req.user),
+      followers: user.creator ? mapUsersToPublic(user.followers, req.user) : [],
       requests: {
-        sent: mapUsersToPublic(user.friendRequestsSent, req.user._id),
-        received: mapUsersToPublic(user.friendRequestsReceived, req.user._id),
+        sent: mapUsersToPublic(user.friendRequestsSent, req.user),
+        received: mapUsersToPublic(user.friendRequestsReceived, req.user),
         rejectedByMe: mapUsersToPublic(
           user.friendRequestRejectsSent,
-          req.user._id,
+          req.user,
         ),
         rejectedMe: mapUsersToPublic(
           user.friendRequestRejectsReceived,
-          req.user._id,
+          req.user,
         ),
       },
     }).send(res);
@@ -296,10 +267,11 @@ const unfriendUser = async (req, res) => {
 
     await Promise.all([owner.save(), target.save()]);
 
-    return new SuccessHandler(200, "Friend removed", {
-      targetUserId: target._id,
-      relationshipStatus: "none",
-    }).send(res);
+    return new SuccessHandler(
+      200,
+      "Friend removed",
+      buildRelationshipPayload(owner, target),
+    ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Friend could not be removed")
       .log("unfriend error", error)
@@ -335,11 +307,13 @@ const unfollowUser = async (req, res) => {
 
     await Promise.all([owner.save(), target.save()]);
 
-    return new SuccessHandler(200, "Following removed", {
-      targetUserId: target._id,
-    }).send(res);
+    return new SuccessHandler(
+      200,
+      "Subscription removed",
+      buildRelationshipPayload(owner, target),
+    ).send(res);
   } catch (error) {
-    return new ErrorHandler(500, "Following could not be removed")
+    return new ErrorHandler(500, "Subscription could not be removed")
       .log("unfollow error", error)
       .send(res);
   }
@@ -375,12 +349,74 @@ const removeFollower = async (req, res) => {
 
     await Promise.all([owner.save(), target.save()]);
 
-    return new SuccessHandler(200, "Follower removed", {
+    return new SuccessHandler(200, "Subscriber removed", {
       targetUserId: target._id,
     }).send(res);
   } catch (error) {
-    return new ErrorHandler(500, "Follower could not be removed")
+    return new ErrorHandler(500, "Subscriber could not be removed")
       .log("remove follower error", error)
+      .send(res);
+  }
+};
+
+const subscribeToUser = async (req, res) => {
+  try {
+    const { targetUserId } = req.params;
+
+    if (!mongoose.isValidObjectId(targetUserId)) {
+      return new ErrorHandler(400, "Invalid target user id").send(res);
+    }
+
+    const subscriber = await User.findById(req.user._id);
+    const channel = await User.findById(targetUserId);
+
+    if (!subscriber) {
+      return new ErrorHandler(404, "User not found").send(res);
+    }
+
+    if (!channel) {
+      return new ErrorHandler(404, "Profile not found").send(res);
+    }
+
+    if (`${subscriber._id}` === `${channel._id}`) {
+      return new ErrorHandler(400, "You cannot subscribe to yourself").send(res);
+    }
+
+    if (!channel.creator) {
+      return new ErrorHandler(400, "Only creator-mode profiles can be subscribed to").send(
+        res,
+      );
+    }
+
+    if (hasRelationship(subscriber.following, channel._id)) {
+      return new ErrorHandler(400, "You are already subscribed").send(res);
+    }
+
+    subscriber.following = addRelationshipIfMissing(subscriber.following, channel._id);
+    channel.followers = addRelationshipIfMissing(channel.followers, subscriber._id);
+
+    await Promise.all([subscriber.save(), channel.save()]);
+
+    try {
+      await Notification.create({
+        user: channel._id,
+        actor: subscriber._id,
+        type: "subscription_started",
+        message: `${subscriber.username} subscribed to your channel`,
+        link: `/profile/${subscriber._id}`,
+      });
+    } catch (notificationError) {
+      console.error("subscription notification error", notificationError);
+    }
+
+    return new SuccessHandler(
+      200,
+      "Subscribed successfully",
+      buildRelationshipPayload(subscriber, channel),
+    ).send(res);
+  } catch (error) {
+    return new ErrorHandler(500, "Subscription could not be created")
+      .log("subscribe error", error)
       .send(res);
   }
 };
@@ -438,11 +474,6 @@ const sendFriendRequest = async (req, res) => {
     sender.friendRequestsSent.push(receiver._id);
     receiver.friendRequestsReceived.push(sender._id);
 
-    if (receiver.creator) {
-      sender.following = addRelationshipIfMissing(sender.following, receiver._id);
-      receiver.followers = addRelationshipIfMissing(receiver.followers, sender._id);
-    }
-
     await Promise.all([sender.save(), receiver.save()]);
     await Notification.create({
       user: receiver._id,
@@ -466,10 +497,11 @@ const sendFriendRequest = async (req, res) => {
       console.error("friend request email error", emailError);
     }
 
-    return new SuccessHandler(200, "Friend request sent", {
-      targetUserId: receiver._id,
-      relationshipStatus: "pending_sent",
-    }).send(res);
+    return new SuccessHandler(
+      200,
+      "Friend request sent",
+      buildRelationshipPayload(sender, receiver),
+    ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Friend request could not be sent")
       .log("friend request error", error)
@@ -515,11 +547,6 @@ const acceptFriendRequest = async (req, res) => {
     sender.friends = addRelationshipIfMissing(sender.friends, receiver._id);
     clearRejectHistoryBetweenUsers(receiver, sender);
 
-    if (receiver.creator) {
-      sender.following = addRelationshipIfMissing(sender.following, receiver._id);
-      receiver.followers = addRelationshipIfMissing(receiver.followers, sender._id);
-    }
-
     await Promise.all([receiver.save(), sender.save()]);
     await Notification.create({
       user: sender._id,
@@ -527,6 +554,10 @@ const acceptFriendRequest = async (req, res) => {
       type: "request_accepted",
       message: `${receiver.username} accepted your friend request`,
     });
+
+    const senderPerspective = getRelationshipSnapshot(sender, receiver);
+    const acceptedType =
+      senderPerspective.friendType === "safro" ? "safro" : "frado";
 
     try {
       await sendRelationshipEmail({
@@ -536,17 +567,18 @@ const acceptFriendRequest = async (req, res) => {
         html: `
           <h2>Friend request accepted</h2>
           <p><b>${receiver.username}</b> accepted your friend request on globMe.</p>
-          <p>You are now connected as friends.</p>
+          <p>You are now connected as ${acceptedType} on globMe.</p>
         `,
       });
     } catch (emailError) {
       console.error("friend acceptance email error", emailError);
     }
 
-    return new SuccessHandler(200, "Friend request accepted", {
-      friendId: sender._id,
-      relationshipStatus: "friends",
-    }).send(res);
+    return new SuccessHandler(
+      200,
+      "Friend request accepted",
+      buildRelationshipPayload(receiver, sender),
+    ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Friend request could not be accepted")
       .log("friend acceptance error", error)
@@ -598,20 +630,13 @@ const rejectFriendRequest = async (req, res) => {
       receiver._id,
     );
 
-    if (receiver.creator) {
-      sender.following = removeRelationshipIfPresent(sender.following, receiver._id);
-      receiver.followers = removeRelationshipIfPresent(
-        receiver.followers,
-        sender._id,
-      );
-    }
-
     await Promise.all([receiver.save(), sender.save()]);
 
-    return new SuccessHandler(200, "Friend request rejected", {
-      requesterUserId: sender._id,
-      relationshipStatus: "none",
-    }).send(res);
+    return new SuccessHandler(
+      200,
+      "Friend request rejected",
+      buildRelationshipPayload(receiver, sender),
+    ).send(res);
   } catch (error) {
     return new ErrorHandler(500, "Friend request could not be rejected")
       .log("friend rejection error", error)
@@ -629,6 +654,7 @@ module.exports = {
   unfriendUser,
   unfollowUser,
   removeFollower,
+  subscribeToUser,
   sendFriendRequest,
   acceptFriendRequest,
   rejectFriendRequest,

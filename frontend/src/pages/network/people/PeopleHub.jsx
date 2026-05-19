@@ -55,8 +55,8 @@ const requestTabs = [
 
 const emptyStateCopy = {
   friends: "You do not have any friends here yet.",
-  following: "Enable creator mode to grow your following list.",
-  followers: "Enable creator mode to build your followers list.",
+  following: "You have not subscribed to any creator channels yet.",
+  followers: "Enable creator mode to build your subscriber list.",
   sent: "You have not sent any friend requests yet.",
   received: "No pending friend requests right now.",
   rejectedByMe: "You have not rejected any requests yet.",
@@ -145,13 +145,13 @@ export const PeopleHub = () => {
     },
     {
       key: "following",
-      label: "Followings",
+      label: "Subscriptions",
       count: networkHub.following.length,
-      visible: creatorEnabled,
+      visible: true,
     },
     {
       key: "followers",
-      label: "Followers",
+      label: "Subscribers",
       count: networkHub.followers.length,
       visible: creatorEnabled,
     },
@@ -373,13 +373,13 @@ export const PeopleHub = () => {
               handleRemoveConnection({
                 personId: person._id,
                 endpoint: `/network/following/${person._id}`,
-                successMessage: "Following removed",
-                errorMessage: "Could not unfollow user",
+                successMessage: "Subscription removed",
+                errorMessage: "Could not unsubscribe",
               })
             }
             disabled={mutatingId === person._id}
           >
-            {mutatingId === person._id ? "Removing..." : "Unfollow"}
+            {mutatingId === person._id ? "Removing..." : "Unsubscribe"}
           </button>
         ) : null}
 
@@ -391,13 +391,13 @@ export const PeopleHub = () => {
               handleRemoveConnection({
                 personId: person._id,
                 endpoint: `/network/followers/${person._id}`,
-                successMessage: "Follower removed",
-                errorMessage: "Could not remove follower",
+                successMessage: "Subscriber removed",
+                errorMessage: "Could not remove subscriber",
               })
             }
             disabled={mutatingId === person._id}
           >
-            {mutatingId === person._id ? "Removing..." : "Remove follower"}
+            {mutatingId === person._id ? "Removing..." : "Remove subscriber"}
           </button>
         ) : null}
       </div>
@@ -452,7 +452,7 @@ export const PeopleHub = () => {
 
           {!creatorEnabled ? (
             <div className={styles.creatorNotice}>
-              Followings and followers appear here when creator mode is enabled.
+              Subscribers appear here when creator mode is enabled.
             </div>
           ) : null}
 
@@ -614,6 +614,16 @@ export const PeopleHub = () => {
                         ) : null}
                         {person.creator ? (
                           <strong className={styles.creatorBadge}>creator</strong>
+                        ) : null}
+                        {person.friendType ? (
+                          <strong className={styles.creatorBadge}>
+                            {person.friendType}
+                          </strong>
+                        ) : null}
+                        {!person.friendType && person.subscriberType ? (
+                          <strong className={styles.creatorBadge}>
+                            {person.subscriberType}
+                          </strong>
                         ) : null}
                       </div>
 

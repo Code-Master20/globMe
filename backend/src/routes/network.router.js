@@ -10,6 +10,7 @@ const {
   unfriendUser,
   unfollowUser,
   removeFollower,
+  subscribeToUser,
   sendFriendRequest,
   acceptFriendRequest,
   rejectFriendRequest,
@@ -23,6 +24,7 @@ router.delete("/notifications/:notificationId", isMeMiddleware, deleteNotificati
 router.delete("/friends/:targetUserId", isMeMiddleware, unfriendUser);
 router.delete("/following/:targetUserId", isMeMiddleware, unfollowUser);
 router.delete("/followers/:targetUserId", isMeMiddleware, removeFollower);
+router.post("/subscriptions/:targetUserId", isMeMiddleware, subscribeToUser);
 router.post(
   "/friend-requests/:targetUserId",
   isMeMiddleware,

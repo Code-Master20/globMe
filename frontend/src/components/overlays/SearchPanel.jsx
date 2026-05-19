@@ -65,7 +65,7 @@ export const SearchPanel = ({ onClose }) => {
 
   const helperCopy = useMemo(() => {
     if (activeType === "profile") {
-      return "Search by username or email to find people and send friend requests.";
+      return "Search by username or email to find people, send friend requests, and open creator channels to subscribe.";
     }
 
     return "This search type is not wired yet.";
@@ -109,7 +109,12 @@ export const SearchPanel = ({ onClose }) => {
             ? {
                 ...item,
                 relationshipStatus:
-                  response.data?.data?.relationshipStatus || "pending_sent",
+                  response.data?.data?.relationshipStatus || item.relationshipStatus,
+                friendType: response.data?.data?.friendType ?? item.friendType,
+                subscriberType:
+                  response.data?.data?.subscriberType ?? item.subscriberType,
+                connectionType:
+                  response.data?.data?.connectionType ?? item.connectionType,
               }
             : item,
         ),
@@ -137,7 +142,11 @@ export const SearchPanel = ({ onClose }) => {
 
   const renderAction = (user) => {
     if (user.relationshipStatus === "friends") {
-      return <span className={styles.statusChip}>Friends</span>;
+      return (
+        <span className={styles.statusChip}>
+          {user.friendType === "safro" ? "Safro" : "Frado"}
+        </span>
+      );
     }
 
     if (user.relationshipStatus === "pending_sent") {
@@ -220,7 +229,7 @@ export const SearchPanel = ({ onClose }) => {
           <div className={styles.resultsPlaceholder}>
             {query.trim()
               ? "No profiles found for that search yet."
-              : "Search for people and send them a friend request from here."}
+              : "Search for people and open profiles to add friends or subscribe."}
           </div>
         ) : (
           <div className={styles.resultsList}>

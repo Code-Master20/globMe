@@ -15,6 +15,9 @@ const {
   buildFriendIdSet,
   canViewerAccessPostAudience,
 } = require("../utils/posts/postAudience.util");
+const {
+  getRelationshipSnapshot,
+} = require("../utils/network/relationship.util");
 
 const STORY_LIFETIME_MS = 36 * 60 * 60 * 1000;
 const MAX_STORY_DURATION_SECONDS = 90;
@@ -2102,7 +2105,7 @@ const getProfileView = async (req, res) => {
     const user = await User.findById(userId);
     const viewer = viewerId
       ? await User.findById(viewerId).select(
-          "friends friendRequestsSent friendRequestsReceived",
+          "friends following friendRequestsSent friendRequestsReceived",
         )
       : null;
 
@@ -2126,33 +2129,10 @@ const getProfileView = async (req, res) => {
       }
     }
 
-    let relationshipStatus = null;
-
-    if (viewer && `${viewer._id}` !== `${user._id}`) {
-      const normalizedTargetId = `${user._id}`;
-      const friends = viewer.friends || [];
-      const friendRequestsSent = viewer.friendRequestsSent || [];
-      const friendRequestsReceived = viewer.friendRequestsReceived || [];
-
-      if (friends.some((id) => `${id}` === normalizedTargetId)) {
-        relationshipStatus = "friends";
-      } else if (
-        friendRequestsSent.some((id) => `${id}` === normalizedTargetId)
-      ) {
-        relationshipStatus = "pending_sent";
-      } else if (
-        friendRequestsReceived.some((id) => `${id}` === normalizedTargetId)
-      ) {
-        relationshipStatus = "pending_received";
-      } else {
-        relationshipStatus = "none";
-      }
-    }
-
     const publicUser = toPublicUser(user, { viewerId });
 
-    if (relationshipStatus) {
-      publicUser.relationshipStatus = relationshipStatus;
+    if (viewer && `${viewer._id}` !== `${user._id}`) {
+      Object.assign(publicUser, getRelationshipSnapshot(viewer, user));
     }
 
     return new SuccessHandler(

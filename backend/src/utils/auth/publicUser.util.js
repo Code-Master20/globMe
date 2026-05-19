@@ -3,6 +3,7 @@ const basePublicFields = [
   "username",
   "avatar",
   "banner",
+  "creator",
   "createdAt",
   "updatedAt",
 ];
@@ -179,14 +180,12 @@ const toPublicUser = (userDoc, options = {}) => {
     }
   });
 
-  if (userObject.creator) {
-    if (visibility.followersCount === true) {
-      publicUser.followersCount = followersCount;
-    }
+  if (visibility.followingCount === true) {
+    publicUser.followingCount = followingCount;
+  }
 
-    if (visibility.followingCount === true) {
-      publicUser.followingCount = followingCount;
-    }
+  if (userObject.creator && visibility.followersCount === true) {
+    publicUser.followersCount = followersCount;
   }
 
   if (activeStory) {

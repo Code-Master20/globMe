@@ -200,6 +200,34 @@ const formatDurationLabel = (value) => {
   return `${minutes}:${`${seconds}`.padStart(2, "0")}`;
 };
 
+const mergeConnectionState = (currentProfile, payload) => {
+  if (!currentProfile) {
+    return currentProfile;
+  }
+
+  return {
+    ...currentProfile,
+    relationshipStatus:
+      payload?.relationshipStatus ?? currentProfile.relationshipStatus ?? "none",
+    friendType: payload?.friendType ?? null,
+    subscriberType: payload?.subscriberType ?? null,
+    connectionType: payload?.connectionType ?? "none",
+    canSubscribe: payload?.canSubscribe ?? Boolean(currentProfile.creator),
+    friendsCount:
+      typeof payload?.counts?.friendsCount === "number"
+        ? payload.counts.friendsCount
+        : currentProfile.friendsCount,
+    followersCount:
+      typeof payload?.counts?.followersCount === "number"
+        ? payload.counts.followersCount
+        : currentProfile.followersCount,
+    followingCount:
+      typeof payload?.counts?.followingCount === "number"
+        ? payload.counts.followingCount
+        : currentProfile.followingCount,
+  };
+};
+
 const getStoryClipMinimumSpan = (durationSeconds) => {
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
     return 0.2;
@@ -426,6 +454,7 @@ export const Profile = () => {
   const [profileError, setProfileError] = useState("");
   const [showInfo, setShowInfo] = useState(false);
   const [relationshipLoading, setRelationshipLoading] = useState(false);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [storyComposerOpen, setStoryComposerOpen] = useState(false);
   const [storyPosts, setStoryPosts] = useState([]);
@@ -1736,13 +1765,7 @@ export const Profile = () => {
       const response = await api.post(`/network/friend-requests/${profileUser._id}`);
 
       setViewedUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              relationshipStatus:
-                response.data?.data?.relationshipStatus || "pending_sent",
-            }
-          : prev,
+        mergeConnectionState(prev, response.data?.data),
       );
 
       toast.success(response.data?.message || "Friend request sent");
@@ -1770,52 +1793,12 @@ export const Profile = () => {
       );
 
       setViewedUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              relationshipStatus:
-                response.data?.data?.relationshipStatus || "friends",
-            }
-          : prev,
+        mergeConnectionState(prev, response.data?.data),
       );
 
       toast.success(response.data?.message || "Friend request accepted");
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not accept request");
-    } finally {
-      setRelationshipLoading(false);
-    }
-  };
-
-  const handleRejectFriendRequest = async () => {
-    if (!profileUser?._id || isOwner) {
-      return;
-    }
-
-    if (!user) {
-      setShowAuthPrompt(true);
-      return;
-    }
-
-    try {
-      setRelationshipLoading(true);
-      const response = await api.post(
-        `/network/friend-requests/${profileUser._id}/reject`,
-      );
-
-      setViewedUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              relationshipStatus:
-                response.data?.data?.relationshipStatus || "none",
-            }
-          : prev,
-      );
-
-      toast.success(response.data?.message || "Friend request rejected");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Could not reject request");
     } finally {
       setRelationshipLoading(false);
     }
@@ -1940,7 +1923,7 @@ export const Profile = () => {
   const profileSize = width < 768 ? 120 : 160;
   const isSmallScreen = width <= 640;
   const ownerCreatorEnabled = Boolean(profileUser.creator);
-  const creatorActive = isOwner ? ownerCreatorEnabled : false;
+  const creatorActive = Boolean(profileUser.creator);
   const bioItems = listify(profileUser.bio);
   const locationItems = listify(profileUser.location);
   const talentItems = listify(profileUser.talent);
@@ -2006,6 +1989,23 @@ export const Profile = () => {
   const canVisitorSeeFollowers = typeof profileUser.followersCount === "number";
   const canVisitorSeeFollowing = typeof profileUser.followingCount === "number";
   const relationshipStatus = profileUser.relationshipStatus || "none";
+  const friendType = profileUser.friendType || null;
+  const subscriberType = profileUser.subscriberType || null;
+  const isSubscribed = ["sabo", "safro"].includes(subscriberType);
+  const relationshipTypeLabel = friendType
+    ? friendType === "safro"
+      ? "Safro"
+      : "Frado"
+    : relationshipStatus === "pending_sent"
+      ? "Friend request sent"
+      : relationshipStatus === "pending_received"
+        ? "Sent you a friend request"
+        : "";
+  const subscriptionTypeLabel = subscriberType
+    ? subscriberType === "safro"
+      ? "Safro subscriber"
+      : "Sabo subscriber"
+    : "";
   const storyExpiryLabel = formatStoryExpiry(storyExpiresAt);
   const pendingStoryType = pendingStoryMediaFile
     ? (pendingStoryMediaFile.type?.startsWith("video/") ? "video" : "image")
@@ -2095,12 +2095,12 @@ export const Profile = () => {
       visible: isOwner || canVisitorSeeFriends,
     },
     {
-      label: "Following",
+      label: "Subscriptions",
       value: followingCount,
-      visible: isOwner ? creatorActive : canVisitorSeeFollowing,
+      visible: isOwner || canVisitorSeeFollowing,
     },
     {
-      label: "Followers",
+      label: "Subscribers",
       value: followersCount,
       visible: isOwner ? creatorActive : canVisitorSeeFollowers,
     },
@@ -2166,7 +2166,7 @@ export const Profile = () => {
     },
   ];
 
-  const statusPillLabel = creatorActive ? "Creator mode" : "Personal profile";
+  const statusPillLabel = creatorActive ? "Channel profile" : "Personal profile";
 
   const renderOwnerEditButton = (
     focusField,
@@ -2208,80 +2208,143 @@ export const Profile = () => {
     );
   };
 
+  const handleSubscribe = async () => {
+    if (!profileUser?._id || isOwner || !creatorActive) {
+      return;
+    }
+
+    if (!user) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    try {
+      setSubscriptionLoading(true);
+      const response = await api.post(`/network/subscriptions/${profileUser._id}`);
+
+      setViewedUser((prev) => mergeConnectionState(prev, response.data?.data));
+      toast.success(response.data?.message || "Subscribed successfully");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not subscribe");
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
+
+  const handleUnsubscribe = async () => {
+    if (!profileUser?._id || isOwner || !creatorActive) {
+      return;
+    }
+
+    if (!user) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    try {
+      setSubscriptionLoading(true);
+      const response = await api.delete(`/network/following/${profileUser._id}`);
+
+      setViewedUser((prev) => mergeConnectionState(prev, response.data?.data));
+      toast.success(response.data?.message || "Subscription removed");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not unsubscribe");
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
+
   const renderVisitorRelationshipAction = () => {
     if (isOwner) {
       return null;
     }
 
-    if (!user) {
-      return (
-        <div className={styles.visitorRelationshipRow}>
-          <button
-            type="button"
-            className={styles.friendActionBtn}
-            onClick={() => setShowAuthPrompt(true)}
-          >
-            Add friend
-          </button>
-          <span className={styles.relationshipChip}>
-            Log in or create an account to connect
-          </span>
-        </div>
-      );
-    }
-
-    if (relationshipStatus === "friends") {
-      return (
-        <div className={styles.visitorRelationshipRow}>
-          <span className={`${styles.relationshipChip} ${styles.relationshipFriends}`}>
-            Friends
-          </span>
-        </div>
-      );
-    }
-
-    if (relationshipStatus === "pending_sent") {
-      return (
-        <div className={styles.visitorRelationshipRow}>
-          <span className={styles.relationshipChip}>Request sent</span>
-        </div>
-      );
-    }
-
-    if (relationshipStatus === "pending_received") {
-      return (
-        <div className={styles.visitorRelationshipRow}>
-          <span className={styles.relationshipChip}>Sent you a request</span>
-          <button
-            type="button"
-            className={styles.friendActionGhostBtn}
-            onClick={handleRejectFriendRequest}
-            disabled={relationshipLoading}
-          >
-            {relationshipLoading ? "Rejecting..." : "Reject"}
-          </button>
-          <button
-            type="button"
-            className={styles.friendActionBtn}
-            onClick={handleAcceptFriendRequest}
-            disabled={relationshipLoading}
-          >
-            {relationshipLoading ? "Accepting..." : "Accept request"}
-          </button>
-        </div>
-      );
-    }
+    const friendButtonLabel = !user
+      ? "Add friend"
+      : relationshipStatus === "friends"
+        ? friendType === "safro"
+          ? "Safro"
+          : "Frado"
+        : relationshipStatus === "pending_sent"
+          ? "Request sent"
+          : relationshipStatus === "pending_received"
+            ? "Accept request"
+            : "Add friend";
+    const friendButtonClassName =
+      relationshipStatus === "friends"
+        ? styles.friendActionGhostBtn
+        : styles.friendActionBtn;
+    const friendButtonHandler = !user
+      ? () => setShowAuthPrompt(true)
+      : relationshipStatus === "pending_received"
+        ? handleAcceptFriendRequest
+        : relationshipStatus === "none"
+          ? handleSendFriendRequest
+          : undefined;
+    const subscribeButtonLabel = !user
+      ? "Subscribe"
+      : isSubscribed
+        ? subscriberType === "safro"
+          ? "Safro"
+          : "Subscribed"
+        : "Subscribe";
+    const subscribeButtonClassName = isSubscribed
+      ? styles.friendActionGhostBtn
+      : styles.friendActionBtn;
+    const subscribeButtonHandler = !user
+      ? () => setShowAuthPrompt(true)
+      : isSubscribed
+        ? handleUnsubscribe
+        : handleSubscribe;
 
     return (
       <div className={styles.visitorRelationshipRow}>
         <button
           type="button"
-          className={styles.friendActionBtn}
-          onClick={handleSendFriendRequest}
-          disabled={relationshipLoading}
+          className={friendButtonClassName}
+          onClick={friendButtonHandler}
+          disabled={
+            relationshipLoading ||
+            (!friendButtonHandler && relationshipStatus !== "pending_received")
+          }
         >
-          {relationshipLoading ? "Sending..." : "Add friend"}
+          {relationshipLoading
+            ? relationshipStatus === "pending_received"
+              ? "Accepting..."
+              : "Sending..."
+            : friendButtonLabel}
         </button>
+
+        {creatorActive ? (
+          <button
+            type="button"
+            className={subscribeButtonClassName}
+            onClick={subscribeButtonHandler}
+            disabled={subscriptionLoading}
+          >
+            {subscriptionLoading
+              ? isSubscribed
+                ? "Updating..."
+                : "Subscribing..."
+              : subscribeButtonLabel}
+          </button>
+        ) : null}
+
+        {relationshipTypeLabel ? (
+          <span className={`${styles.relationshipChip} ${styles.relationshipFriends}`}>
+            {relationshipTypeLabel}
+          </span>
+        ) : null}
+
+        {creatorActive && subscriptionTypeLabel ? (
+          <span className={styles.relationshipChip}>{subscriptionTypeLabel}</span>
+        ) : null}
+
+        {!user ? (
+          <span className={styles.relationshipChip}>
+            Log in or create an account to connect
+          </span>
+        ) : null}
       </div>
     );
   };
@@ -3255,7 +3318,7 @@ export const Profile = () => {
                 </button>
 
                 {creatorActive ? (
-                  <strong className={styles.creatorBadge}>creator</strong>
+                  <strong className={styles.creatorBadge}>channel</strong>
                 ) : null}
 
                 {isOwner ? (
@@ -3301,7 +3364,7 @@ export const Profile = () => {
                         onClick={handleCreatorModeToggle}
                         disabled={loading}
                       >
-                        creator
+                        creator mode
                         <span className={styles.creatorIndicator}>
                           {creatorActive ? "✓" : "x"}
                         </span>
@@ -3439,7 +3502,7 @@ export const Profile = () => {
                           onClick={handleCreatorModeToggle}
                           disabled={loading}
                         >
-                          creator
+                          creator mode
                           <span className={styles.creatorIndicator}>
                             {creatorActive ? "✓" : "x"}
                           </span>
