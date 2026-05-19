@@ -13,6 +13,7 @@ const visibilityControlledFields = [
   "bio",
   "location",
   "talent",
+  "externalLinks",
   "status",
   "gender",
   "dob",
@@ -171,7 +172,9 @@ const toPublicUser = (userDoc, options = {}) => {
   }
 
   visibilityControlledFields.forEach((field) => {
-    if (visibility[field] !== false && userObject[field] !== undefined) {
+    const visibilityKey = field === "externalLinks" ? "links" : field;
+
+    if (visibility[visibilityKey] !== false && userObject[field] !== undefined) {
       publicUser[field] = userObject[field];
     }
   });

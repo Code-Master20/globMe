@@ -52,6 +52,93 @@ const normalizeListInput = (value, pattern = /\r?\n|,/) => {
     .filter(Boolean);
 };
 
+const PROFILE_LINK_TYPES = new Set([
+  "whatsapp",
+  "youtube",
+  "website",
+  "app",
+  "instagram",
+  "twitter",
+  "x",
+  "facebook",
+  "linkedin",
+  "telegram",
+  "github",
+  "other",
+]);
+
+const hasUrlScheme = (value) => /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(`${value ?? ""}`.trim());
+
+const normalizeProfileLinkUrl = ({ rawUrl, type }) => {
+  const trimmedUrl = `${rawUrl ?? ""}`.trim();
+
+  if (!trimmedUrl) {
+    return "";
+  }
+
+  if (type === "whatsapp" && /^\+?[\d\s()-]{7,}$/.test(trimmedUrl)) {
+    const digits = trimmedUrl.replace(/\D/g, "");
+    return digits ? `https://wa.me/${digits}` : "";
+  }
+
+  if (hasUrlScheme(trimmedUrl)) {
+    return trimmedUrl;
+  }
+
+  if (trimmedUrl.startsWith("//")) {
+    return `https:${trimmedUrl}`;
+  }
+
+  return `https://${trimmedUrl.replace(/^\/+/, "")}`;
+};
+
+const normalizeExternalLinksInput = (value) => {
+  const parsedValue =
+    typeof value === "string"
+      ? (() => {
+          try {
+            return JSON.parse(value);
+          } catch (error) {
+            return [];
+          }
+        })()
+      : value;
+
+  if (!Array.isArray(parsedValue)) {
+    return [];
+  }
+
+  return parsedValue
+    .map((item) => {
+      const normalizedType = `${item?.type ?? "website"}`.trim().toLowerCase();
+      const normalizedLabel = `${item?.label ?? ""}`.trim().slice(0, 60);
+      const normalizedUrl = normalizeProfileLinkUrl({
+        rawUrl: item?.url,
+        type: normalizedType,
+      });
+
+      if (!normalizedUrl) {
+        return null;
+      }
+
+      try {
+        // Validate normalized URLs without blocking custom app/deep-link schemes.
+        // `new URL` accepts both standard web URLs and custom protocols.
+        new URL(normalizedUrl);
+      } catch (error) {
+        return null;
+      }
+
+      return {
+        type: PROFILE_LINK_TYPES.has(normalizedType) ? normalizedType : "other",
+        label: normalizedLabel,
+        url: normalizedUrl,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+};
+
 const normalizeCategoryInput = (value) => {
   const normalizedValue = `${value ?? ""}`.trim().toLowerCase();
   return normalizedValue || null;
@@ -1914,6 +2001,7 @@ const updateProfileDetails = async (req, res) => {
       location,
       profession,
       talent,
+      externalLinks,
       status,
       gender,
       dob,
@@ -1929,6 +2017,7 @@ const updateProfileDetails = async (req, res) => {
     user.location = normalizeListInput(location);
     user.profession = `${profession ?? ""}`.trim() || null;
     user.talent = normalizeListInput(talent, /\r?\n|,/);
+    user.externalLinks = normalizeExternalLinksInput(externalLinks);
     user.status = `${status ?? ""}`.trim() || null;
     user.gender = `${gender ?? ""}`.trim() || null;
     user.dob = `${dob ?? ""}`.trim() || null;
@@ -1940,6 +2029,7 @@ const updateProfileDetails = async (req, res) => {
         "bio",
         "location",
         "talent",
+        "links",
         "status",
         "gender",
         "dob",

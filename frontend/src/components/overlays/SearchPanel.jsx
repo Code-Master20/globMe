@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import noProfile from "../../assets/noProfile.png";
@@ -23,13 +24,44 @@ const getLocationLabel = (value) => {
   return value.map(formatDisplayValue).join(", ");
 };
 
-export const SearchPanel = ({ className, onClose }) => {
+export const SearchPanel = ({ onClose }) => {
   const navigate = useNavigate();
   const [activeType, setActiveType] = useState("profile");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [requestingId, setRequestingId] = useState(null);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+
+    const { body, documentElement } = document;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlOverflow = documentElement.style.overflow;
+    const previousBodyTouchAction = body.style.touchAction;
+
+    body.style.overflow = "hidden";
+    documentElement.style.overflow = "hidden";
+    body.style.touchAction = "none";
+    window.dispatchEvent(
+      new CustomEvent("globme-overlay-scroll-lock-change", {
+        detail: { locked: true },
+      }),
+    );
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      documentElement.style.overflow = previousHtmlOverflow;
+      body.style.touchAction = previousBodyTouchAction;
+      window.dispatchEvent(
+        new CustomEvent("globme-overlay-scroll-lock-change", {
+          detail: { locked: false },
+        }),
+      );
+    };
+  }, []);
 
   const helperCopy = useMemo(() => {
     if (activeType === "profile") {
@@ -128,8 +160,8 @@ export const SearchPanel = ({ className, onClose }) => {
     );
   };
 
-  return (
-    <section className={`${styles.searchOverlay} ${className}`}>
+  const panelContent = (
+    <section className={styles.searchOverlay}>
       <div className={styles.searchContainer}>
         <div className={styles.searchHeader}>
           <div>
@@ -254,4 +286,8 @@ export const SearchPanel = ({ className, onClose }) => {
       </div>
     </section>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(panelContent, document.body)
+    : panelContent;
 };

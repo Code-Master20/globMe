@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { updateProfileDetails } from "../../store/auth/authThunks";
@@ -17,6 +18,14 @@ const buildFormState = (user) => ({
   profession: user?.profession || "",
   bio: toTextValue(user?.bio, "\n"),
   location: toTextValue(user?.location),
+  externalLinks:
+    Array.isArray(user?.externalLinks) && user.externalLinks.length > 0
+      ? user.externalLinks.map((link) => ({
+          type: link?.type || "website",
+          label: link?.label || "",
+          url: link?.url || "",
+        }))
+      : [{ type: "website", label: "", url: "" }],
   talent:
     Array.isArray(user?.talent) && user.talent.length > 0
       ? user.talent
@@ -30,6 +39,7 @@ const buildFormState = (user) => ({
     bio: user?.profileVisibility?.bio ?? true,
     location: user?.profileVisibility?.location ?? true,
     talent: user?.profileVisibility?.talent ?? true,
+    links: user?.profileVisibility?.links ?? true,
     status: user?.profileVisibility?.status ?? true,
     gender: user?.profileVisibility?.gender ?? true,
     dob: user?.profileVisibility?.dob ?? true,
@@ -45,12 +55,27 @@ const visibilityFields = [
   { key: "bio", label: "Bio" },
   { key: "location", label: "Location" },
   { key: "talent", label: "Talents/Skills" },
+  { key: "links", label: "Profile links" },
   { key: "status", label: "Relationship status" },
   { key: "gender", label: "Gender" },
   { key: "dob", label: "Date of birth" },
   { key: "friendsCount", label: "Friends" },
   { key: "followersCount", label: "Followers (creator mode)" },
   { key: "followingCount", label: "Following (creator mode)" },
+];
+
+const profileLinkTypes = [
+  { value: "website", label: "Website" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "youtube", label: "YouTube" },
+  { value: "instagram", label: "Instagram" },
+  { value: "twitter", label: "Twitter / X" },
+  { value: "facebook", label: "Facebook" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "telegram", label: "Telegram" },
+  { value: "github", label: "GitHub" },
+  { value: "app", label: "App link" },
+  { value: "other", label: "Other" },
 ];
 
 const buildDetectedLocation = (address = {}, displayName = "") => {
@@ -142,6 +167,13 @@ export const EditProfileInfo = ({
       profession: formData.profession.trim(),
       bio: formData.bio,
       location: formData.location,
+      externalLinks: formData.externalLinks
+        .map((link) => ({
+          type: `${link?.type || "website"}`.trim().toLowerCase(),
+          label: `${link?.label || ""}`.trim(),
+          url: `${link?.url || ""}`.trim(),
+        }))
+        .filter((link) => link.url),
       talent: formData.talent.map((item) => item.trim()).filter(Boolean),
       profileVisibility: formData.profileVisibility,
     };
@@ -192,6 +224,46 @@ export const EditProfileInfo = ({
         [field]: !prev.profileVisibility[field],
       },
     }));
+  };
+
+  const handleLinkChange = (index, field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      externalLinks: prev.externalLinks.map((link, linkIndex) =>
+        linkIndex === index
+          ? {
+              ...link,
+              [field]: value,
+            }
+          : link,
+      ),
+    }));
+  };
+
+  const handleAddLinkRow = () => {
+    setFormData((prev) => ({
+      ...prev,
+      externalLinks: [
+        ...prev.externalLinks,
+        { type: "website", label: "", url: "" },
+      ],
+    }));
+  };
+
+  const handleRemoveLinkRow = (index) => {
+    setFormData((prev) => {
+      const nextLinks = prev.externalLinks.filter(
+        (_, linkIndex) => linkIndex !== index,
+      );
+
+      return {
+        ...prev,
+        externalLinks:
+          nextLinks.length > 0
+            ? nextLinks
+            : [{ type: "website", label: "", url: "" }],
+      };
+    });
   };
 
   const handleUseCurrentLocation = async () => {
@@ -263,41 +335,30 @@ export const EditProfileInfo = ({
     }
   };
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={handleToggle}
-        className={`${styles.icon} ${compact ? styles.iconCompact : ""} ${className || ""}`}
-        aria-label={buttonLabel}
-        title={buttonLabel}
-      >
-        <Icon size={iconSize} />
-      </button>
-
+  const modalContent = (
+    <div
+      className={`${styles.modal} ${isOpen ? styles.active : ""}`}
+      onClick={handleToggle}
+    >
       <div
-        className={`${styles.modal} ${isOpen ? styles.active : ""}`}
-        onClick={handleToggle}
+        className={styles.formContainer}
+        onClick={(event) => event.stopPropagation()}
       >
-        <div
-          className={styles.formContainer}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <form className={styles.form} onSubmit={handleSubmit}>
-            <div className={styles.formHeader}>
-              <div>
-                <p>Profile editor</p>
-                <h2>Edit Profile</h2>
-              </div>
-              <button
-                type="button"
-                className={styles.closeButton}
-                onClick={handleToggle}
-                aria-label="Close profile editor"
-              >
-                x
-              </button>
+        <form className={styles.form} onSubmit={handleSubmit}>
+          <div className={styles.formHeader}>
+            <div>
+              <p>Profile editor</p>
+              <h2>Edit Profile</h2>
             </div>
+            <button
+              type="button"
+              className={styles.closeButton}
+              onClick={handleToggle}
+              aria-label="Close profile editor"
+            >
+              x
+            </button>
+          </div>
 
             <div className={styles.formGrid}>
               <div className={styles.field}>
@@ -411,6 +472,74 @@ export const EditProfileInfo = ({
                 </div>
               </div>
 
+              <div className={`${styles.field} ${styles.fieldWide}`}>
+                <div className={styles.tableHeaderRow}>
+                  <div>
+                    <label>Profile Links</label>
+                    <p className={styles.fieldHint}>
+                      Add any links you want visitors to open, including social profiles,
+                      WhatsApp, websites, and app/deep links.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.tableAddButton}
+                    onClick={handleAddLinkRow}
+                  >
+                    Add link
+                  </button>
+                </div>
+                <div className={styles.skillsTableWrap}>
+                  <div className={styles.linkList}>
+                    {formData.externalLinks.map((link, index) => (
+                      <div className={styles.linkRow} key={`profile-link-${index}`}>
+                        <select
+                          value={link.type}
+                          onChange={(event) =>
+                            handleLinkChange(index, "type", event.target.value)
+                          }
+                        >
+                          {profileLinkTypes.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={link.label}
+                          onChange={(event) =>
+                            handleLinkChange(index, "label", event.target.value)
+                          }
+                          placeholder="Optional label"
+                        />
+                        <input
+                          type="text"
+                          value={link.url}
+                          onChange={(event) =>
+                            handleLinkChange(index, "url", event.target.value)
+                          }
+                          placeholder={
+                            link.type === "whatsapp"
+                              ? "Phone number or WhatsApp URL"
+                              : link.type === "app"
+                                ? "App or deep link URL"
+                                : "Paste profile or website URL"
+                          }
+                        />
+                        <button
+                          type="button"
+                          className={styles.tableRemoveButton}
+                          onClick={() => handleRemoveLinkRow(index)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className={styles.field}>
                 <label htmlFor="status">Relationship Status</label>
                 <select
@@ -489,22 +618,39 @@ export const EditProfileInfo = ({
               </div>
             </div>
 
-            <div className={styles.actions}>
-              <button
-                type="button"
-                className={styles.cancel}
-                onClick={handleToggle}
-                disabled={formLoading}
-              >
-                Cancel
-              </button>
-              <button type="submit" className={styles.save} disabled={formLoading}>
-                {formLoading ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </form>
-        </div>
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.cancel}
+              onClick={handleToggle}
+              disabled={formLoading}
+            >
+              Cancel
+            </button>
+            <button type="submit" className={styles.save} disabled={formLoading}>
+              {formLoading ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </form>
       </div>
+    </div>
+  );
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={handleToggle}
+        className={`${styles.icon} ${compact ? styles.iconCompact : ""} ${className || ""}`}
+        aria-label={buttonLabel}
+        title={buttonLabel}
+      >
+        <Icon size={iconSize} />
+      </button>
+
+      {typeof document !== "undefined"
+        ? createPortal(modalContent, document.body)
+        : modalContent}
     </>
   );
 };

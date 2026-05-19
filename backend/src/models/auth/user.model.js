@@ -55,6 +55,27 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    externalLinks: [
+      {
+        type: {
+          type: String,
+          trim: true,
+          lowercase: true,
+          default: "website",
+        },
+        label: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+        url: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+      },
+    ],
+
     avatar: {
       type: String,
       default: null,
@@ -217,6 +238,10 @@ const userSchema = new mongoose.Schema(
         default: true,
       },
       talent: {
+        type: Boolean,
+        default: true,
+      },
+      links: {
         type: Boolean,
         default: true,
       },

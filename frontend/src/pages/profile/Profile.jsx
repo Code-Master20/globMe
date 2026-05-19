@@ -23,6 +23,7 @@ import noBanner from "../../assets/noBanner.png";
 import noProfile from "../../assets/noProfile.png";
 import { AuthAccessPrompt } from "../../components/auth/AuthAccessPrompt";
 import { EditProfileInfo } from "../../components/profile/EditProfileInfo";
+import { ImageCropperModal } from "../../components/profile/ImageCropperModal";
 import { ImageUpload } from "../../components/media/ImgUpload";
 import { StoryRail } from "../../components/story/StoryRail";
 import { usePageMetadata } from "../../hooks/usePageMetadata";
@@ -86,6 +87,24 @@ const formatDisplayValue = (value) => {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 };
+
+const profileLinkTypeLabels = {
+  app: "App",
+  facebook: "Facebook",
+  github: "GitHub",
+  instagram: "Instagram",
+  linkedin: "LinkedIn",
+  other: "Link",
+  telegram: "Telegram",
+  twitter: "Twitter / X",
+  website: "Website",
+  whatsapp: "WhatsApp",
+  x: "Twitter / X",
+  youtube: "YouTube",
+};
+
+const formatProfileLinkType = (value) =>
+  profileLinkTypeLabels[`${value ?? ""}`.trim().toLowerCase()] || "Link";
 
 const formatStoryExpiry = (value) => {
   if (!value) return "";
@@ -463,6 +482,11 @@ export const Profile = () => {
   const [likesViewerLoading, setLikesViewerLoading] = useState(false);
   const [likesViewerItems, setLikesViewerItems] = useState([]);
   const [likesViewerError, setLikesViewerError] = useState("");
+  const [imageCropState, setImageCropState] = useState({
+    file: null,
+    open: false,
+    variant: "avatar",
+  });
   const pendingStoryAudioRef = useRef(null);
   const pendingStoryVideoRef = useRef(null);
 
@@ -1316,13 +1340,59 @@ export const Profile = () => {
   }, [playlists, selectedPlaylistId]);
 
   const handleAvatarSelect = (file) => {
-    setUploadTarget("avatar");
-    dispatch(uploadProfilePic(file));
+    if (!file?.type?.startsWith("image/")) {
+      toast.error("Choose an image for your profile photo");
+      return;
+    }
+
+    setImageCropState({
+      file,
+      open: true,
+      variant: "avatar",
+    });
   };
 
   const handleBannerSelect = (file) => {
-    setUploadTarget("banner");
-    dispatch(uploadBanner(file));
+    if (!file?.type?.startsWith("image/")) {
+      toast.error("Choose an image for your banner");
+      return;
+    }
+
+    setImageCropState({
+      file,
+      open: true,
+      variant: "banner",
+    });
+  };
+
+  const handleCloseImageCropper = () => {
+    if (loading) {
+      return;
+    }
+
+    setImageCropState({
+      file: null,
+      open: false,
+      variant: "avatar",
+    });
+  };
+
+  const handleConfirmImageCrop = (croppedFile) => {
+    const nextVariant = imageCropState.variant;
+
+    setImageCropState({
+      file: null,
+      open: false,
+      variant: "avatar",
+    });
+    setUploadTarget(nextVariant);
+
+    if (nextVariant === "banner") {
+      dispatch(uploadBanner(croppedFile));
+      return;
+    }
+
+    dispatch(uploadProfilePic(croppedFile));
   };
 
   const handleStoryMediaSelect = async (file) => {
@@ -1874,6 +1944,22 @@ export const Profile = () => {
   const bioItems = listify(profileUser.bio);
   const locationItems = listify(profileUser.location);
   const talentItems = listify(profileUser.talent);
+  const rawProfileLinks = Array.isArray(profileUser?.externalLinks)
+    ? profileUser.externalLinks
+    : Array.isArray(profileUser?.links)
+      ? profileUser.links
+      : isOwner && Array.isArray(user?.externalLinks)
+        ? user.externalLinks
+        : isOwner && Array.isArray(user?.links)
+          ? user.links
+          : [];
+  const profileLinks = rawProfileLinks
+    .map((link) => ({
+      label: `${link?.label || ""}`.trim(),
+      type: `${link?.type || "website"}`.trim().toLowerCase(),
+      url: `${link?.url || ""}`.trim(),
+    }))
+    .filter((link) => link.url);
   const professionLabel = formatDisplayValue(profileUser.profession);
 
   const profileCompletionFields = [
@@ -2082,7 +2168,11 @@ export const Profile = () => {
 
   const statusPillLabel = creatorActive ? "Creator mode" : "Personal profile";
 
-  const renderOwnerEditButton = (focusField, label) => {
+  const renderOwnerEditButton = (
+    focusField,
+    label,
+    className = styles.cardEditButton,
+  ) => {
     if (!focusField) {
       return null;
     }
@@ -2090,7 +2180,7 @@ export const Profile = () => {
     return (
       <EditProfileInfo
         Icon={FaUserEdit}
-        className={styles.cardEditButton}
+        className={className}
         initialFocusField={focusField}
         compact
         iconSize={14}
@@ -3285,6 +3375,32 @@ export const Profile = () => {
                   </p>
                 ) : null}
 
+                {profileLinks.length > 0 ? (
+                  <div className={styles.profileLinksSection}>
+                    {profileLinks.map((link, index) => {
+                      const linkLabel = link.label || formatProfileLinkType(link.type);
+                      const opensInNewTab = /^https?:/i.test(link.url);
+
+                      return (
+                        <a
+                          key={`${link.url}-${index}`}
+                          href={link.url}
+                          className={styles.profileLinkChip}
+                          target={opensInNewTab ? "_blank" : undefined}
+                          rel={opensInNewTab ? "noreferrer noopener" : undefined}
+                          aria-label={`Open ${linkLabel}`}
+                          title={link.url}
+                        >
+                          <span className={styles.profileLinkChipLabel}>
+                            <MdOutlinePublic />
+                            {linkLabel}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
                 {locationLabel ? (
                   <div className={styles.locationLine}>
                     <MdEditLocationAlt />
@@ -3293,7 +3409,8 @@ export const Profile = () => {
                 ) : null}
 
                 {isOwner ? (
-                  <div className={styles.profileStoryActionRow}>
+                  <div className={styles.ownerActionRow}>
+                    <div className={styles.profileStoryActionRow}>
                     <button
                       type="button"
                       className={styles.storyUploadButton}
@@ -3305,13 +3422,10 @@ export const Profile = () => {
                           ? "Create new story"
                           : "Create story"}
                     </button>
-                  </div>
-                ) : null}
+                    </div>
 
-                {isOwner ? (
-                  <div className={styles.actionsRow}>
                     {!isSmallScreen ? (
-                      <>
+                      <div className={styles.actionsRow}>
                         <div className={styles.ownerTools}>
                           <EditProfileInfo
                             Icon={FaUserEdit}
@@ -3330,7 +3444,7 @@ export const Profile = () => {
                             {creatorActive ? "✓" : "x"}
                           </span>
                         </button>
-                      </>
+                      </div>
                     ) : null}
                   </div>
                 ) : (
@@ -3379,15 +3493,10 @@ export const Profile = () => {
 
                 <ul className={styles.stats}>
                   {summaryStats.map((stat) => (
-                    <li
-                      key={stat.label}
-                      className={stat.editField ? styles.editableInfoCard : ""}
-                    >
-                      {renderOwnerEditButton(
-                        stat.editField,
-                        `Edit ${stat.label}`,
-                      )}
-                      <span>{stat.label}</span>
+                    <li key={stat.label}>
+                      <div className={styles.statCardHeaderDesktop}>
+                        <span>{stat.label}</span>
+                      </div>
                       <strong>{stat.value}</strong>
                       <small>{stat.caption}</small>
                     </li>
@@ -3404,7 +3513,6 @@ export const Profile = () => {
                   <h2>About</h2>
                   <div className={styles.panelHeaderMeta}>
                     <span>{bioItems.length || 0} lines</span>
-                    {renderOwnerEditButton("bio", "Edit About")}
                   </div>
                 </div>
 
@@ -3426,7 +3534,6 @@ export const Profile = () => {
                   <h2>Details</h2>
                   <div className={styles.panelHeaderMeta}>
                     <span>Account info</span>
-                    {renderOwnerEditButton("profession", "Edit Details")}
                   </div>
                 </div>
 
@@ -3448,7 +3555,6 @@ export const Profile = () => {
                   <h2>Talents/Skills</h2>
                   <div className={styles.panelHeaderMeta}>
                     <span>{talentItems.length || 0} listed</span>
-                    {renderOwnerEditButton("talent", "Edit Talents and Skills")}
                   </div>
                 </div>
 
@@ -4074,10 +4180,7 @@ export const Profile = () => {
                       <h2>Talents/Skills</h2>
                       <div className={styles.panelHeaderMeta}>
                         <span>{talentItems.length || 0} listed</span>
-                        {renderOwnerEditButton(
-                          "talent",
-                          "Edit Talents and Skills",
-                        )}
+                        {renderOwnerEditButton("talent", "Edit Talents and Skills")}
                       </div>
                     </div>
 
@@ -4142,6 +4245,14 @@ export const Profile = () => {
 
       {playlistPickerOverlay}
       {likesViewerOverlay}
+      <ImageCropperModal
+        open={imageCropState.open}
+        file={imageCropState.file}
+        variant={imageCropState.variant}
+        submitting={loading && ["avatar", "banner"].includes(uploadTarget || "")}
+        onCancel={handleCloseImageCropper}
+        onConfirm={handleConfirmImageCrop}
+      />
 
       <AuthAccessPrompt
         open={showAuthPrompt}

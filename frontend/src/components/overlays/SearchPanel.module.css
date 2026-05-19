@@ -6,14 +6,18 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  z-index: 999;
+  z-index: 10002;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .searchContainer {
   width: min(760px, calc(100% - 1.25rem));
-  max-height: calc(100vh - 1.25rem);
+  max-height: calc(100dvh - 1.25rem);
   margin-top: 0.75rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: #ffffff;
   border-radius: 22px;
   padding: 1.4rem;
@@ -254,7 +258,7 @@
 @media (max-width: 640px) {
   .searchContainer {
     width: 100%;
-    max-height: 100vh;
+    max-height: 100dvh;
     margin-top: 0;
     border-radius: 0;
     padding: 1rem;

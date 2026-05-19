@@ -569,9 +569,72 @@
   flex-shrink: 0;
 }
 
+.profileLinksSection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.profileLinkChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.4rem;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.58rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(147, 197, 253, 0.48);
+  background: rgba(239, 246, 255, 0.92);
+  color: #172033;
+  text-decoration: none;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease;
+}
+
+.profileLinkChip:hover {
+  transform: translateY(-1px);
+  border-color: #60a5fa;
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+}
+
+.profileLinkChipLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #172033;
+  font-weight: 700;
+  font-size: 0.88rem;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.profileLinkChipLabel svg {
+  flex-shrink: 0;
+  color: #2563eb;
+}
+
+.profileLinkChipMeta {
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14rem;
+}
+
 .profileStoryActionRow {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   margin-top: 0.15rem;
 }
 
@@ -680,8 +743,9 @@
   display: flex;
   gap: 0.9rem;
   align-items: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
-  margin-top: 0.3rem;
+  margin-top: 0.75rem;
 }
 
 .ownerTools {
@@ -689,6 +753,7 @@
   align-items: center;
   gap: 0.65rem;
   flex-wrap: wrap;
+  flex: 0 0 auto;
 }
 
 .mobileOwnerTools {
@@ -697,6 +762,7 @@
 
 .editProfileBtn {
   display: inline-flex;
+  flex: 0 0 auto;
 }
 
 .creatorBtn {
@@ -716,6 +782,22 @@
     transform 150ms ease,
     opacity 150ms ease,
     background 150ms ease;
+}
+
+@media (min-width: 641px) {
+  .ownerActionRow {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+    margin-top: 0.2rem;
+  }
+
+  .profileStoryActionRow,
+  .actionsRow {
+    margin-top: 0;
+    width: fit-content;
+  }
 }
 
 .creatorBtn:hover {
@@ -945,6 +1027,29 @@
   position: absolute;
   top: 0.8rem;
   right: 0.8rem;
+}
+
+.inlineEditButton {
+  flex-shrink: 0;
+}
+
+.summaryEditableInfoCardDesktop {
+  padding-top: 1rem;
+}
+
+.summaryCardEditButtonDesktop {
+  flex-shrink: 0;
+}
+
+.statCardHeaderDesktop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.statCardHeaderDesktop span {
+  text-align: left;
 }
 
 .gridLayout {
@@ -2966,6 +3071,16 @@
     margin-top: 0.2rem;
   }
 
+  .topSkills {
+    gap: 0.26rem;
+  }
+
+  .topSkillTag {
+    min-height: 24px;
+    padding: 0.22rem 0.42rem;
+    font-size: 0.68rem;
+  }
+
   .connectionStatsDesktop {
     display: none;
   }
@@ -3022,6 +3137,20 @@
 
   .profileStoryActionRow {
     width: 100%;
+  }
+
+  .profileLinksSection {
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .profileLinkChip {
+    max-width: 100%;
+    padding-inline: 0.75rem;
+  }
+
+  .profileLinkChipMeta {
+    max-width: 9.5rem;
   }
 
   .profileStoryActionRow .storyUploadButton {

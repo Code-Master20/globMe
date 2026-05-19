@@ -1,0 +1,189 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(10px);
+}
+
+.dialog {
+  width: min(920px, 100%);
+  max-height: min(92vh, 920px);
+  overflow: auto;
+  padding: 1.15rem;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.12), transparent 34%),
+    #ffffff;
+  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.28);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.header p {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin-top: 0.25rem;
+  color: #172033;
+  font-size: 1.35rem;
+}
+
+.closeButton {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 14px;
+  background: #eef2f7;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.34fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.cropArea {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.12), rgba(15, 23, 42, 0.04)),
+    #dbe4ef;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.cropArea:active {
+  cursor: grabbing;
+}
+
+.cropAreaAvatar {
+  max-width: min(460px, 100%);
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+  border-radius: 50%;
+}
+
+.cropAreaBanner {
+  aspect-ratio: 3 / 1;
+}
+
+.cropImage {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+  padding: 1rem;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  align-self: start;
+}
+
+.zoomField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.zoomField span {
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.zoomField input {
+  width: 100%;
+}
+
+.helpText {
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 46px;
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  border: none;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryButton {
+  background: #172033;
+  color: #f8fafc;
+}
+
+.secondaryButton {
+  background: #eef2f7;
+  color: #475569;
+}
+
+@media (max-width: 760px) {
+  .overlay {
+    align-items: flex-end;
+    padding: 0.75rem;
+  }
+
+  .dialog {
+    padding: 1rem;
+    border-radius: 24px;
+  }
+
+  .body {
+    grid-template-columns: 1fr;
+  }
+
+  .cropAreaAvatar {
+    max-width: min(320px, 100%);
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+}

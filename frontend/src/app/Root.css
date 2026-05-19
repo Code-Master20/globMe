@@ -33,21 +33,7 @@
 }
 
 .primary-header-shell {
-  max-height: 140px;
-  overflow: hidden;
-  opacity: 1;
-  transform: translateY(0);
-  transition:
-    max-height 220ms ease,
-    opacity 180ms ease,
-    transform 220ms ease;
-}
-
-.primary-header-shell-hidden {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-18px);
-  pointer-events: none;
+  width: 100%;
 }
 
 .first-loading-content {

@@ -99,10 +99,8 @@
 }
 
 .uploadMenu {
-  position: absolute;
-  top: calc(100% + 0.85rem);
-  right: 0;
-  min-width: 220px;
+  position: fixed;
+  min-width: 0;
   padding: 0.8rem;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.96);
@@ -141,11 +139,6 @@
 .uploadMenuItem:hover {
   background: #eef7f1;
   transform: translateY(-1px);
-}
-
-.search-panel {
-  position: absolute;
-  z-index: 9999;
 }
 
 @media (max-width: 640px) {
