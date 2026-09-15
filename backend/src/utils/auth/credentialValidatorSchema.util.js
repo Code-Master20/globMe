@@ -8,19 +8,32 @@ const passwordSchema = z
   .nonempty({ message: "password is required" })
   .min(8, { message: "must be of atleast 8 chars long" })
   .max(20, { message: "must not exceed 20 characters" })
-  .regex(/[A-Z]/, { message: "atleast an uppercase letter" })
+  .regex(/[A-Z]/, { message: "atleast one uppercase letter" })
   .regex(/[a-z]/, { message: "atleast one lowercase letter" })
-  .regex(/[0-9]/, { message: "atleast one digit please" })
+  .regex(/[0-9]/, { message: "atleast one digit" })
   // .regex(/[^A-Za-z0-9]/,{message:"atleast one special character"})
   .refine(
+    // this is a call back function : (val)=>...
     (val) =>
+      //Validation Function
       validator.isStrongPassword(val, {
         minSymbols: 1,
       }),
+    // Options Object
     {
       message: "atleast one special character",
     },
   );
+
+// .refine(
+//   (val)=>
+//     validator.isStrongPassword(val,{
+//       minSymbols:1
+//     }),
+//     {
+//       message:"atleast one special character"
+//     }
+// )
 
 const usernameSchema = z
   .string({ required_error: "username is required" })
@@ -28,14 +41,17 @@ const usernameSchema = z
   .nonempty({ message: "name can't be empty" })
   .min(3, { message: "must be at least 3 characters long" })
   .max(30, { message: "must not exceed 30 characters" })
+  // ctx means context
   .superRefine((value, ctx) => {
     if (/\d/.test(value)) {
+      // we basically object is passeed inside addIssue
       ctx.addIssue({
         code: "digit included name",
         message: "digits are not allowed in name",
       });
     }
 
+    // \s means whitespace
     if (/[^A-Za-z\s\d]/.test(value)) {
       ctx.addIssue({
         code: "special char included name",

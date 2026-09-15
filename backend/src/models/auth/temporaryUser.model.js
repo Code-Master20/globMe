@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
+// this temporaryUserSchema is useful only for final sign up successful after opt is verified
 const temporaryUserSchema = new mongoose.Schema(
   {
     username: {

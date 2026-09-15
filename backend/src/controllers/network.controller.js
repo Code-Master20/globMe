@@ -196,7 +196,8 @@ const getNotifications = async (req, res) => {
       read: false,
     });
 
-    // If we received fewer than `limit`, there are no more pages.
+    // If we received fewer than `limit`, there are no more pages. so nest page will load then
+    // else if no more notifications present on mongodb it will return empty array and hasMore will be false
     const hasMore = notifications.length === limit;
 
     const normalizedNotifications = notifications.map((notification) => ({
@@ -206,6 +207,10 @@ const getNotifications = async (req, res) => {
       link: notification.link || null,
       read: notification.read,
       createdAt: notification.createdAt,
+      //toPublicUser() is designed to create a safe/public representation of a user.
+      // {
+      //   viewerId: req.user._id,
+      // } tells toPublicUser(): "The person looking at this data is the currently authenticated user."
       actor: notification.actor
         ? toPublicUser(notification.actor, {
             viewerId: req.user._id,

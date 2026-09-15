@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
+// This schema tracks which email is blocked ofr login or any further action on website
 const passwordChangeAttemptSchema = new Schema(
   {
     email: {

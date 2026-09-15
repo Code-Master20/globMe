@@ -7,6 +7,8 @@ const AttemptCount = require("../models/auth/attemptCount.model");
 const BlockedEmail = require("../models/auth/temBlockEmails.model");
 const EmailChangeRequest = require("../models/auth/emailChangeRequest.model");
 
+
+// createIndex-method is the process to index a fied of a document which(documwent) already has some field index or unique
 const ensureTemporaryModelIndexes = async () => {
   await Promise.all([
     EmailOtp.createIndexes(),
