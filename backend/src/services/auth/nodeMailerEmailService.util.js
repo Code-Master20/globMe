@@ -1,6 +1,7 @@
 //this file I will use only during development
 const nodemailer = require("nodemailer");
-const nodeMailerEmailService = async ({ to, subject, text, html }) => {
+const nodeMailerEmailService = async ({ to, subject, html }) => {
+  // here to is the email f the user to whome otp to be sent
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -11,18 +12,17 @@ const nodeMailerEmailService = async ({ to, subject, text, html }) => {
     });
 
     const verificationCode = await transporter.sendMail({
-      from: `"seekFi" <${process.env.MY_EMAIL}>`,
+      from: `"globMe" <${process.env.MY_EMAIL}>`,
       to,
       subject,
-      text,
       html,
     });
 
-    console.log(verificationCode);
+    // console.log(verificationCode);
 
     return verificationCode;
   } catch (error) {
-    console.error("email Error", error);
+    // console.error("email Error", error);
     throw error;
   }
 };

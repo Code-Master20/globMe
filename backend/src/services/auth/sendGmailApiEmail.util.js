@@ -10,17 +10,17 @@ oAuth2Client.setCredentials({
   refresh_token: process.env.GMAIL_REFRESH_TOKEN,
 });
 
-const sendGmailApiEmail = async ({ to, subject, text, html }) => {
+const sendGmailApiEmail = async ({ to, subject,html }) => {
   const gmail = google.gmail({ version: "v1", auth: oAuth2Client });
 
   const messageParts = [
-    `From: "seekFi" <${process.env.MY_EMAIL}>`,
+    `From: "globMe" <${process.env.MY_EMAIL}>`,
     `To: ${to}`,
     `Subject: ${subject}`,
     "MIME-Version: 1.0",
     "Content-Type: text/html; charset=utf-8",
     "",
-    html || text,
+    html
   ];
 
   const message = messageParts.join("\n");

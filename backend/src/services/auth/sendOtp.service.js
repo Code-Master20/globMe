@@ -12,7 +12,7 @@ const sendOtp = async ({ email, purpose }) => {
   }
 
   await EmailOtp.deleteMany({ email, purpose });
-  await EmailOtp.create({ email, otp, purpose });
+  await EmailOtp.create({ email, otp, purpose }); //initialize a document in EmailOtp model to store otp,email,purpose
 
   const isProd = process.env.NODE_ENV === "production";
 
@@ -177,7 +177,6 @@ const sendOtp = async ({ email, purpose }) => {
     await nodeMailerEmailService({
       to: email,
       subject: "GlobMe Email Verification Code",
-      text: `Your GlobMe verification code is ${otp}. It expires in 5 minutes.`,
       html: emailHtml,
     });
   } else {
