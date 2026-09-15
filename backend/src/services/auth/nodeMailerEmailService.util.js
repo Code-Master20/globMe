@@ -1,7 +1,7 @@
 //this file I will use only during development
 const nodemailer = require("nodemailer");
 const nodeMailerEmailService = async ({ to, subject, html }) => {
-  // here to is the email f the user to whome otp to be sent
+  // here [to] is the email of the user to whom otp to be sent
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",

@@ -62,7 +62,7 @@ const sendOtp = async ({ email, purpose }) => {
                   letter-spacing: 1px;
                 "
               >
-                GlobMe
+                globMe
               </h1>
 
               <p
@@ -97,7 +97,7 @@ const sendOtp = async ({ email, purpose }) => {
                 "
               >
                 Use the verification code below to continue with your
-                GlobMe account.
+                globMe account.
               </p>
 
               <!-- OTP box -->
@@ -164,7 +164,7 @@ const sendOtp = async ({ email, purpose }) => {
                   font-size: 12px;
                 "
               >
-                © ${new Date().getFullYear()} GlobMe. All rights reserved.
+                © ${new Date().getFullYear()} globMe. All rights reserved.
               </p>
             </div>
           </div>
