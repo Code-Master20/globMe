@@ -176,13 +176,13 @@ const sendOtp = async ({ email, purpose }) => {
   if (!isProd) {
     await nodeMailerEmailService({
       to: email,
-      subject: "GlobMe Email Verification Code",
+      subject: "globMe Email Verification Code",
       html: emailHtml,
     });
   } else {
     await sendGmailApiEmail({
       to: email,
-      subject: "GlobMe Email Verification Code",
+      subject: "globMe Email Verification Code",
       html: emailHtml,
     });
   }
