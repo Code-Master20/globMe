@@ -29,7 +29,7 @@ const otpVerify = async (req, res, next) => {
     }
 
     const isValid = await otpRecord.compareOtp(otp);
-
+    // Suppose otp compare failed and nothing is undefined is stored in isValid, then the below if-statement will execute
     if (!isValid) {
       otpRecord.attempts += 1;
       await otpRecord.save();
@@ -39,7 +39,7 @@ const otpVerify = async (req, res, next) => {
         return new ErrorHandler(
           410,
           "Too many invalid attempts. Please request a new OTP.",
-          crypto.randomUUID(),
+          crypto.randomUUID(), //this prints a random unique identifier codes
         ).send(res);
       }
 
@@ -64,7 +64,7 @@ const otpVerify = async (req, res, next) => {
           "Signup session expired. Please try signing up again.",
         ).send(res);
       }
-
+      await EmailOtp.deleteOne({ _id: otpRecord._id });
       req.user = user;
     }
 

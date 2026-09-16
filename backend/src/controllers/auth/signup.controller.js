@@ -15,7 +15,7 @@ const signUp = async (req, res) => {
         409,
         "You already have an account with this email",
       )
-        .log("user pre existed", "user is already registered")
+        // .log("user pre existed", "user is already registered")
         .send(res);
     }
 

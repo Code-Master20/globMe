@@ -34,6 +34,10 @@ const emailOtpSchema = new mongoose.Schema(
       type: Number,
       default: 5,
     },
+
+//     This will be like this -->{
+//   expiresAt: ISODate("2026-09-17T00:25:00.000Z")
+// } BSON Date format
     expiresAt: { //OTP will expire after 5 mins 
       type: Date,
       default: () => Date.now() + 5 * 60 * 1000,
