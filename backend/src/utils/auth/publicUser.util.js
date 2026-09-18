@@ -24,16 +24,18 @@ const visibilityControlledFields = [
 
 const ownerVisibleFields = [
   ...basePublicFields,
-  "creator",
   ...visibilityControlledFields,
   "profileVisibility",
 ];
 
+// READING THIS ONE---->DONE
 const getActiveStoryPayload = (userObject) => {
   if (!userObject?.story || !userObject?.storyExpiresAt) {
     return null;
   }
 
+  // If storyExpiresAt cannot be converted into a valid JavaScript Date,
+  // expiresAt.getTime() returns NaN.
   const expiresAt = new Date(userObject.storyExpiresAt);
 
   if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
@@ -44,13 +46,16 @@ const getActiveStoryPayload = (userObject) => {
     story: userObject.story,
     storyType: userObject.storyType || "image",
     storyAudio: userObject.storyAudio || null,
-    storyAudioType: userObject.storyAudioType || null,
+    storyAudioType: userObject.storyAudioType || null, //may be .mp3 .wav .flac .aac .mp4, .ogg
     storyAudioStartSeconds: Number(userObject.storyAudioStartSeconds) || 0,
     storyAudioEndSeconds: Number(userObject.storyAudioEndSeconds) || 0,
+    // storyAudioPlaybackDurationSeconds stores the duration for which the selected audio portion should play.
     storyAudioPlaybackDurationSeconds:
-      Number(userObject.storyAudioPlaybackDurationSeconds) || 0,
+      Number(userObject.storyAudioPlaybackDurationSeconds) || 0, //means how long story duration will be
     storyLikeCount:
-      typeof userObject.storyLikeCount === "number" ? userObject.storyLikeCount : 0,
+      typeof userObject.storyLikeCount === "number"
+        ? userObject.storyLikeCount
+        : 0,
     storyExpiresAt: expiresAt.toISOString(),
   };
 };
@@ -65,6 +70,11 @@ const isLiveStoryDate = (value) => {
   return !Number.isNaN(storyDate.getTime()) && storyDate.getTime() > Date.now();
 };
 
+// READING THIS ONE--->
+// const storyHistory = getStoryHistoryPayload(
+//     userObject,
+//     userObject.storyActiveHistoryId,
+//   );
 const getStoryHistoryPayload = (userObject, activeHistoryId = null) => {
   if (!Array.isArray(userObject?.storyHistory)) {
     return [];
@@ -84,7 +94,8 @@ const getStoryHistoryPayload = (userObject, activeHistoryId = null) => {
         audioType: item.audioType || null,
         audioStartSeconds: Number(item.audioStartSeconds) || 0,
         audioEndSeconds: Number(item.audioEndSeconds) || 0,
-        audioPlaybackDurationSeconds: Number(item.audioPlaybackDurationSeconds) || 0,
+        audioPlaybackDurationSeconds:
+          Number(item.audioPlaybackDurationSeconds) || 0,
         likeCount: typeof item.likeCount === "number" ? item.likeCount : 0,
         createdAt:
           createdAt && !Number.isNaN(createdAt.getTime())
@@ -94,10 +105,12 @@ const getStoryHistoryPayload = (userObject, activeHistoryId = null) => {
           expiresAt && !Number.isNaN(expiresAt.getTime())
             ? expiresAt.toISOString()
             : null,
+        // This check if a story is still not expired
         isLive:
           expiresAt && !Number.isNaN(expiresAt.getTime())
             ? expiresAt.getTime() > Date.now()
             : false,
+        // This check if a story from storyHistory is currently posted
         isActive:
           activeHistoryId && item?._id
             ? `${item._id}` === `${activeHistoryId}`
@@ -106,10 +119,12 @@ const getStoryHistoryPayload = (userObject, activeHistoryId = null) => {
     })
     .sort((left, right) => {
       const leftTime = left.createdAt ? new Date(left.createdAt).getTime() : 0;
-      const rightTime = right.createdAt ? new Date(right.createdAt).getTime() : 0;
+      const rightTime = right.createdAt
+        ? new Date(right.createdAt).getTime()
+        : 0;
       return rightTime - leftTime;
     })
-    .slice(0, 12);
+    .slice(0, 12);//This means only returns first 12 items(posted stories) if 12 exceeded
 };
 
 const pickAllowedFields = (source, allowedFields) =>
@@ -121,16 +136,34 @@ const pickAllowedFields = (source, allowedFields) =>
     return accumulator;
   }, {});
 
+// toPublicUser(userCreated, { viewerId: userCreated._id }), thiks is how this function is called inside signup controller
 const toPublicUser = (userDoc, options = {}) => {
   if (!userDoc) return null;
 
+  // Extract viewerId from the options object. If viewerId is missing or undefined, use null as the default value.
   const { viewerId = null } = options;
+  // toObject() is a Mongoose document method. It converts a Mongoose document into a normal JavaScript object.
+  // userDoc.toObject is accessing the property of userDoc that is toObject and typeOf is checking if it is a function
+  // so typeof userDoc.toObject would print function string
+  // is userDoc.toObject a function
   const userObject =
     typeof userDoc.toObject === "function"
       ? userDoc.toObject()
       : { ...userDoc };
 
   const isOwner = viewerId && `${viewerId}` === `${userObject._id}`;
+  // READING THIS ONE
+  // here an object is being stored in relationshipCounts that has been returned from buildRelationshipCounts-functions
+  //   return {
+  //   friendsCount: friendIds.length,
+  //   followersCount: followerIds.length,
+  //   followingCount: followingIds.length,
+  //   fradosCount,
+  //   safrosCount,
+  //   sabosCount,
+  //   saboingsCount,
+  //   safroingsCount,
+  // };
   const relationshipCounts = buildRelationshipCounts(userObject);
   const activeStory = getActiveStoryPayload(userObject);
   const storyHistory = getStoryHistoryPayload(
@@ -170,7 +203,10 @@ const toPublicUser = (userDoc, options = {}) => {
   visibilityControlledFields.forEach((field) => {
     const visibilityKey = field === "externalLinks" ? "links" : field;
 
-    if (visibility[visibilityKey] !== false && userObject[field] !== undefined) {
+    if (
+      visibility[visibilityKey] !== false &&
+      userObject[field] !== undefined
+    ) {
       publicUser[field] = userObject[field];
     }
   });

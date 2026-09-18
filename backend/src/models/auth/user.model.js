@@ -54,7 +54,8 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       default: null,
     },
-
+    // A subdocument is an object nested inside another Mongoose document.
+    // used to mention your other social media accounts like facebook ,instagram, youtube, website, etc
     externalLinks: [
       {
         type: {
@@ -127,6 +128,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // This relation to post cause if an already posted post to be a story
     storySourcePost: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Post",
@@ -140,6 +142,15 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // storyActiveHistoryId stores the _id of the history item that represents the currently active story.
+    // You wrote:
+    // type: mongoose.Schema.Types.ObjectId
+    // but did not write: ref: ...
+    // That means Mongoose knows this is an ObjectId, but you have not declared a model reference for it.
+    // That is perfectly valid.
+    // Why? Because this is not necessarily a reference to a separate MongoDB collection. It may refer to an embedded
+    // subdocument inside the same user's storyHistory array.
     storyActiveHistoryId: {
       type: mongoose.Schema.Types.ObjectId,
       default: null,
@@ -197,6 +208,14 @@ const userSchema = new mongoose.Schema(
           type: Date,
           default: null,
         },
+
+        // Date.now
+        // This is a function reference.
+        // It means:
+        // "When a default value is needed, call this function."
+        // Date.now()
+        // This calls the function immediately while the schema is being defined.
+        // That would produce one timestamp at schema initialization time, which is not what you want.
         createdAt: {
           type: Date,
           default: Date.now,
@@ -298,7 +317,7 @@ const userSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
-
+    // accessing this field in buildRelationshipCounts
     friends: [
       {
         type: mongoose.Schema.Types.ObjectId,

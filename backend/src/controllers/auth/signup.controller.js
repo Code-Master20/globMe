@@ -25,6 +25,7 @@ const signUp = async (req, res) => {
     const token = userCreated.generateLogTrackTkn();
 
     const isProd = process.env.NODE_ENV === "production";
+    // sending cookie to browser
     res.cookie("token", token, {
       httpOnly: true,
       secure: isProd ? true : false,
